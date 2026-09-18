@@ -662,29 +662,56 @@ async function crearAcceso(id){
  const em=$('tAccEmail').value.trim(), pw=$('tAccPass').value;
  const err=$('tErr');
  if(!em||pw.length<6){err.textContent='Escriba el correo y una clave de 6 caracteres o más.';return}
- err.textContent='Creando la cuenta…';
- let sec=null;
+ let paso='1 · crear la cuenta', sec=null;
+ err.textContent='Paso '+paso+'…';
  try{
+  // Instancia aparte de Firebase: crea la cuenta del técnico sin cerrar
+  // la sesión del administrador.
   sec=FB.initializeApp(FB.cfg,'alta-'+Date.now());
   const secAuth=FB.getAuth(sec);
-  const cred=await FB.createUserWithEmailAndPassword(secAuth,em,pw);
-  const nu=cred.user.uid;
+  let nu;
+  try{
+   const cred=await FB.createUserWithEmailAndPassword(secAuth,em,pw);
+   nu=cred.user.uid;
+  }catch(e){
+   if((e.code||'').includes('email-already-in-use')){
+    // La cuenta quedó creada en un intento anterior: se recupera.
+    const cred=await FB.signInWithEmailAndPassword(secAuth,em,pw);
+    nu=cred.user.uid;
+   }else throw e;
+  }
+
+  paso='2 · dar de alta al técnico en su empresa'; err.textContent='Paso '+paso+'…';
   const b=FB.writeBatch(FB.fs);
   b.set(FB.doc(FB.fs,'tenants',TENANT,'members',nu),{name:t.name,email:em,role:'tecnico',active:true,
    createdAt:FB.serverTimestamp(),createdBy:uid(),updatedAt:FB.serverTimestamp(),updatedBy:uid()});
   b.set(FB.doc(FB.fs,'users',nu),{tenantId:TENANT,email:em,createdAt:FB.serverTimestamp()});
   await b.commit();
   await FB.signOut(secAuth);
+
+  paso='3 · vincular la ficha del técnico'; err.textContent='Paso '+paso+'…';
   t.uid=nu; t.email=em;
   await fsSave();
-  let tocadas=0;
-  for(const o of db.orders){ if(o.techId===id){ remote.orders[o.id]='__forzar__'; tocadas++ } }
-  if(tocadas) await fsSave();
+
+  paso='4 · actualizar sus órdenes'; err.textContent='Paso '+paso+'…';
+  let ok=0, cerradas=0, fallidas=0;
+  for(const o of db.orders){
+   if(o.techId!==id) continue;
+   if(o.status==='Completada'||o.status==='Cancelada'){ cerradas++; continue }
+   try{
+    await FB.updateDoc(P('workOrders',o.id),Object.assign(upOrder(o),stampUpd()));
+    remote.orders[o.id]=JSON.stringify(o); ok++;
+   }catch(e){ console.error('orden '+o.id,e); fallidas++ }
+  }
   closeModal(); refresh();
-  toast('Acceso creado. Ya puede entrar desde el celular.');
+  let m='Acceso creado. Ya puede entrar desde el celular.';
+  if(ok) m+=' '+ok+' orden(es) vinculada(s).';
+  if(cerradas) m+=' '+cerradas+' cerrada(s) no se tocaron.';
+  if(fallidas) m+=' '+fallidas+' no se pudo(ieron) actualizar.';
+  toast(m);
  }catch(e){
-  console.error(e);
-  err.textContent='No se pudo crear: '+errMsg(e);
+  console.error('crearAcceso falló en el paso',paso,e);
+  err.textContent='Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':'');
  }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
 }
 
@@ -812,6 +839,11 @@ async function syncOrders(){
    b.set(P('workOrders',o.id),Object.assign(upOrder(o),stampNew()));
    await b.commit();
   }else{
+   let prev=null; try{prev=JSON.parse(remote.orders[o.id])}catch(e){}
+   if(prev&&(prev.status==='Completada'||prev.status==='Cancelada')){
+    // Las reglas congelan las órdenes cerradas: no se intenta escribirlas.
+    remote.orders[o.id]=JSON.stringify(o); continue;
+   }
    await FB.updateDoc(P('workOrders',o.id),Object.assign(upOrder(o),stampUpd()));
   }
   remote.orders[o.id]=JSON.stringify(o);

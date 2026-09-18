@@ -99,7 +99,8 @@ try {
     messagingSenderId: "217756579102",
     appId: "1:217756579102:web:343e9b8bdf004dbac4050f"
   });
-  window.FB = Object.assign({}, Au, Fs, { auth: Au.getAuth(app), fs: Fs.getFirestore(app) });
+  window.FB = Object.assign({}, Au, Fs, { auth: Au.getAuth(app), fs: Fs.getFirestore(app),
+    initializeApp: A.initializeApp, deleteApp: A.deleteApp, cfg: app.options });
   window.dispatchEvent(new Event('fb-ready'));
 } catch (e) {
   const m = document.getElementById('authMsg');
@@ -631,7 +632,19 @@ function techForm(id){
   <label>Teléfono<input id="tPhone" type="tel" value="${esc(t.phone)}"></label>
   <label>Especialidades<input id="tSpec" value="${esc(t.specialty)}" placeholder="Ej. Preventivo · VRF · Chiller"></label>
   <label>Estado<select id="tActive">${opts([{value:'1',label:'Activo'},{value:'0',label:'Inactivo'}],t.active?'1':'0')}</select></label>
- </div><div id="tErr" class="errors"></div>
+ </div>
+ <hr><h2 style="font-size:14px;margin:0 0 8px">Acceso a la app del técnico</h2>
+ ${t.uid
+  ? `<p class="small">Ya tiene cuenta: <b>${esc(t.email||'—')}</b>. Puede entrar desde el celular con esa clave.</p>`
+  : (id
+    ? `<div class="formgrid">
+        <label>Correo del técnico<input id="tAccEmail" type="email" placeholder="tecnico@empresa.com"></label>
+        <label>Clave temporal<input id="tAccPass" type="text" placeholder="Mínimo 6 caracteres"></label>
+       </div>
+       <p class="small">Se crea la cuenta y usted le pasa esa clave.</p>
+       <button class="btn secondary" onclick="crearAcceso('${id}')">Crear acceso</button>`
+    : `<p class="small">Guarde primero el técnico y vuelva a abrirlo para crearle el acceso.</p>`)}
+ <div id="tErr" class="errors"></div>
  <div class="actions"><button class="btn primary" onclick="saveTech('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
  $('tName').focus();
 }
@@ -639,8 +652,40 @@ function saveTech(id){
  const v={name:$('tName').value.trim(),phone:$('tPhone').value.trim(),specialty:$('tSpec').value.trim(),active:$('tActive').value==='1'};
  if(!v.name){$('tErr').textContent='El nombre es obligatorio.';return}
  if(id&&!v.active&&db.orders.some(o=>o.techId===id&&isOpen(o))){$('tErr').textContent='No se puede inactivar: tiene órdenes abiertas. Reasígnelas primero.';return}
- if(id)Object.assign(tech(id),v);else db.techs.push({id:nextId('T-',db.techs,3),...v});
+ if(id)Object.assign(tech(id),v);else db.techs.push({id:nextId('T-',db.techs,3),...v,uid:'',email:''});
  save();closeModal();refresh();toast('Técnico guardado.');
+}
+
+/* ---- Crear la cuenta de acceso de un técnico ---- */
+async function crearAcceso(id){
+ const t=tech(id); if(!t) return;
+ const em=$('tAccEmail').value.trim(), pw=$('tAccPass').value;
+ const err=$('tErr');
+ if(!em||pw.length<6){err.textContent='Escriba el correo y una clave de 6 caracteres o más.';return}
+ err.textContent='Creando la cuenta…';
+ let sec=null;
+ try{
+  sec=FB.initializeApp(FB.cfg,'alta-'+Date.now());
+  const secAuth=FB.getAuth(sec);
+  const cred=await FB.createUserWithEmailAndPassword(secAuth,em,pw);
+  const nu=cred.user.uid;
+  const b=FB.writeBatch(FB.fs);
+  b.set(FB.doc(FB.fs,'tenants',TENANT,'members',nu),{name:t.name,email:em,role:'tecnico',active:true,
+   createdAt:FB.serverTimestamp(),createdBy:uid(),updatedAt:FB.serverTimestamp(),updatedBy:uid()});
+  b.set(FB.doc(FB.fs,'users',nu),{tenantId:TENANT,email:em,createdAt:FB.serverTimestamp()});
+  await b.commit();
+  await FB.signOut(secAuth);
+  t.uid=nu; t.email=em;
+  await fsSave();
+  let tocadas=0;
+  for(const o of db.orders){ if(o.techId===id){ remote.orders[o.id]='__forzar__'; tocadas++ } }
+  if(tocadas) await fsSave();
+  closeModal(); refresh();
+  toast('Acceso creado. Ya puede entrar desde el celular.');
+ }catch(e){
+  console.error(e);
+  err.textContent='No se pudo crear: '+errMsg(e);
+ }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
 }
 
 /* ================= REPORTES ================= */
@@ -704,21 +749,21 @@ const nn=v=>(v===''||v===undefined)?null:v;
 const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',phone:d.phone||'',email:d.email||'',status:Mi.cliStatus[d.status]||'Activo'});
 const dnSite=(id,d)=>({id,clientId:d.clientId||'',name:d.name||'',city:d.city||'',address:d.address||''});
 const dnAsset=(id,d)=>({id,clientId:d.clientId||'',siteId:d.siteId||'',type:d.type||'Otro',brand:d.brand||'',model:d.model||'',serial:d.serial||'',btu:d.btu||0,refrigerant:d.refrigerant||'',installDate:d.installDate||'',location:d.location||'',status:Mi.astStatus[d.status]||'Operativo'});
-const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false});
+const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false,uid:d.uid||'',email:d.email||''});
 const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
 
 /* --- De la app hacia la base --- */
 const upClient=c=>({name:c.name,nit:nn(c.nit),contact:nn(c.contact),phone:nn(c.phone),email:nn(c.email),status:M.cliStatus[c.status]||'activo'});
 const upSite=s=>({clientId:s.clientId,name:s.name,city:nn(s.city),address:nn(s.address),active:true});
 const upAsset=a=>({code:a.id,clientId:a.clientId,siteId:a.siteId,type:a.type,brand:a.brand||'—',model:nn(a.model),serial:nn(a.serial),btu:a.btu?parseInt(a.btu,10):null,refrigerant:nn(a.refrigerant),installDate:nn(a.installDate),location:nn(a.location),status:M.astStatus[a.status]||'operativo'});
-const upTech=t=>({name:t.name,phone:nn(t.phone),specialties:t.specialty?t.specialty.split('·').map(s=>s.trim()).filter(Boolean):[],active:t.active!==false});
+const upTech=t=>({name:t.name,phone:nn(t.phone),email:nn(t.email),specialties:t.specialty?t.specialty.split('·').map(s=>s.trim()).filter(Boolean):[],active:t.active!==false,uid:nn(t.uid)});
 function upOrder(o){
  const cl=client(o.clientId), si=site(o.siteId), as=asset(o.assetId), te=tech(o.techId);
  const st=M.ordStatus[o.status]||'pendiente';
  const lastNote=(o.history&&o.history.length)?o.history[o.history.length-1].note:'';
  return {seq:o.seq,number:o.id,clientId:o.clientId,clientName:(cl&&cl.name)||'—',siteId:o.siteId,siteName:(si&&si.name)||'—',
   assetId:nn(o.assetId),assetCode:as?as.id:null,type:M.ordType[o.type]||'preventivo',priority:M.prio[o.priority]||'normal',
-  techId:nn(o.techId),techUid:null,techName:te?te.name:null,
+  techId:nn(o.techId),techUid:(te&&te.uid)?te.uid:null,techName:te?te.name:null,
   scheduledDate:o.date,scheduledTime:nn(o.time),description:nn(o.desc),status:st,
   statusNote:(st==='cancelada'&&(!lastNote||lastNote.length<5))?'Cancelada desde el panel':nn(lastNote),
   startedAt:null,completedAt:null};

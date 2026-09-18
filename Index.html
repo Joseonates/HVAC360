@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>HVAC 360° - Fase 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#64748b;--primary:#0f766e;--primary2:#14b8a6;--dark:#0f172a;--line:#e2e8f0;--danger:#dc2626;--warn:#d97706;--ok:#16a34a;--info:#2563eb}
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;font-family:Inter,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text)}
+.app{display:flex;min-height:100vh}.sidebar{width:250px;background:var(--dark);color:white;padding:20px 14px;position:fixed;inset:0 auto 0 0;overflow:auto;z-index:6}
+.logo{font-size:22px;font-weight:800;padding:8px 10px 22px}.logo span{color:#2dd4bf}.subtitle{font-size:11px;color:#94a3b8;margin:-15px 10px 20px}
+.nav button{display:block;width:100%;border:0;background:none;color:#cbd5e1;text-align:left;padding:11px 12px;border-radius:9px;margin:3px 0;cursor:pointer;font-size:14px;font-family:inherit}.nav button:hover,.nav button.active{background:#1e293b;color:white}.nav .section{font-size:10px;color:#64748b;text-transform:uppercase;margin:20px 10px 7px;letter-spacing:1px}
+.main{margin-left:250px;width:calc(100% - 250px)}header{height:68px;background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:5}.header-title{font-weight:700}.user{display:flex;gap:10px;align-items:center}.avatar{width:36px;height:36px;border-radius:50%;background:#ccfbf1;color:#115e59;display:grid;place-items:center;font-weight:800}
+.content{padding:25px;max-width:1500px;margin:auto}.page{display:none}.page.active{display:block}.topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;gap:12px;flex-wrap:wrap}h1{margin:0;font-size:26px}h2{font-size:18px;margin:0 0 15px}p{color:var(--muted)}
+.btn{border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:700;font-family:inherit;font-size:14px}.btn.primary{background:var(--primary);color:white}.btn.secondary{background:#e2e8f0;color:#334155}.btn.danger{background:#fee2e2;color:#991b1b}.btn.sm{padding:6px 10px;font-size:12px}.btn:disabled{opacity:.5;cursor:not-allowed}
+.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 2px 7px #0f172a0a}.metric{font-size:27px;font-weight:800;margin:8px 0}.label{font-size:12px;color:var(--muted)}.trend{font-size:12px;color:var(--muted)}.trend.ok{color:var(--ok)}.trend.bad{color:var(--danger)}
+.two{grid-template-columns:1.4fr 1fr;margin-top:18px}.three{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}
+.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:18px}.bar{height:10px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--primary2);border-radius:99px}
+.status{display:inline-block;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}.green{background:#dcfce7;color:#166534}.yellow{background:#fef3c7;color:#92400e}.orange{background:#ffedd5;color:#9a3412}.red{background:#fee2e2;color:#991b1b}.blue{background:#dbeafe;color:#1e40af}.gray{background:#f1f5f9;color:#475569}
+.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}td.wrap{white-space:normal}th{color:#64748b;font-size:11px;text-transform:uppercase}tr:hover td{background:#f8fafc}tbody.clickable tr{cursor:pointer}
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}label{font-size:12px;font-weight:700;color:#475569;display:block}input,select,textarea{width:100%;padding:10px;margin-top:6px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:white;color:var(--text)}textarea{min-height:90px}.req{color:var(--danger)}
+.search{max-width:320px}.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:15px;flex-wrap:wrap}.toolbar select,.toolbar input{width:auto;margin-top:0}
+.kpi{display:flex;justify-content:space-between;align-items:center;gap:8px}.icon{font-size:24px}.empty{padding:30px;text-align:center;color:var(--muted);white-space:normal}
+.timeline{border-left:2px solid #cbd5e1;margin-left:8px;padding-left:18px}.event{margin-bottom:14px}.event b{display:block}.small{font-size:12px;color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:center;margin:13px 0;gap:10px}
+.errors{color:var(--danger);font-size:13px;margin-top:12px}.errors:empty{display:none}
+.toast{position:fixed;right:20px;bottom:20px;background:#0f172a;color:white;padding:13px 17px;border-radius:10px;z-index:50;max-width:calc(100% - 40px)}
+.modal-bg{position:fixed;inset:0;background:#0f172a99;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:40;overflow:auto}
+.modal{background:white;border-radius:14px;max-width:760px;width:100%;padding:22px;box-shadow:0 20px 50px #0f172a40}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}.modal-head h2{margin:0}.x{background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted)}
+.dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;margin-bottom:16px}.dl .small{display:block}.dl b{font-weight:600}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;align-items:center}
+.daynav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.daynav input{width:auto;margin-top:0}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+@media(max-width:900px){.sidebar{width:70px;padding:12px 8px}.logo{font-size:0;padding:8px 0 22px;text-align:center}.logo span{font-size:18px}.subtitle,.nav .section,.nav button span{display:none}.nav button{text-align:center;font-size:18px}.main{margin-left:70px;width:calc(100% - 70px)}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.two,.three{grid-template-columns:1fr}.formgrid,.dl{grid-template-columns:1fr}}
+@media(max-width:600px){header{padding:0 14px}.header-title{font-size:14px}.user .small{display:none}.content{padding:14px}.cards{grid-template-columns:1fr}h1{font-size:21px}.search{max-width:none}.toolbar>*{flex:1 1 140px}}
+.authbg{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:var(--bg,#0f1419);padding:20px}
+.authcard{width:100%;max-width:380px;background:var(--panel,#fff);border:1px solid var(--line,#e3e8ef);border-radius:14px;padding:28px 26px;box-shadow:0 10px 40px rgba(0,0,0,.18)}
+.authlogo{font-size:24px;font-weight:700;letter-spacing:.5px}
+.authlogo span{color:var(--accent,#2f7df6)}
+.authsub{margin:6px 0 22px;font-size:13px;color:var(--muted,#6b7683)}
+.authlbl{display:block;font-size:13px;font-weight:600;margin-bottom:14px;color:var(--text,#1c2430)}
+.authlbl input{display:block;width:100%;margin-top:6px;padding:10px 12px;font:inherit;font-weight:400;border:1px solid var(--line,#d6dce5);border-radius:8px;background:var(--bg2,#fff);color:inherit}
+.authbtn{width:100%;margin-top:6px;justify-content:center}
+.authalt{margin:16px 0 0;font-size:13px;text-align:center;color:var(--muted,#6b7683)}
+.authalt a{color:var(--accent,#2f7df6);text-decoration:none;font-weight:600}
+.authmsg{display:none;margin-top:14px;padding:10px 12px;border-radius:8px;background:#fdecec;color:#96222b;font-size:13px;line-height:1.45}
+.authbusy{margin-top:14px;font-size:13px;color:var(--muted,#6b7683);text-align:center}
+.userbtn{background:none;border:1px solid var(--line,#d6dce5);color:inherit;font:inherit;font-size:12px;padding:5px 10px;border-radius:7px;cursor:pointer}
+.userbtn:hover{background:var(--bg2,#f2f5f9)}
+</style>
+</head>
+<body>
+<div id="authScreen" class="authbg">
+ <div class="authcard">
+  <div class="authlogo">HVAC <span>360°</span></div>
+  <p class="authsub">De la llamada del cliente a la firma del técnico.</p>
+
+  <div id="paneLogin">
+   <label class="authlbl">Correo<input id="liEmail" type="email" autocomplete="username" placeholder="usted@empresa.com"></label>
+   <label class="authlbl">Contraseña<input id="liPass" type="password" autocomplete="current-password" placeholder="••••••••"></label>
+   <button class="btn primary authbtn" id="liBtn" onclick="doLogin()">Entrar</button>
+   <p class="authalt">¿Su empresa aún no está registrada?
+    <a href="#" onclick="showPane('Reg');return false">Registrarla</a></p>
+  </div>
+
+  <div id="paneReg" hidden>
+   <label class="authlbl">Nombre de la empresa<input id="rgCompany" placeholder="Aires del Caribe S.A.S."></label>
+   <label class="authlbl">Su nombre<input id="rgName" placeholder="Jose Oñate"></label>
+   <label class="authlbl">Correo<input id="rgEmail" type="email" autocomplete="username" placeholder="usted@empresa.com"></label>
+   <label class="authlbl">Contraseña<input id="rgPass" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></label>
+   <button class="btn primary authbtn" id="rgBtn" onclick="doRegister()">Crear empresa</button>
+   <p class="authalt">¿Ya tiene cuenta?
+    <a href="#" onclick="showPane('Login');return false">Entrar</a></p>
+  </div>
+
+  <div id="authMsg" class="authmsg"></div>
+  <div id="authBusy" class="authbusy" hidden>Conectando…</div>
+ </div>
+</div>
+<script type="module">
+/* ====== Carga del SDK de Firebase y configuración del proyecto ====== */
+const V = '12.19.0';
+const B = 'https://www.gstatic.com/firebasejs/' + V + '/';
+try {
+  const [A, Au, Fs] = await Promise.all([
+    import(B + 'firebase-app.js'),
+    import(B + 'firebase-auth.js'),
+    import(B + 'firebase-firestore.js'),
+  ]);
+  const app = A.initializeApp({
+    apiKey: "AIzaSyBDsf7oXAlsw38mYHHCn6wVxM4JcGq-jDU",
+    authDomain: "hvac360.firebaseapp.com",
+    projectId: "hvac360",
+    storageBucket: "hvac360.firebasestorage.app",
+    messagingSenderId: "217756579102",
+    appId: "1:217756579102:web:343e9b8bdf004dbac4050f"
+  });
+  window.FB = Object.assign({}, Au, Fs, { auth: Au.getAuth(app), fs: Fs.getFirestore(app) });
+  window.dispatchEvent(new Event('fb-ready'));
+} catch (e) {
+  const m = document.getElementById('authMsg');
+  if (m) { m.textContent = 'No se pudo cargar Firebase: ' + e.message; m.style.display = 'block'; }
+  console.error('Firebase no cargó', e);
+}
+</script>
+<div class="app">
+<aside class="sidebar">
+  <div class="logo">HVAC <span>360°</span></div>
+  <div class="subtitle">FASE 1.5 · EN LA NUBE</div>
+  <nav class="nav">
+    <div class="section">Principal</div>
+    <button data-page="dashboard" title="Dashboard">▦ <span>Dashboard</span></button>
+    <button data-page="orders" title="Órdenes de trabajo">▤ <span>Órdenes de trabajo</span></button>
+    <button data-page="calendar" title="Agenda">◫ <span>Agenda</span></button>
+    <div class="section">Maestros</div>
+    <button data-page="clients" title="Clientes">👥 <span>Clientes</span></button>
+    <button data-page="sites" title="Sedes">⌂ <span>Sedes</span></button>
+    <button data-page="assets" title="Equipos HVAC">❄ <span>Equipos HVAC</span></button>
+    <button data-page="technicians" title="Técnicos">🔧 <span>Técnicos</span></button>
+    <div class="section">Servicio</div>
+    <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
+    <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
+    <div class="section">Sistema</div>
+    <button data-page="backup" title="Respaldo de datos">⛁ <span>Respaldo de datos</span></button>
+  </nav>
+</aside>
+
+<main class="main">
+<header><div class="header-title">Centro de Operaciones HVAC <span class="small" id="uCompany"></span></div><div class="user"><span class="small"><b id="uName">—</b> <span id="uRole" class="small"></span></span><div class="avatar" id="uAvatar">—</div><button class="userbtn" onclick="doLogout()">Salir</button></div></header>
+<div class="content">
+
+<!-- DASHBOARD -->
+<section id="dashboard" class="page">
+ <div class="topline"><div><h1>Dashboard</h1><p id="dashDate">Vista general de la operación.</p></div><button class="btn primary" onclick="newOrder()">＋ Nueva orden</button></div>
+ <div class="grid cards" id="dashCards"></div>
+ <div class="grid two">
+  <div class="panel"><h2>Estado de órdenes</h2><div id="dashStatus"></div></div>
+  <div class="panel"><h2>Técnicos</h2><div id="dashTechs"></div></div>
+ </div>
+ <div class="panel" style="margin-top:18px"><h2>Órdenes recientes</h2><div class="table-wrap"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Técnico</th><th>Estado</th></tr></thead><tbody id="recent" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- ÓRDENES -->
+<section id="orders" class="page">
+ <div class="topline"><div><h1>Órdenes de trabajo</h1><p>Control del ciclo completo del servicio. Toque una orden para ver el detalle y cambiar su estado.</p></div><button class="btn primary" onclick="newOrder()">＋ Nueva orden</button></div>
+ <div class="toolbar">
+  <input class="search" id="orderSearch" placeholder="Buscar orden, cliente, equipo o técnico..." oninput="renderOrders()">
+  <select id="typeFilter" onchange="renderOrders()"><option value="">Todos los tipos</option></select>
+  <select id="statusFilter" onchange="renderOrders()"><option value="">Todos los estados</option><option value="abiertas">Solo abiertas</option><option value="vencidas">Solo vencidas</option></select>
+ </div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Cliente / Sede</th><th>Equipo</th><th>Tipo</th><th>Prioridad</th><th>Técnico</th><th>Estado</th></tr></thead><tbody id="ordersTable" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- AGENDA -->
+<section id="calendar" class="page">
+ <div class="topline"><div><h1>Agenda operativa</h1><p>Servicios programados por día, generados desde las órdenes.</p></div>
+  <div class="daynav"><button class="btn secondary sm" onclick="shiftDay(-1)">‹</button><input type="date" id="agendaDate" onchange="renderCalendar()"><button class="btn secondary sm" onclick="shiftDay(1)">›</button><button class="btn secondary sm" onclick="agendaDate.value=todayStr();renderCalendar()">Hoy</button></div>
+ </div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Hora</th><th>Orden</th><th>Técnico</th><th>Cliente / Sede</th><th>Servicio</th><th>Prioridad</th><th>Estado</th></tr></thead><tbody id="calendarTable" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- CLIENTES -->
+<section id="clients" class="page">
+ <div class="topline"><div><h1>Clientes</h1><p>CRM básico de Fase 1.</p></div><button class="btn primary" onclick="clientForm()">＋ Nuevo cliente</button></div>
+ <div class="toolbar"><input class="search" id="clientSearch" placeholder="Buscar cliente o contacto..." oninput="renderClients()"></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>NIT</th><th>Contacto</th><th>Teléfono</th><th>Sedes</th><th>Equipos</th><th>OT abiertas</th><th>Estado</th></tr></thead><tbody id="clientsTable" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- SEDES -->
+<section id="sites" class="page">
+ <div class="topline"><div><h1>Sedes</h1><p>Ubicaciones donde se prestan los servicios.</p></div><button class="btn primary" onclick="siteForm()">＋ Nueva sede</button></div>
+ <div class="toolbar"><select id="siteClientFilter" onchange="renderSites()"></select></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Sede</th><th>Cliente</th><th>Ciudad</th><th>Dirección</th><th>Equipos</th></tr></thead><tbody id="sitesTable" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- EQUIPOS -->
+<section id="assets" class="page">
+ <div class="topline"><div><h1>Equipos HVAC</h1><p>Hoja de vida digital de cada activo. Toque un equipo para ver su historial.</p></div><button class="btn primary" onclick="assetForm()">＋ Registrar equipo</button></div>
+ <div class="toolbar"><input class="search" id="assetSearch" placeholder="Buscar código, marca, serial..." oninput="renderAssets()"><select id="assetClientFilter" onchange="renderAssets()"></select></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente / Sede</th><th>Tipo</th><th>Marca / Modelo</th><th>BTU</th><th>Refrigerante</th><th>Servicios</th><th>Estado</th></tr></thead><tbody id="assetsTable" class="clickable"></tbody></table></div></div>
+</section>
+
+<!-- TÉCNICOS -->
+<section id="technicians" class="page">
+ <div class="topline"><div><h1>Técnicos</h1><p>Equipo de trabajo y disponibilidad (calculada según sus órdenes).</p></div><button class="btn primary" onclick="techForm()">＋ Nuevo técnico</button></div>
+ <div class="grid three" id="techCards" style="margin-top:0"></div>
+</section>
+
+<!-- NUEVA / EDITAR ORDEN -->
+<section id="neworder" class="page">
+ <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
+ <div class="panel">
+  <div class="formgrid">
+   <label>Cliente <span class="req">*</span><select id="fClient" onchange="onOrderClient()"></select></label>
+   <label>Sede <span class="req">*</span><select id="fSite" onchange="onOrderSite()"></select></label>
+   <label>Tipo <span class="req">*</span><select id="fType" onchange="onOrderSite(true)"></select></label>
+   <label>Equipo <span class="req" id="fAssetReq">*</span><select id="fAsset"></select></label>
+   <label>Prioridad<select id="fPriority"></select></label>
+   <label>Técnico<select id="fTech"></select></label>
+   <label>Fecha programada <span class="req">*</span><input id="fDate" type="date"></label>
+   <label>Hora<input id="fTime" type="time"></label>
+   <label style="grid-column:1/-1">Descripción del trabajo<textarea id="fDesc" placeholder="Describa la solicitud, síntomas o alcance..."></textarea></label>
+  </div>
+  <div class="small" style="margin-top:10px">Si no asigna técnico, la orden queda <b>Pendiente</b>. Con técnico queda <b>Programada</b>.</div>
+  <div id="fErrors" class="errors"></div>
+  <div class="actions"><button class="btn primary" id="fSubmit" onclick="saveOrder()">Crear orden</button><button class="btn secondary" onclick="cancelOrderForm()">Cancelar</button></div>
+ </div>
+</section>
+
+<!-- REPORTES -->
+<section id="reports" class="page">
+ <div class="topline"><div><h1>Reportes</h1><p>Indicadores calculados con los datos registrados.</p></div></div>
+ <div class="grid cards" id="repCards"></div>
+ <div class="grid two">
+  <div class="panel"><h2>Servicios por tipo</h2><div id="repTypes"></div></div>
+  <div class="panel"><h2>Próxima evolución</h2><div class="timeline"><div class="event"><b>Fase 2</b><span class="small">GPS, evidencias, firma digital y trabajo móvil. Con esto se podrán medir resolución en primera visita y satisfacción del cliente.</span></div><div class="event"><b>Fase 3</b><span class="small">Inventario, repuestos, cotizaciones y facturación.</span></div><div class="event"><b>Fase 4</b><span class="small">Contratos y programación automática de preventivos.</span></div></div></div>
+ </div>
+ <div class="panel" style="margin-top:18px"><h2>Productividad por técnico</h2><div class="table-wrap"><table><thead><tr><th>Técnico</th><th>Asignadas</th><th>Completadas</th><th>Abiertas</th><th>Vencidas</th><th>Cumplimiento</th></tr></thead><tbody id="repTechs"></tbody></table></div></div>
+</section>
+
+<!-- RESPALDO -->
+<section id="backup" class="page">
+ <div class="topline"><div><h1>Respaldo de datos</h1><p>Los datos se guardan automáticamente en este navegador. Descargue una copia de seguridad con frecuencia.</p></div></div>
+ <div class="grid three" style="margin-top:0">
+  <div class="card"><h2>Exportar</h2><p>Descarga un archivo .json con clientes, sedes, equipos, técnicos y órdenes.</p><button class="btn primary" onclick="exportData()">Descargar respaldo</button></div>
+  <div class="card"><h2>Importar</h2><p>Reemplaza los datos actuales por los de un respaldo.</p><input type="file" id="importFile" accept=".json,application/json" onchange="importData(this)"></div>
+  <div class="card"><h2>Datos de ejemplo</h2><p>Borra todo y carga de nuevo los datos de demostración.</p><button class="btn danger" onclick="resetDemo()">Restaurar demo</button></div>
+ </div>
+ <p class="small" id="storageInfo" style="margin-top:16px"></p>
+</section>
+
+</div></main></div>
+
+<div id="modal" class="modal-bg" hidden onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBody"></div></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+/* ================= CONFIGURACIÓN ================= */
+const KEY='hvac360_fase1_v1';
+const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
+const PRIORITIES=['Normal','Media','Alta','Crítica'];
+const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
+const NEXT={'Pendiente':'Programada','Programada':'En ruta','En ruta':'En servicio','En servicio':'Completada'};
+const NEXT_LABEL={'Programada':'Marcar programada','En ruta':'Iniciar ruta','En servicio':'Iniciar servicio','Completada':'Completar servicio'};
+const ASSET_TYPES=['Mini Split','Cassette','Piso-techo','Ventana','Paquete','Fan coil','Manejadora','VRF','Chiller','Otro'];
+const REFRIGERANTS=['R410A','R32','R22','R134a','R407C','R454B','Otro'];
+const ASSET_STATUS=['Operativo','Requiere atención','Fuera de servicio'];
+let db, storageOk=true, editingOrderId=null;
+
+/* ================= UTILIDADES ================= */
+const $=id=>document.getElementById(id);
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function todayStr(off=0){const d=new Date();d.setDate(d.getDate()+off);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function nowIso(){return new Date().toISOString()}
+function fmtDate(s){if(!s)return '—';const [y,m,d]=s.split('-');return `${d}/${m}/${y}`}
+function fmtDateTime(iso){const d=new Date(iso);return isNaN(d)?'':d.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'})}
+function nextId(prefix,list,pad){let max=0;list.forEach(x=>{const n=parseInt(String(x.id).replace(/\D/g,''),10);if(n>max)max=n});return prefix+String(max+1).padStart(pad,'0')}
+const byId=(list,id)=>list.find(x=>x.id===id);
+const client=id=>byId(db.clients,id), site=id=>byId(db.sites,id), asset=id=>byId(db.assets,id), tech=id=>byId(db.techs,id);
+const isOpen=o=>o.status!=='Completada'&&o.status!=='Cancelada';
+const isOverdue=o=>isOpen(o)&&o.date&&o.date<todayStr();
+const pct=(a,b)=>b?Math.round(a*100/b):0;
+function opts(items,selected,placeholder){return (placeholder!==undefined?`<option value="">${esc(placeholder)}</option>`:'')+items.map(i=>{const v=typeof i==='string'?i:i.value,l=typeof i==='string'?i:i.label;return `<option value="${esc(v)}"${v===selected?' selected':''}>${esc(l)}</option>`}).join('')}
+function badge(s){
+ const map={'Completada':'green','Operativo':'green','Disponible':'green','Activo':'green','En servicio':'green',
+  'En ruta':'blue','Programada':'yellow','Media':'yellow','Pendiente':'orange','Alta':'orange','Requiere atención':'orange',
+  'Crítica':'red','Fuera de servicio':'red','Vencida':'red','Normal':'gray','Cancelada':'gray','Inactivo':'gray'};
+ return `<span class="status ${map[s]||'gray'}">${esc(s)}</span>`}
+function orderBadges(o){return badge(o.status)+(isOverdue(o)?' '+badge('Vencida'):'')}
+let toastTimer;function toast(msg){const t=$('toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,2800)}
+function openModal(html){$('modalBody').innerHTML=html;$('modal').hidden=false}
+function closeModal(){$('modal').hidden=true;$('modalBody').innerHTML=''}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('modal').hidden)closeModal()});
+function bar(label,value,total){const p=pct(value,total);return `<div class="small" style="margin-top:14px">${esc(label)} <b style="float:right">${p}% (${value})</b></div><div class="bar"><i style="width:${p}%"></i></div>`}
+function emptyRow(cols,msg){return `<tr><td colspan="${cols}" class="empty">${esc(msg)}</td></tr>`}
+
+/* ================= DATOS ================= */
+function seed(){
+ const t=todayStr(), created=nowIso();
+ const h=(status,note)=>[{at:created,status,note}];
+ return {
+  clients:[
+   {id:'C-001',name:'Hotel Caribe',nit:'',contact:'María Torres',phone:'300 555 1101',email:'',status:'Activo'},
+   {id:'C-002',name:'Comercial ABC',nit:'',contact:'Jorge Díaz',phone:'301 555 2202',email:'',status:'Activo'},
+   {id:'C-003',name:'Clínica Norte',nit:'',contact:'Laura Pérez',phone:'302 555 3303',email:'',status:'Activo'},
+   {id:'C-004',name:'Restaurante 21',nit:'',contact:'Pedro Ruiz',phone:'303 555 4404',email:'',status:'Activo'}],
+  sites:[
+   {id:'S-001',clientId:'C-001',name:'Hotel Caribe - Principal',city:'Barranquilla',address:'Cra. 50 #80-10'},
+   {id:'S-002',clientId:'C-002',name:'Planta Norte',city:'Barranquilla',address:'Calle 72 #20-40'},
+   {id:'S-003',clientId:'C-003',name:'Sede Principal',city:'Soledad',address:'Av. Circunvalar #45-12'},
+   {id:'S-004',clientId:'C-004',name:'Local Centro',city:'Barranquilla',address:'Calle 34 #43-20'}],
+  assets:[
+   {id:'AC-00128',clientId:'C-001',siteId:'S-001',type:'Mini Split',brand:'Daikin',model:'FTXS',serial:'',btu:18000,refrigerant:'R410A',installDate:'',location:'Habitación 204',status:'Operativo'},
+   {id:'AC-00077',clientId:'C-002',siteId:'S-002',type:'Cassette',brand:'LG',model:'CT18',serial:'',btu:24000,refrigerant:'R410A',installDate:'',location:'Bodega',status:'Requiere atención'},
+   {id:'AC-00091',clientId:'C-003',siteId:'S-003',type:'VRF',brand:'Mitsubishi',model:'',serial:'',btu:36000,refrigerant:'R410A',installDate:'',location:'Piso 2',status:'Operativo'},
+   {id:'AC-00103',clientId:'C-004',siteId:'S-004',type:'Mini Split',brand:'Carrier',model:'42',serial:'',btu:12000,refrigerant:'R32',installDate:'',location:'Salón',status:'Operativo'},
+   {id:'AC-00129',clientId:'C-001',siteId:'S-001',type:'Mini Split',brand:'Samsung',model:'AR',serial:'',btu:18000,refrigerant:'R32',installDate:'',location:'Recepción',status:'Operativo'}],
+  techs:[
+   {id:'T-001',name:'Carlos Pérez',specialty:'Preventivo · Correctivo',phone:'',active:true},
+   {id:'T-002',name:'Luis Gómez',specialty:'Correctivo · Emergencias',phone:'',active:true},
+   {id:'T-003',name:'Andrés Díaz',specialty:'Instalaciones · VRF',phone:'',active:true},
+   {id:'T-004',name:'Mateo Ruiz',specialty:'Preventivo · Split',phone:'',active:true}],
+  orders:[
+   {id:'OT-0001',clientId:'C-001',siteId:'S-001',assetId:'AC-00128',type:'Preventivo',priority:'Normal',techId:'T-001',date:t,time:'08:00',desc:'Mantenimiento preventivo trimestral.',status:'En servicio',createdAt:created,history:h('En servicio','Datos de ejemplo')},
+   {id:'OT-0002',clientId:'C-002',siteId:'S-002',assetId:'AC-00077',type:'Correctivo',priority:'Alta',techId:'T-002',date:t,time:'09:30',desc:'Equipo no enfría, posible fuga.',status:'En ruta',createdAt:created,history:h('En ruta','Datos de ejemplo')},
+   {id:'OT-0003',clientId:'C-003',siteId:'S-003',assetId:'AC-00091',type:'Instalación',priority:'Media',techId:'T-003',date:t,time:'11:00',desc:'Instalación de unidad interior adicional.',status:'Programada',createdAt:created,history:h('Programada','Datos de ejemplo')},
+   {id:'OT-0004',clientId:'C-004',siteId:'S-004',assetId:'AC-00103',type:'Emergencia',priority:'Crítica',techId:'',date:t,time:'14:00',desc:'Equipo apagado, olor a quemado.',status:'Pendiente',createdAt:created,history:h('Pendiente','Datos de ejemplo')},
+   {id:'OT-0005',clientId:'C-001',siteId:'S-001',assetId:'AC-00129',type:'Preventivo',priority:'Normal',techId:'T-001',date:todayStr(-3),time:'10:00',desc:'Limpieza de filtros y serpentín.',status:'Completada',createdAt:created,history:h('Completada','Datos de ejemplo')},
+   {id:'OT-0006',clientId:'C-004',siteId:'S-004',assetId:'AC-00103',type:'Preventivo',priority:'Normal',techId:'T-004',date:todayStr(-2),time:'15:00',desc:'Preventivo mensual.',status:'Programada',createdAt:created,history:h('Programada','Datos de ejemplo')}]
+ }}
+function save(){ fsSave(); }
+function validDb(d){return d&&['clients','sites','assets','techs','orders'].every(k=>Array.isArray(d[k]))}
+
+/* ================= NAVEGACIÓN ================= */
+const RENDER={dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,reports:renderReports,backup:renderBackup};
+let currentPage='dashboard';
+function show(id){
+ currentPage=id;
+ document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));
+ document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+ if(RENDER[id])RENDER[id]();
+ window.scrollTo(0,0);
+}
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>b.dataset.page==='neworder'?newOrder():show(b.dataset.page)));
+function refresh(){if(RENDER[currentPage])RENDER[currentPage]()}
+
+/* ================= DASHBOARD ================= */
+function techStatus(t){
+ if(!t.active)return 'Inactivo';
+ const mine=db.orders.filter(o=>o.techId===t.id);
+ if(mine.some(o=>o.status==='En servicio'))return 'En servicio';
+ if(mine.some(o=>o.status==='En ruta'))return 'En ruta';
+ return 'Disponible';
+}
+function renderDashboard(){
+ const t=todayStr(), today=db.orders.filter(o=>o.date===t&&o.status!=='Cancelada');
+ const running=db.orders.filter(o=>o.status==='En ruta'||o.status==='En servicio');
+ const inField=new Set(running.map(o=>o.techId).filter(Boolean)).size;
+ const prev=db.orders.filter(o=>o.type==='Preventivo'&&isOpen(o)), prevLate=prev.filter(isOverdue).length;
+ const attention=db.assets.filter(a=>a.status!=='Operativo').length;
+ $('dashDate').textContent='Vista general de la operación · '+new Date().toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+ $('dashCards').innerHTML=[
+  ['Órdenes hoy','🧾',today.length,`${today.filter(o=>o.status==='Completada').length} completadas`,'ok'],
+  ['En ejecución','🔧',running.length,`${inField} técnico(s) en campo`,''],
+  ['Preventivos pendientes','🗓',prev.length,`${prevLate} vencido(s)`,prevLate?'bad':'ok'],
+  ['Equipos registrados','❄',db.assets.length,`${attention} con novedad`,attention?'bad':'ok']
+ ].map(c=>`<div class="card"><div class="kpi"><span class="label">${c[0]}</span><span class="icon">${c[1]}</span></div><div class="metric">${c[2]}</div><span class="trend ${c[4]}">${c[3]}</span></div>`).join('');
+ const valid=db.orders.filter(o=>o.status!=='Cancelada'), n=valid.length, cnt=s=>valid.filter(o=>s.includes(o.status)).length;
+ $('dashStatus').innerHTML=n?bar('Completadas',cnt(['Completada']),n)+bar('En ejecución',cnt(['En ruta','En servicio']),n)+bar('Programadas',cnt(['Programada']),n)+bar('Pendientes (sin técnico)',cnt(['Pendiente']),n):'<div class="empty">Sin órdenes registradas.</div>';
+ $('dashTechs').innerHTML=db.techs.filter(x=>x.active).map(x=>{const s=techStatus(x);const cur=db.orders.find(o=>o.techId===x.id&&(o.status==='En servicio'||o.status==='En ruta'));
+  return `<div class="row"><span>${esc(x.name)}${cur?`<span class="small" style="display:block">${esc(cur.id)} · ${esc(client(cur.clientId)?.name)}</span>`:''}</span>${badge(s)}</div>`}).join('')||'<div class="empty">No hay técnicos activos.</div>';
+ const recent=[...db.orders].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')||b.id.localeCompare(a.id)).slice(0,6);
+ $('recent').innerHTML=recent.map(o=>`<tr data-id="${esc(o.id)}" onclick="orderDetail(this.dataset.id)"><td><b>${esc(o.id)}</b></td><td>${fmtDate(o.date)}</td><td>${esc(client(o.clientId)?.name)}</td><td>${esc(o.type)}</td><td>${esc(tech(o.techId)?.name||'Sin asignar')}</td><td>${orderBadges(o)}</td></tr>`).join('')||emptyRow(6,'Sin órdenes.');
+}
+
+/* ================= ÓRDENES ================= */
+function renderOrders(){
+ const q=$('orderSearch').value.toLowerCase().trim(), f=$('typeFilter').value, s=$('statusFilter').value;
+ const rows=db.orders.filter(o=>{
+  if(f&&o.type!==f)return false;
+  if(s==='abiertas'&&!isOpen(o))return false;
+  if(s==='vencidas'&&!isOverdue(o))return false;
+  if(s&&ORDER_STATUS.includes(s)&&o.status!==s)return false;
+  if(!q)return true;
+  return [o.id,client(o.clientId)?.name,site(o.siteId)?.name,o.assetId,o.type,o.status,tech(o.techId)?.name,o.desc].join(' ').toLowerCase().includes(q);
+ }).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(a.time||'').localeCompare(b.time||''));
+ $('ordersTable').innerHTML=rows.map(o=>`<tr data-id="${esc(o.id)}" onclick="orderDetail(this.dataset.id)"><td><b>${esc(o.id)}</b></td><td>${fmtDate(o.date)} ${esc(o.time||'')}</td><td>${esc(client(o.clientId)?.name)}<span class="small" style="display:block">${esc(site(o.siteId)?.name||'')}</span></td><td>${esc(o.assetId||'Por instalar')}</td><td>${esc(o.type)}</td><td>${badge(o.priority)}</td><td>${esc(tech(o.techId)?.name||'Sin asignar')}</td><td>${orderBadges(o)}</td></tr>`).join('')||emptyRow(8,'No hay resultados.');
+}
+function orderDetail(id){
+ const o=byId(db.orders,id);if(!o)return;
+ const c=client(o.clientId), st=site(o.siteId), a=asset(o.assetId), t=tech(o.techId), next=NEXT[o.status];
+ const needTech=next==='Programada'&&!o.techId;
+ openModal(`<div class="modal-head"><div><h2>${esc(o.id)} · ${esc(o.type)}</h2><div style="margin-top:6px">${orderBadges(o)} ${badge(o.priority)}</div></div><button class="x" onclick="closeModal()" aria-label="Cerrar">✕</button></div>
+ <div class="dl">
+  <div><span class="small">Cliente</span><b>${esc(c?.name)}</b></div>
+  <div><span class="small">Sede</span><b>${esc(st?.name||'—')}</b><span class="small">${esc([st?.address,st?.city].filter(Boolean).join(', '))}</span></div>
+  <div><span class="small">Equipo</span><b>${a?`${esc(a.id)} · ${esc(a.type)} ${esc(a.brand)}`:'Por instalar'}</b><span class="small">${esc(a?.location||'')}</span></div>
+  <div><span class="small">Técnico</span><b>${esc(t?.name||'Sin asignar')}</b></div>
+  <div><span class="small">Fecha programada</span><b>${fmtDate(o.date)} ${esc(o.time||'')}</b></div>
+  <div><span class="small">Contacto cliente</span><b>${esc(c?.contact||'—')}</b><span class="small">${esc(c?.phone||'')}</span></div>
+ </div>
+ <span class="small">Descripción</span><p style="color:var(--text);white-space:pre-wrap;margin-top:4px">${esc(o.desc||'Sin descripción.')}</p>
+ ${isOpen(o)?`<hr><label>Nota del cambio de estado (opcional)<textarea id="stNote" style="min-height:60px" placeholder="Ej. diagnóstico, trabajo realizado, motivo de cancelación..."></textarea></label>
+ <div class="actions">
+  ${next?`<button class="btn primary" data-id="${esc(o.id)}" onclick="changeStatus(this.dataset.id,'${next}')" ${needTech?'disabled title="Asigne un técnico primero"':''}>${NEXT_LABEL[next]}</button>`:''}
+  <button class="btn secondary" data-id="${esc(o.id)}" onclick="editOrder(this.dataset.id)">Editar</button>
+  <button class="btn danger" data-id="${esc(o.id)}" onclick="changeStatus(this.dataset.id,'Cancelada')">Cancelar orden</button>
+ </div>${needTech?'<div class="errors">Para programar la orden, primero asigne un técnico con “Editar”.</div>':''}`:''}
+ <hr><h2 style="font-size:15px">Historial</h2><div class="timeline">${[...(o.history||[])].reverse().map(h=>`<div class="event"><b>${esc(h.status)}</b><span class="small">${fmtDateTime(h.at)}${h.note?' · '+esc(h.note):''}</span></div>`).join('')||'<span class="small">Sin movimientos.</span>'}</div>`);
+}
+function changeStatus(id,status){
+ const o=byId(db.orders,id);if(!o||!isOpen(o))return;
+ const note=($('stNote')?.value||'').trim();
+ if(status==='Cancelada'){if(!note){alert('Escriba el motivo de la cancelación en la nota.');$('stNote')?.focus();return}if(!confirm('¿Cancelar la orden '+id+'?'))return}
+ if(status==='Programada'&&!o.techId)return;
+ o.status=status;(o.history=o.history||[]).push({at:nowIso(),status,note});
+ save();toast(`${id}: ${status}`);orderDetail(id);refresh();
+}
+
+/* ---- Formulario de orden ---- */
+function newOrder(prefill={}){
+ editingOrderId=null;
+ $('orderFormTitle').textContent='Nueva orden de trabajo';$('fSubmit').textContent='Crear orden';
+ fillOrderForm({type:'Preventivo',priority:'Normal',date:todayStr(),time:'',desc:'',techId:'',...prefill});
+ closeModal();show('neworder');
+}
+function editOrder(id){
+ const o=byId(db.orders,id);if(!o)return;
+ editingOrderId=id;
+ $('orderFormTitle').textContent='Editar orden '+id;$('fSubmit').textContent='Guardar cambios';
+ fillOrderForm(o);closeModal();show('neworder');
+}
+function fillOrderForm(v){
+ const activeClients=db.clients.filter(c=>c.status==='Activo'||c.id===v.clientId);
+ $('fClient').innerHTML=opts(activeClients.map(c=>({value:c.id,label:c.name})),v.clientId||'','Seleccione cliente');
+ $('fType').innerHTML=opts(TYPES,v.type);
+ $('fPriority').innerHTML=opts(PRIORITIES,v.priority);
+ $('fTech').innerHTML=opts(db.techs.filter(t=>t.active||t.id===v.techId).map(t=>({value:t.id,label:t.name})),v.techId||'','Sin asignar');
+ $('fDate').value=v.date||'';$('fTime').value=v.time||'';$('fDesc').value=v.desc||'';
+ $('fErrors').innerHTML='';
+ onOrderClient(v.siteId,v.assetId);
+}
+function onOrderClient(siteId,assetId){
+ const cid=$('fClient').value, sites=db.sites.filter(s=>s.clientId===cid);
+ if(!siteId&&sites.length===1)siteId=sites[0].id;
+ $('fSite').innerHTML=cid?opts(sites.map(s=>({value:s.id,label:s.name})),siteId||'',sites.length?'Seleccione sede':'Este cliente no tiene sedes'):opts([], '', 'Primero elija cliente');
+ onOrderSite(false,assetId);
+}
+function onOrderSite(keep,assetId){
+ if(keep===true)assetId=$('fAsset').value;
+ const sid=$('fSite').value, install=$('fType').value==='Instalación';
+ const list=db.assets.filter(a=>a.siteId===sid).map(a=>({value:a.id,label:`${a.id} · ${a.type} ${a.brand}${a.location?' · '+a.location:''}`}));
+ $('fAsset').innerHTML=sid?opts(list,assetId||'',install?'— Equipo por instalar —':(list.length?'Seleccione equipo':'La sede no tiene equipos registrados')):opts([], '', 'Primero elija sede');
+ $('fAssetReq').hidden=install;
+}
+function saveOrder(){
+ const v={clientId:$('fClient').value,siteId:$('fSite').value,assetId:$('fAsset').value,type:$('fType').value,priority:$('fPriority').value,techId:$('fTech').value,date:$('fDate').value,time:$('fTime').value,desc:$('fDesc').value.trim()};
+ const err=[];
+ if(!v.clientId)err.push('Seleccione el cliente.');
+ if(!v.siteId)err.push('Seleccione la sede (si el cliente no tiene, créela en “Sedes”).');
+ if(!v.assetId&&v.type!=='Instalación')err.push('Seleccione el equipo (solo las instalaciones pueden quedar sin equipo).');
+ if(!v.date)err.push('Indique la fecha programada.');
+ else if(!editingOrderId&&v.date<todayStr())err.push('La fecha programada no puede ser anterior a hoy.');
+ if(err.length){$('fErrors').innerHTML=err.map(esc).join('<br>');return}
+ if(editingOrderId){
+  const o=byId(db.orders,editingOrderId);Object.assign(o,v);
+  if(o.status==='Pendiente'&&o.techId){o.status='Programada';o.history.push({at:nowIso(),status:'Programada',note:'Técnico asignado'})}
+  else if(o.status==='Programada'&&!o.techId){o.status='Pendiente';o.history.push({at:nowIso(),status:'Pendiente',note:'Técnico retirado'})}
+  else o.history.push({at:nowIso(),status:o.status,note:'Orden editada'});
+  save();toast('Orden '+o.id+' actualizada.');const id=o.id;editingOrderId=null;show('orders');orderDetail(id);
+ }else{
+  const id=nextId('OT-',db.orders,4), status=v.techId?'Programada':'Pendiente';
+  db.orders.push({id,...v,status,createdAt:nowIso(),history:[{at:nowIso(),status,note:'Orden creada'}]});
+  save();toast('Orden '+id+' creada correctamente.');show('orders');
+ }
+}
+function cancelOrderForm(){const id=editingOrderId;editingOrderId=null;show('orders');if(id)orderDetail(id)}
+
+/* ================= AGENDA ================= */
+function shiftDay(n){const d=new Date(($('agendaDate').value||todayStr())+'T12:00:00');d.setDate(d.getDate()+n);$('agendaDate').value=d.toISOString().slice(0,10);renderCalendar()}
+function renderCalendar(){
+ if(!$('agendaDate').value)$('agendaDate').value=todayStr();
+ const d=$('agendaDate').value;
+ const rows=db.orders.filter(o=>o.date===d).sort((a,b)=>(a.time||'99').localeCompare(b.time||'99'));
+ $('calendarTable').innerHTML=rows.map(o=>`<tr data-id="${esc(o.id)}" onclick="orderDetail(this.dataset.id)"><td><b>${esc(o.time||'—')}</b></td><td>${esc(o.id)}</td><td>${esc(tech(o.techId)?.name||'Sin asignar')}</td><td>${esc(client(o.clientId)?.name)}<span class="small" style="display:block">${esc(site(o.siteId)?.name||'')}</span></td><td>${esc(o.type)}</td><td>${badge(o.priority)}</td><td>${orderBadges(o)}</td></tr>`).join('')||emptyRow(7,'No hay servicios programados para '+fmtDate(d)+'.');
+}
+
+/* ================= CLIENTES ================= */
+function renderClients(){
+ const q=$('clientSearch').value.toLowerCase().trim();
+ const rows=db.clients.filter(c=>!q||[c.name,c.contact,c.nit,c.phone].join(' ').toLowerCase().includes(q));
+ $('clientsTable').innerHTML=rows.map(c=>`<tr data-id="${esc(c.id)}" onclick="clientForm(this.dataset.id)"><td><b>${esc(c.name)}</b></td><td>${esc(c.nit||'—')}</td><td>${esc(c.contact||'—')}</td><td>${esc(c.phone||'—')}</td><td>${db.sites.filter(s=>s.clientId===c.id).length}</td><td>${db.assets.filter(a=>a.clientId===c.id).length}</td><td>${db.orders.filter(o=>o.clientId===c.id&&isOpen(o)).length}</td><td>${badge(c.status)}</td></tr>`).join('')||emptyRow(8,'No hay clientes.');
+}
+function clientForm(id){
+ const c=id?client(id):{name:'',nit:'',contact:'',phone:'',email:'',status:'Activo'};
+ openModal(`<div class="modal-head"><h2>${id?'Editar cliente':'Nuevo cliente'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Nombre / Razón social <span class="req">*</span><input id="cName" value="${esc(c.name)}"></label>
+  <label>NIT / Documento<input id="cNit" value="${esc(c.nit)}"></label>
+  <label>Contacto<input id="cContact" value="${esc(c.contact)}"></label>
+  <label>Teléfono<input id="cPhone" type="tel" value="${esc(c.phone)}"></label>
+  <label>Correo<input id="cEmail" type="email" value="${esc(c.email)}"></label>
+  <label>Estado<select id="cStatus">${opts(['Activo','Inactivo'],c.status)}</select></label>
+ </div><div id="cErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveClient('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button>
+ ${id?`<button class="btn secondary" onclick="closeModal();$('siteClientFilter').value='${id}';show('sites')">Ver sedes</button><button class="btn danger" onclick="deleteClient('${id}')" style="margin-left:auto">Eliminar</button>`:''}</div>`);
+ $('cName').focus();
+}
+function saveClient(id){
+ const v={name:$('cName').value.trim(),nit:$('cNit').value.trim(),contact:$('cContact').value.trim(),phone:$('cPhone').value.trim(),email:$('cEmail').value.trim(),status:$('cStatus').value};
+ if(!v.name){$('cErr').textContent='El nombre es obligatorio.';return}
+ if(db.clients.some(c=>c.id!==id&&c.name.toLowerCase()===v.name.toLowerCase())){$('cErr').textContent='Ya existe un cliente con ese nombre.';return}
+ if(id)Object.assign(client(id),v);else{id=nextId('C-',db.clients,3);db.clients.push({id,...v})}
+ save();closeModal();refresh();toast('Cliente guardado.');
+ if(!db.sites.some(s=>s.clientId===id)&&confirm('El cliente no tiene sedes. ¿Desea crear su primera sede ahora?'))siteForm(null,id);
+}
+function deleteClient(id){
+ if(db.sites.some(s=>s.clientId===id)||db.orders.some(o=>o.clientId===id)){alert('No se puede eliminar: el cliente tiene sedes u órdenes. Puede marcarlo como Inactivo.');return}
+ if(!confirm('¿Eliminar este cliente?'))return;
+ db.clients=db.clients.filter(c=>c.id!==id);save();closeModal();refresh();toast('Cliente eliminado.');
+}
+
+/* ================= SEDES ================= */
+function renderSites(){
+ const sel=$('siteClientFilter'), cur=sel.value;
+ sel.innerHTML=opts(db.clients.map(c=>({value:c.id,label:c.name})),cur,'Todos los clientes');
+ const rows=db.sites.filter(s=>!sel.value||s.clientId===sel.value);
+ $('sitesTable').innerHTML=rows.map(s=>`<tr data-id="${esc(s.id)}" onclick="siteForm(this.dataset.id)"><td><b>${esc(s.name)}</b></td><td>${esc(client(s.clientId)?.name)}</td><td>${esc(s.city||'—')}</td><td class="wrap">${esc(s.address||'—')}</td><td>${db.assets.filter(a=>a.siteId===s.id).length}</td></tr>`).join('')||emptyRow(5,'No hay sedes.');
+}
+function siteForm(id,clientId){
+ const s=id?site(id):{clientId:clientId||$('siteClientFilter').value||'',name:'',city:'',address:''};
+ openModal(`<div class="modal-head"><h2>${id?'Editar sede':'Nueva sede'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Cliente <span class="req">*</span><select id="sClient">${opts(db.clients.map(c=>({value:c.id,label:c.name})),s.clientId,'Seleccione cliente')}</select></label>
+  <label>Nombre de la sede <span class="req">*</span><input id="sName" value="${esc(s.name)}" placeholder="Ej. Sede Principal"></label>
+  <label>Ciudad<input id="sCity" value="${esc(s.city)}"></label>
+  <label>Dirección<input id="sAddress" value="${esc(s.address)}"></label>
+ </div><div id="sErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveSite('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button>
+ ${id?`<button class="btn danger" onclick="deleteSite('${id}')" style="margin-left:auto">Eliminar</button>`:''}</div>`);
+}
+function saveSite(id){
+ const v={clientId:$('sClient').value,name:$('sName').value.trim(),city:$('sCity').value.trim(),address:$('sAddress').value.trim()};
+ if(!v.clientId||!v.name){$('sErr').textContent='Cliente y nombre son obligatorios.';return}
+ if(id){
+  const s=site(id);
+  if(s.clientId!==v.clientId&&(db.assets.some(a=>a.siteId===id)||db.orders.some(o=>o.siteId===id))){$('sErr').textContent='No se puede cambiar el cliente: la sede ya tiene equipos u órdenes.';return}
+  Object.assign(s,v);
+ }else db.sites.push({id:nextId('S-',db.sites,3),...v});
+ save();closeModal();refresh();toast('Sede guardada.');
+}
+function deleteSite(id){
+ if(db.assets.some(a=>a.siteId===id)||db.orders.some(o=>o.siteId===id)){alert('No se puede eliminar: la sede tiene equipos u órdenes.');return}
+ if(!confirm('¿Eliminar esta sede?'))return;
+ db.sites=db.sites.filter(s=>s.id!==id);save();closeModal();refresh();toast('Sede eliminada.');
+}
+
+/* ================= EQUIPOS ================= */
+function renderAssets(){
+ const sel=$('assetClientFilter'), cur=sel.value, q=$('assetSearch').value.toLowerCase().trim();
+ sel.innerHTML=opts(db.clients.map(c=>({value:c.id,label:c.name})),cur,'Todos los clientes');
+ const rows=db.assets.filter(a=>(!sel.value||a.clientId===sel.value)&&(!q||[a.id,a.brand,a.model,a.serial,a.type,a.location,client(a.clientId)?.name].join(' ').toLowerCase().includes(q)));
+ $('assetsTable').innerHTML=rows.map(a=>`<tr data-id="${esc(a.id)}" onclick="assetDetail(this.dataset.id)"><td><b>${esc(a.id)}</b></td><td>${esc(client(a.clientId)?.name)}<span class="small" style="display:block">${esc(site(a.siteId)?.name||'')}${a.location?' · '+esc(a.location):''}</span></td><td>${esc(a.type)}</td><td>${esc(a.brand)}${a.model?' / '+esc(a.model):''}</td><td>${a.btu?Number(a.btu).toLocaleString('es-CO'):'—'}</td><td>${esc(a.refrigerant||'—')}</td><td>${db.orders.filter(o=>o.assetId===a.id).length}</td><td>${badge(a.status)}</td></tr>`).join('')||emptyRow(8,'No hay equipos.');
+}
+function assetDetail(id){
+ const a=asset(id);if(!a)return;
+ const hist=db.orders.filter(o=>o.assetId===id).sort((x,y)=>(y.date||'').localeCompare(x.date||''));
+ const lastPrev=hist.find(o=>o.type==='Preventivo'&&o.status==='Completada');
+ openModal(`<div class="modal-head"><div><h2>Hoja de vida · ${esc(a.id)}</h2><div style="margin-top:6px">${badge(a.status)}</div></div><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="dl">
+  <div><span class="small">Cliente / Sede</span><b>${esc(client(a.clientId)?.name)}</b><span class="small">${esc(site(a.siteId)?.name||'')}</span></div>
+  <div><span class="small">Ubicación</span><b>${esc(a.location||'—')}</b></div>
+  <div><span class="small">Tipo</span><b>${esc(a.type)}</b></div>
+  <div><span class="small">Marca / Modelo</span><b>${esc(a.brand)} ${esc(a.model||'')}</b></div>
+  <div><span class="small">Serial</span><b>${esc(a.serial||'—')}</b></div>
+  <div><span class="small">Capacidad / Refrigerante</span><b>${a.btu?Number(a.btu).toLocaleString('es-CO')+' BTU':'—'} · ${esc(a.refrigerant||'—')}</b></div>
+  <div><span class="small">Fecha de instalación</span><b>${fmtDate(a.installDate)}</b></div>
+  <div><span class="small">Último preventivo</span><b>${lastPrev?fmtDate(lastPrev.date):'Sin registro'}</b></div>
+ </div>
+ <div class="actions" style="margin-top:0"><button class="btn primary" onclick="newOrder({clientId:'${esc(a.clientId)}',siteId:'${esc(a.siteId)}',assetId:'${esc(a.id)}'})">＋ Orden para este equipo</button><button class="btn secondary" onclick="assetForm('${esc(a.id)}')">Editar equipo</button></div>
+ <hr><h2 style="font-size:15px">Historial de servicios (${hist.length})</h2>
+ <div class="table-wrap"><table><thead><tr><th>Orden</th><th>Fecha</th><th>Tipo</th><th>Técnico</th><th>Estado</th></tr></thead><tbody class="clickable">${hist.map(o=>`<tr data-id="${esc(o.id)}" onclick="orderDetail(this.dataset.id)"><td><b>${esc(o.id)}</b></td><td>${fmtDate(o.date)}</td><td>${esc(o.type)}</td><td>${esc(tech(o.techId)?.name||'Sin asignar')}</td><td>${orderBadges(o)}</td></tr>`).join('')||emptyRow(5,'Este equipo aún no tiene servicios.')}</tbody></table></div>`);
+}
+function assetForm(id){
+ const a=id?asset(id):{clientId:$('assetClientFilter').value||'',siteId:'',type:'Mini Split',brand:'',model:'',serial:'',btu:'',refrigerant:'R410A',installDate:'',location:'',status:'Operativo'};
+ const code=id||nextId('AC-',db.assets,5);
+ openModal(`<div class="modal-head"><h2>${id?'Editar equipo':'Registrar equipo'} · ${esc(code)}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Cliente <span class="req">*</span><select id="aClient" onchange="fillAssetSites()">${opts(db.clients.map(c=>({value:c.id,label:c.name})),a.clientId,'Seleccione cliente')}</select></label>
+  <label>Sede <span class="req">*</span><select id="aSite"></select></label>
+  <label>Ubicación dentro de la sede<input id="aLocation" value="${esc(a.location)}" placeholder="Ej. Oficina gerencia, Piso 3"></label>
+  <label>Tipo<select id="aType">${opts(ASSET_TYPES,a.type)}</select></label>
+  <label>Marca <span class="req">*</span><input id="aBrand" value="${esc(a.brand)}"></label>
+  <label>Modelo<input id="aModel" value="${esc(a.model)}"></label>
+  <label>Serial<input id="aSerial" value="${esc(a.serial)}"></label>
+  <label>Capacidad (BTU)<input id="aBtu" type="number" min="0" step="1000" value="${esc(a.btu)}"></label>
+  <label>Refrigerante<select id="aRef">${opts(REFRIGERANTS,a.refrigerant)}</select></label>
+  <label>Fecha de instalación<input id="aInstall" type="date" value="${esc(a.installDate)}"></label>
+  <label>Estado<select id="aStatus">${opts(ASSET_STATUS,a.status)}</select></label>
+ </div><div id="aErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveAsset('${id||''}')">Guardar</button><button class="btn secondary" onclick="${id?`assetDetail('${esc(id)}')`:'closeModal()'}">Cancelar</button>
+ ${id?`<button class="btn danger" onclick="deleteAsset('${esc(id)}')" style="margin-left:auto">Eliminar</button>`:''}</div>`);
+ fillAssetSites(a.siteId);
+}
+function fillAssetSites(selected){
+ const cid=$('aClient').value, list=db.sites.filter(s=>s.clientId===cid);
+ if(!selected&&list.length===1)selected=list[0].id;
+ $('aSite').innerHTML=cid?opts(list.map(s=>({value:s.id,label:s.name})),selected||'',list.length?'Seleccione sede':'El cliente no tiene sedes'):opts([], '', 'Primero elija cliente');
+}
+function saveAsset(id){
+ const v={clientId:$('aClient').value,siteId:$('aSite').value,location:$('aLocation').value.trim(),type:$('aType').value,brand:$('aBrand').value.trim(),model:$('aModel').value.trim(),serial:$('aSerial').value.trim(),btu:$('aBtu').value?Number($('aBtu').value):'',refrigerant:$('aRef').value,installDate:$('aInstall').value,status:$('aStatus').value};
+ const err=[];
+ if(!v.clientId)err.push('Seleccione el cliente.');
+ if(!v.siteId)err.push('Seleccione la sede (si no existe, créela primero en “Sedes”).');
+ if(!v.brand)err.push('La marca es obligatoria.');
+ if(v.serial&&db.assets.some(x=>x.id!==id&&x.serial&&x.serial.toLowerCase()===v.serial.toLowerCase()))err.push('Ya existe un equipo con ese serial.');
+ if(err.length){$('aErr').innerHTML=err.map(esc).join('<br>');return}
+ if(id){
+  const a=asset(id);
+  if(a.siteId!==v.siteId&&db.orders.some(o=>o.assetId===id&&isOpen(o))){$('aErr').textContent='No se puede mover de sede: el equipo tiene órdenes abiertas.';return}
+  Object.assign(a,v);save();refresh();toast('Equipo actualizado.');assetDetail(id);
+ }else{
+  const nid=nextId('AC-',db.assets,5);db.assets.push({id:nid,...v});save();closeModal();refresh();toast('Equipo '+nid+' registrado.');
+ }
+}
+function deleteAsset(id){
+ if(db.orders.some(o=>o.assetId===id)){alert('No se puede eliminar: el equipo tiene historial de órdenes. Puede marcarlo como "Fuera de servicio".');return}
+ if(!confirm('¿Eliminar el equipo '+id+'?'))return;
+ db.assets=db.assets.filter(a=>a.id!==id);save();closeModal();refresh();toast('Equipo eliminado.');
+}
+
+/* ================= TÉCNICOS ================= */
+function renderTechs(){
+ const month=todayStr().slice(0,7);
+ $('techCards').innerHTML=db.techs.map(t=>{
+  const mine=db.orders.filter(o=>o.techId===t.id);
+  const done=mine.filter(o=>o.status==='Completada'&&(o.date||'').startsWith(month)).length;
+  const open=mine.filter(isOpen).length, late=mine.filter(isOverdue).length;
+  return `<div class="card" style="cursor:pointer" data-id="${esc(t.id)}" onclick="techForm(this.dataset.id)"><div class="kpi"><h2 style="margin:0">${esc(t.name)}</h2>${badge(techStatus(t))}</div><p>${esc(t.specialty||'Sin especialidad')}${t.phone?'<br>'+esc(t.phone):''}</p>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px"><div><div class="small">Completadas mes</div><div class="metric">${done}</div></div><div><div class="small">Abiertas</div><div class="metric">${open}</div></div><div><div class="small">Vencidas</div><div class="metric" style="color:${late?'var(--danger)':'inherit'}">${late}</div></div></div></div>`}).join('')||'<div class="empty">No hay técnicos.</div>';
+}
+function techForm(id){
+ const t=id?tech(id):{name:'',specialty:'',phone:'',active:true};
+ openModal(`<div class="modal-head"><h2>${id?'Editar técnico':'Nuevo técnico'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Nombre <span class="req">*</span><input id="tName" value="${esc(t.name)}"></label>
+  <label>Teléfono<input id="tPhone" type="tel" value="${esc(t.phone)}"></label>
+  <label>Especialidades<input id="tSpec" value="${esc(t.specialty)}" placeholder="Ej. Preventivo · VRF · Chiller"></label>
+  <label>Estado<select id="tActive">${opts([{value:'1',label:'Activo'},{value:'0',label:'Inactivo'}],t.active?'1':'0')}</select></label>
+ </div><div id="tErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveTech('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ $('tName').focus();
+}
+function saveTech(id){
+ const v={name:$('tName').value.trim(),phone:$('tPhone').value.trim(),specialty:$('tSpec').value.trim(),active:$('tActive').value==='1'};
+ if(!v.name){$('tErr').textContent='El nombre es obligatorio.';return}
+ if(id&&!v.active&&db.orders.some(o=>o.techId===id&&isOpen(o))){$('tErr').textContent='No se puede inactivar: tiene órdenes abiertas. Reasígnelas primero.';return}
+ if(id)Object.assign(tech(id),v);else db.techs.push({id:nextId('T-',db.techs,3),...v});
+ save();closeModal();refresh();toast('Técnico guardado.');
+}
+
+/* ================= REPORTES ================= */
+function renderReports(){
+ const t=todayStr(), valid=db.orders.filter(o=>o.status!=='Cancelada');
+ const prevDue=valid.filter(o=>o.type==='Preventivo'&&o.date<=t), prevDone=prevDue.filter(o=>o.status==='Completada').length;
+ const closed=valid.filter(o=>o.status==='Completada').length, late=valid.filter(isOverdue).length;
+ const attention=db.assets.filter(a=>a.status!=='Operativo').length;
+ const card=(label,val,p,extra)=>`<div class="card"><div class="label">${label}</div><div class="metric">${val}</div>${p!==null?`<div class="bar"><i style="width:${p}%"></i></div>`:''}<div class="small" style="margin-top:6px">${extra}</div></div>`;
+ $('repCards').innerHTML=
+  card('Cumplimiento preventivo',prevDue.length?pct(prevDone,prevDue.length)+'%':'—',prevDue.length?pct(prevDone,prevDue.length):0,`${prevDone} de ${prevDue.length} preventivos a la fecha`)+
+  card('Órdenes cerradas',valid.length?pct(closed,valid.length)+'%':'—',pct(closed,valid.length),`${closed} de ${valid.length} órdenes`)+
+  card('Órdenes vencidas',late,null,late?'Requieren reprogramación':'Todo al día')+
+  card('Equipos con novedad',attention,null,`de ${db.assets.length} equipos registrados`);
+ $('repTypes').innerHTML=valid.length?TYPES.map(ty=>bar(ty,valid.filter(o=>o.type===ty).length,valid.length)).join(''):'<div class="empty">Sin datos.</div>';
+ $('repTechs').innerHTML=db.techs.map(x=>{const m=valid.filter(o=>o.techId===x.id), d=m.filter(o=>o.status==='Completada').length;
+  return `<tr><td><b>${esc(x.name)}</b></td><td>${m.length}</td><td>${d}</td><td>${m.filter(isOpen).length}</td><td>${m.filter(isOverdue).length}</td><td>${m.length?pct(d,m.length)+'%':'—'}</td></tr>`}).join('')||emptyRow(6,'Sin técnicos.');
+}
+
+/* ================= RESPALDO ================= */
+function renderBackup(){
+ $('storageInfo').textContent=(storageOk?'✔ Guardado automático activo en este navegador.':'⚠ Este navegador no está guardando los datos; descargue un respaldo antes de cerrar.')+` Registros: ${db.clients.length} clientes, ${db.sites.length} sedes, ${db.assets.length} equipos, ${db.techs.length} técnicos, ${db.orders.length} órdenes.`;
+}
+function exportData(){
+ const blob=new Blob([JSON.stringify({app:'HVAC 360',version:1,exportedAt:nowIso(),...db},null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hvac360_respaldo_${todayStr()}.json`;document.body.appendChild(a);a.click();
+ setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Respaldo descargado.');
+}
+function importData(input){
+ const file=input.files[0];if(!file)return;
+ const r=new FileReader();
+ r.onload=()=>{try{const d=JSON.parse(r.result);if(!validDb(d))throw 0;
+   alert('Importar un respaldo no está disponible en modo conectado. Escríbame si necesita migrar datos.');return;
+  }catch(e){alert('El archivo no es un respaldo válido de HVAC 360.')}finally{input.value=''}};
+ r.readAsText(file);
+}
+function resetDemo(){alert('Los datos de ejemplo no se pueden cargar cuando la app está conectada a la nube: se mezclarían con los datos reales de su empresa.')}
+
+/* ================= CONEXIÓN CON FIRESTORE ================= */
+let TENANT=null, ME=null, remote={}, counterVal=0, saving=false, saveAgain=false;
+
+/* --- Traducción entre las palabras de la app y las de la base --- */
+const M={
+ ordStatus:{'Pendiente':'pendiente','Programada':'programada','En ruta':'en_ruta','En servicio':'en_servicio','Completada':'completada','Cancelada':'cancelada'},
+ ordType:{'Preventivo':'preventivo','Correctivo':'correctivo','Instalación':'instalacion','Emergencia':'emergencia'},
+ prio:{'Normal':'normal','Media':'media','Alta':'alta','Crítica':'critica'},
+ astStatus:{'Operativo':'operativo','Requiere atención':'requiere_atencion','Fuera de servicio':'fuera_de_servicio'},
+ cliStatus:{'Activo':'activo','Inactivo':'inactivo'}};
+const inv=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[v,k]));
+const Mi={ordStatus:inv(M.ordStatus),ordType:inv(M.ordType),prio:inv(M.prio),astStatus:inv(M.astStatus),cliStatus:inv(M.cliStatus)};
+
+const P=(...p)=>FB.doc(FB.fs,'tenants',TENANT,...p);
+const C=(...p)=>FB.collection(FB.fs,'tenants',TENANT,...p);
+const sv=()=>FB.serverTimestamp();
+const uid=()=>FB.auth.currentUser.uid;
+const stampNew=()=>({createdAt:sv(),createdBy:uid(),updatedAt:sv(),updatedBy:uid()});
+const stampUpd=()=>({updatedAt:sv(),updatedBy:uid()});
+const nn=v=>(v===''||v===undefined)?null:v;
+
+/* --- De la base hacia la app --- */
+const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',phone:d.phone||'',email:d.email||'',status:Mi.cliStatus[d.status]||'Activo'});
+const dnSite=(id,d)=>({id,clientId:d.clientId||'',name:d.name||'',city:d.city||'',address:d.address||''});
+const dnAsset=(id,d)=>({id,clientId:d.clientId||'',siteId:d.siteId||'',type:d.type||'Otro',brand:d.brand||'',model:d.model||'',serial:d.serial||'',btu:d.btu||0,refrigerant:d.refrigerant||'',installDate:d.installDate||'',location:d.location||'',status:Mi.astStatus[d.status]||'Operativo'});
+const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false});
+const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
+
+/* --- De la app hacia la base --- */
+const upClient=c=>({name:c.name,nit:nn(c.nit),contact:nn(c.contact),phone:nn(c.phone),email:nn(c.email),status:M.cliStatus[c.status]||'activo'});
+const upSite=s=>({clientId:s.clientId,name:s.name,city:nn(s.city),address:nn(s.address),active:true});
+const upAsset=a=>({code:a.id,clientId:a.clientId,siteId:a.siteId,type:a.type,brand:a.brand||'—',model:nn(a.model),serial:nn(a.serial),btu:a.btu?parseInt(a.btu,10):null,refrigerant:nn(a.refrigerant),installDate:nn(a.installDate),location:nn(a.location),status:M.astStatus[a.status]||'operativo'});
+const upTech=t=>({name:t.name,phone:nn(t.phone),specialties:t.specialty?t.specialty.split('·').map(s=>s.trim()).filter(Boolean):[],active:t.active!==false});
+function upOrder(o){
+ const cl=client(o.clientId), si=site(o.siteId), as=asset(o.assetId), te=tech(o.techId);
+ const st=M.ordStatus[o.status]||'pendiente';
+ const lastNote=(o.history&&o.history.length)?o.history[o.history.length-1].note:'';
+ return {seq:o.seq,number:o.id,clientId:o.clientId,clientName:(cl&&cl.name)||'—',siteId:o.siteId,siteName:(si&&si.name)||'—',
+  assetId:nn(o.assetId),assetCode:as?as.id:null,type:M.ordType[o.type]||'preventivo',priority:M.prio[o.priority]||'normal',
+  techId:nn(o.techId),techUid:null,techName:te?te.name:null,
+  scheduledDate:o.date,scheduledTime:nn(o.time),description:nn(o.desc),status:st,
+  statusNote:(st==='cancelada'&&(!lastNote||lastNote.length<5))?'Cancelada desde el panel':nn(lastNote),
+  startedAt:null,completedAt:null};
+}
+
+/* ================= CARGA ================= */
+async function fsLoad(){
+ const [cl,si,as,te,or,cn]=await Promise.all([
+  FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
+  FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDoc(P('counters','workOrders'))]);
+ counterVal=cn.exists()?(cn.data().value||0):0;
+ db={clients:[],sites:[],assets:[],techs:[],orders:[]};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},events:{}};
+ const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
+ take(cl,db.clients,'clients',dnClient);
+ take(si,db.sites,'sites',dnSite);
+ take(as,db.assets,'assets',dnAsset);
+ take(te,db.techs,'techs',dnTech);
+ take(or,db.orders,'orders',dnOrder);
+ db.orders.sort((a,b)=>(b.seq||0)-(a.seq||0));
+ await Promise.all(db.orders.slice(0,60).map(async o=>{
+  try{const ev=await FB.getDocs(C('workOrders',o.id,'events'));
+   const list=[];ev.forEach(d=>{const x=d.data();list.push({at:(x.at&&x.at.toDate)?x.at.toDate().toISOString():'',status:Mi.ordStatus[x.status]||x.status||'',note:x.note||''})});
+   list.sort((a,b)=>a.at<b.at?-1:1);o.history=list;remote.events[o.id]=list.length;
+  }catch(e){}}));
+}
+
+/* ================= GUARDADO ================= */
+async function syncColl(local,coll,up){
+ for(const x of db[local]){
+  const now=JSON.stringify(x);
+  if(remote[local][x.id]===now) continue;
+  if(remote[local][x.id]===undefined) await FB.setDoc(P(coll,x.id),Object.assign(up(x),stampNew()));
+  else await FB.updateDoc(P(coll,x.id),Object.assign(up(x),stampUpd()));
+  remote[local][x.id]=now;
+ }
+}
+async function syncOrders(){
+ for(const o of db.orders){
+  const now=JSON.stringify(o);
+  if(remote.orders[o.id]===now) continue;
+  if(remote.orders[o.id]===undefined){
+   if(!o.seq){counterVal+=1;o.seq=counterVal}
+   const b=FB.writeBatch(FB.fs);
+   b.update(P('counters','workOrders'),{value:o.seq});
+   b.set(P('workOrders',o.id),Object.assign(upOrder(o),stampNew()));
+   await b.commit();
+  }else{
+   await FB.updateDoc(P('workOrders',o.id),Object.assign(upOrder(o),stampUpd()));
+  }
+  remote.orders[o.id]=JSON.stringify(o);
+  const known=remote.events[o.id]||0;
+  const nuevos=(o.history||[]).slice(known);
+  for(const h of nuevos){
+   try{await FB.addDoc(C('workOrders',o.id,'events'),{type:'cambio_estado',status:M.ordStatus[h.status]||'pendiente',
+    note:nn(h.note),by:uid(),byName:(ME&&ME.name)||null,at:sv()})}catch(e){}
+  }
+  remote.events[o.id]=(o.history||[]).length;
+ }
+}
+async function fsSave(){
+ if(!TENANT) return;
+ if(saving){saveAgain=true;return}
+ saving=true;
+ try{
+  await syncColl('clients','clients',upClient);
+  await syncColl('sites','sites',upSite);
+  await syncColl('assets','assets',upAsset);
+  await syncColl('techs','technicians',upTech);
+  await syncOrders();
+  storageOk=true;
+ }catch(e){
+  storageOk=false;
+  console.error(e);
+  toast('No se pudo guardar en la nube: '+(e.code||e.message));
+ }
+ saving=false;
+ if(saveAgain){saveAgain=false;fsSave()}
+}
+
+/* ================= SESIÓN ================= */
+function showPane(p){$('paneLogin').hidden=(p!=='Login');$('paneReg').hidden=(p!=='Reg');authErr('')}
+function authErr(m){const e=$('authMsg');e.textContent=m;e.style.display=m?'block':'none'}
+function authBusy(b){$('authBusy').hidden=!b;$('liBtn').disabled=b;$('rgBtn').disabled=b}
+function errMsg(e){
+ const c=e&&e.code||'';
+ if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found')) return 'Correo o contraseña incorrectos.';
+ if(c.includes('email-already-in-use')) return 'Ese correo ya tiene cuenta. Use "Entrar".';
+ if(c.includes('weak-password')) return 'La contraseña debe tener al menos 6 caracteres.';
+ if(c.includes('invalid-email')) return 'El correo no es válido.';
+ if(c.includes('too-many-requests')) return 'Demasiados intentos. Espere un momento.';
+ if(c.includes('unauthorized-domain')) return 'Este dominio no está autorizado en Firebase. Agréguelo en Authentication → Settings → Authorized domains.';
+ if(c.includes('permission-denied')) return 'Las reglas de seguridad rechazaron la operación.';
+ return (e&&e.message)||'Error desconocido.';
+}
+async function doLogin(){
+ const em=$('liEmail').value.trim(), pw=$('liPass').value;
+ if(!em||!pw){authErr('Escriba su correo y su contraseña.');return}
+ authErr('');authBusy(true);
+ try{ await FB.signInWithEmailAndPassword(FB.auth,em,pw); }
+ catch(e){ authErr(errMsg(e)); authBusy(false); }
+}
+async function doRegister(){
+ const co=$('rgCompany').value.trim(), na=$('rgName').value.trim();
+ const em=$('rgEmail').value.trim(), pw=$('rgPass').value;
+ if(co.length<2){authErr('Escriba el nombre de la empresa.');return}
+ if(na.length<2){authErr('Escriba su nombre.');return}
+ if(!em||pw.length<6){authErr('Revise el correo y use una contraseña de 6 caracteres o más.');return}
+ authErr('');authBusy(true);registrando=true;
+ try{
+  const cred=await FB.createUserWithEmailAndPassword(FB.auth,em,pw);
+  const u=cred.user.uid;
+  const tid='emp-'+Math.random().toString(36).slice(2,10);
+  const b=FB.writeBatch(FB.fs);
+  b.set(FB.doc(FB.fs,'tenants',tid),{name:co,status:'prueba',plan:'basico',createdBy:u,createdAt:FB.serverTimestamp()});
+  b.set(FB.doc(FB.fs,'tenants',tid,'members',u),{name:na,email:em,role:'admin',active:true,
+   createdAt:FB.serverTimestamp(),createdBy:u,updatedAt:FB.serverTimestamp(),updatedBy:u});
+  b.set(FB.doc(FB.fs,'users',u),{tenantId:tid,email:em,createdAt:FB.serverTimestamp()});
+  await b.commit();
+  await FB.setDoc(FB.doc(FB.fs,'tenants',tid,'counters','workOrders'),{value:0});
+  registrando=false;
+  await onSignedIn(cred.user);
+ }catch(e){
+  registrando=false;
+  console.error(e);
+  authErr(errMsg(e)+' Si su cuenta ya se creó, entre con "Entrar" y avíseme para terminar el registro.');
+  authBusy(false);
+ }
+}
+async function doLogout(){
+ if(!confirm('¿Cerrar sesión?')) return;
+ await FB.signOut(FB.auth);
+ location.reload();
+}
+
+/* ================= ARRANQUE ================= */
+let booted=false, registrando=false;
+function bootUI(){
+ if(booted) return; booted=true;
+ $('typeFilter').innerHTML=opts(TYPES,'','Todos los tipos');
+ $('statusFilter').innerHTML='<option value="">Todos los estados</option><option value="abiertas">Solo abiertas</option><option value="vencidas">Solo vencidas</option>'+opts(ORDER_STATUS,'');
+ show('dashboard');
+}
+function setUserChip(){
+ const n=(ME&&ME.name)||'Usuario';
+ const ini=n.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+ $('uName').textContent=n;
+ $('uRole').textContent=(ME&&ME.role)?ME.role:'';
+ $('uAvatar').textContent=ini;
+ $('uCompany').textContent=(ME&&ME.company)||'';
+}
+async function onSignedIn(user){
+ try{
+  authBusy(true);
+  const ud=await FB.getDoc(FB.doc(FB.fs,'users',user.uid));
+  if(!ud.exists()){
+   authErr('Su cuenta existe pero no está vinculada a ninguna empresa. Pídale al administrador que lo invite.');
+   authBusy(false); await FB.signOut(FB.auth); return;
+  }
+  TENANT=ud.data().tenantId;
+  const [md,td]=await Promise.all([
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'members',user.uid)),
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT))]);
+  if(!md.exists()||md.data().active===false){
+   authErr('Su usuario está inactivo en esta empresa.'); authBusy(false); await FB.signOut(FB.auth); return;
+  }
+  ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:''});
+  await fsLoad();
+  setUserChip();
+  $('authScreen').style.display='none';
+  bootUI();
+  RENDER[currentPage]&&RENDER[currentPage]();
+ }catch(e){ console.error(e); authErr(errMsg(e)); authBusy(false); }
+}
+function startAuth(){
+ FB.onAuthStateChanged(FB.auth,u=>{
+  if(registrando) return;
+  if(u) onSignedIn(u);
+  else { TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false); }
+ });
+}
+if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);
+
+</script>
+</body>
+</html>

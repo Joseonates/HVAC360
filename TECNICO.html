@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>HVAC 360° · Técnico</title>
+<style>
+:root{--bg:#0f1419;--panel:#182029;--line:#28323e;--text:#e8edf3;--muted:#8b97a5;--accent:#2f7df6;
+ --green:#1f9d55;--yellow:#c9931a;--orange:#d2762a;--red:#c8392f;--blue:#2f7df6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;font-size:15px;line-height:1.45}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);
+ padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;align-items:center;gap:10px}
+header h1{font-size:16px;margin:0;flex:1;font-weight:600}
+header .who{font-size:12px;color:var(--muted)}
+.icbtn{background:none;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:6px 10px;font:inherit;font-size:12px}
+main{padding:14px 16px 90px;max-width:620px;margin:0 auto}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:600}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:11px}
+.card.tap:active{border-color:var(--accent)}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.num{font-weight:700;font-size:15px}
+.cli{font-size:15px;margin:6px 0 2px}
+.sub{font-size:13px;color:var(--muted)}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.c-programada{background:rgba(201,147,26,.18);color:#e8b84b}
+.c-en_ruta{background:rgba(47,125,246,.18);color:#6fa8ff}
+.c-en_servicio{background:rgba(31,157,85,.18);color:#4fc584}
+.c-completada{background:rgba(31,157,85,.18);color:#4fc584}
+.c-pendiente{background:rgba(210,118,42,.18);color:#e29a5c}
+.c-cancelada{background:rgba(139,151,165,.18);color:var(--muted)}
+.c-alta,.c-critica{background:rgba(200,57,47,.18);color:#e8756b}
+.c-hoy{background:rgba(47,125,246,.18);color:#6fa8ff}
+.c-vencida{background:rgba(200,57,47,.2);color:#e8756b}
+.btn{display:block;width:100%;padding:15px;border:none;border-radius:11px;background:var(--accent);color:#fff;
+ font:inherit;font-size:16px;font-weight:700;margin-top:12px}
+.btn:disabled{opacity:.5}
+.btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
+.btn.warn{background:transparent;border:1px solid var(--red);color:#e8756b;font-weight:600;font-size:14px;padding:12px}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+textarea{min-height:80px;resize:vertical}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
+.dl{display:grid;grid-template-columns:96px 1fr;gap:7px 12px;font-size:14px;margin:12px 0}
+.dl dt{color:var(--muted);font-size:13px}
+.dl dd{margin:0}
+.empty{text-align:center;color:var(--muted);padding:44px 16px;font-size:14px}
+.msg{padding:11px 13px;border-radius:9px;font-size:13px;margin-top:12px;display:none}
+.msg.err{background:rgba(200,57,47,.15);color:#e8756b;display:block}
+.msg.ok{background:rgba(31,157,85,.15);color:#4fc584;display:block}
+.login{max-width:360px;margin:0 auto;padding:40px 4px}
+.logo{font-size:26px;font-weight:700;margin-bottom:4px}
+.logo span{color:var(--accent)}
+.hist{border-left:2px solid var(--line);padding-left:12px;margin-top:6px}
+.hist div{font-size:13px;color:var(--muted);margin-bottom:7px}
+.off{background:var(--orange);color:#fff;text-align:center;font-size:12px;padding:5px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="offline" class="off" hidden>Sin conexión — sus cambios se guardan y se envían al volver la señal</div>
+
+<div id="vLogin" hidden>
+ <main><div class="login">
+  <div class="logo">HVAC <span>360°</span></div>
+  <p class="sub" style="margin:0 0 26px">App del técnico</p>
+  <label>Correo<input id="em" type="email" autocomplete="username" inputmode="email" placeholder="usted@empresa.com"></label>
+  <label>Contraseña<input id="pw" type="password" autocomplete="current-password" placeholder="••••••••"></label>
+  <button class="btn" id="inBtn" onclick="entrar()">Entrar</button>
+  <div id="lmsg" class="msg"></div>
+ </div></main>
+</div>
+
+<div id="vList" hidden>
+ <header>
+  <div style="flex:1"><h1 id="hName">—</h1><div class="who" id="hCo"></div></div>
+  <button class="icbtn" onclick="salir()">Salir</button>
+ </header>
+ <main>
+  <div class="tabs">
+   <button id="tHoy" class="on" onclick="setTab('hoy')">Hoy</button>
+   <button id="tAbi" onclick="setTab('abiertas')">Abiertas</button>
+   <button id="tTod" onclick="setTab('todas')">Todas</button>
+  </div>
+  <div id="list"></div>
+ </main>
+</div>
+
+<div id="vDet" hidden>
+ <header>
+  <button class="icbtn" onclick="volver()">‹ Volver</button>
+  <h1 id="dNum" style="text-align:center">—</h1>
+  <span style="width:62px"></span>
+ </header>
+ <main id="detBody"></main>
+</div>
+
+<script type="module">
+const V='12.19.0', B='https://www.gstatic.com/firebasejs/'+V+'/';
+try{
+ const [A,Au,Fs]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
+ const app=A.initializeApp({
+  apiKey:"AIzaSyBDsf7oXAlsw38mYHHCn6wVxM4JcGq-jDU",
+  authDomain:"hvac360.firebaseapp.com",
+  projectId:"hvac360",
+  storageBucket:"hvac360.firebasestorage.app",
+  messagingSenderId:"217756579102",
+  appId:"1:217756579102:web:343e9b8bdf004dbac4050f"});
+ let fs;
+ try{ fs=Fs.initializeFirestore(app,{localCache:Fs.persistentLocalCache({})}) }
+ catch(e){ fs=Fs.getFirestore(app) }
+ window.FB=Object.assign({},Au,Fs,{auth:Au.getAuth(app),fs});
+ window.dispatchEvent(new Event('fb-ready'));
+}catch(e){
+ document.getElementById('lmsg').className='msg err';
+ document.getElementById('lmsg').textContent='No se pudo cargar Firebase: '+e.message;
+ document.getElementById('vLogin').hidden=false;
+}
+</script>
+
+<script>
+const $=i=>document.getElementById(i);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LBL={pendiente:'Pendiente',programada:'Programada',en_ruta:'En ruta',en_servicio:'En servicio',completada:'Completada',cancelada:'Cancelada'};
+const TLBL={preventivo:'Preventivo',correctivo:'Correctivo',instalacion:'Instalación',emergencia:'Emergencia'};
+const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
+const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
+const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
+
+let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null;
+const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
+function view(v){['vLogin','vList','vDet'].forEach(x=>$(x).hidden=(x!==v))}
+function msg(el,t,cls){const e=$(el);e.textContent=t;e.className='msg'+(t?' '+cls:'')}
+
+function errMsg(e){
+ const c=(e&&e.code)||'';
+ if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found'))return 'Correo o contraseña incorrectos.';
+ if(c.includes('too-many-requests'))return 'Demasiados intentos. Espere un momento.';
+ if(c.includes('unauthorized-domain'))return 'Este dominio no está autorizado en Firebase.';
+ if(c.includes('permission-denied'))return 'No tiene permiso. Pídale al administrador que revise su acceso.';
+ if(c.includes('unavailable'))return 'Sin conexión con el servidor.';
+ return (e&&e.message)||'Error desconocido.';
+}
+async function entrar(){
+ const e=$('em').value.trim(), p=$('pw').value;
+ if(!e||!p){msg('lmsg','Escriba su correo y su contraseña.','err');return}
+ msg('lmsg','Entrando…','ok'); $('inBtn').disabled=true;
+ try{ await FB.signInWithEmailAndPassword(FB.auth,e,p) }
+ catch(err){ msg('lmsg',errMsg(err),'err'); $('inBtn').disabled=false }
+}
+async function salir(){ if(!confirm('¿Cerrar sesión?'))return; if(unsub)unsub(); await FB.signOut(FB.auth); location.reload() }
+
+async function alEntrar(u){
+ try{
+  const ud=await FB.getDoc(FB.doc(FB.fs,'users',u.uid));
+  if(!ud.exists()){msg('lmsg','Su cuenta no está vinculada a ninguna empresa.','err');$('inBtn').disabled=false;await FB.signOut(FB.auth);return}
+  TENANT=ud.data().tenantId;
+  const md=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'members',u.uid));
+  if(!md.exists()||md.data().active===false){msg('lmsg','Su usuario está inactivo.','err');$('inBtn').disabled=false;await FB.signOut(FB.auth);return}
+  ME=md.data();
+  $('hName').textContent=ME.name||'Técnico';
+  $('hCo').textContent=(ME.role==='tecnico')?'Sus órdenes de trabajo':'Vista de técnico · rol '+ME.role;
+  escuchar(u.uid);
+  view('vList');
+ }catch(e){ msg('lmsg',errMsg(e),'err'); $('inBtn').disabled=false }
+}
+function escuchar(myUid){
+ const q=FB.query(FB.collection(FB.fs,'tenants',TENANT,'workOrders'),FB.where('techUid','==',myUid));
+ unsub=FB.onSnapshot(q,snap=>{
+  ORDERS=[]; snap.forEach(d=>ORDERS.push(Object.assign({_id:d.id},d.data())));
+  ORDERS.sort((a,b)=>((a.scheduledDate||'')+(a.scheduledTime||'')).localeCompare((b.scheduledDate||'')+(b.scheduledTime||'')));
+  pintar();
+  if(DET){const f=ORDERS.find(o=>o._id===DET._id); if(f){DET=f; if(!$('vDet').hidden) detalle(f._id)}}
+ },err=>{ console.error(err); $('list').innerHTML='<div class="empty">No se pudieron cargar sus órdenes.<br>'+esc(errMsg(err))+'</div>' });
+}
+function setTab(t){TAB=t;$('tHoy').className=t==='hoy'?'on':'';$('tAbi').className=t==='abiertas'?'on':'';$('tTod').className=t==='todas'?'on':'';pintar()}
+const abierta=o=>o.status!=='completada'&&o.status!=='cancelada';
+function filtradas(){
+ if(TAB==='hoy')return ORDERS.filter(o=>abierta(o)&&(o.scheduledDate||'')<=hoy());
+ if(TAB==='abiertas')return ORDERS.filter(abierta);
+ return ORDERS;
+}
+function pintar(){
+ const l=filtradas();
+ if(!l.length){
+  $('list').innerHTML='<div class="empty">'+(TAB==='hoy'?'Nada pendiente para hoy.<br>Buen trabajo.':'No hay órdenes aquí.')+'</div>';
+  return;
+ }
+ $('list').innerHTML=l.map(o=>{
+  const venc=abierta(o)&&o.scheduledDate&&o.scheduledDate<hoy();
+  const urg=(o.priority==='alta'||o.priority==='critica');
+  return `<div class="card tap" onclick="detalle('${esc(o._id)}')">
+   <div class="row"><span class="num">${esc(o.number||o._id)}</span><span class="chip c-${esc(o.status)}">${esc(LBL[o.status]||o.status)}</span></div>
+   <div class="cli">${esc(o.clientName||'—')}</div>
+   <div class="sub">${esc(o.siteName||'—')}${o.assetCode?' · '+esc(o.assetCode):''}</div>
+   <div class="sub" style="margin-top:7px">${fdate(o.scheduledDate)}${o.scheduledTime?' · '+esc(o.scheduledTime):''}
+    ${venc?' <span class="chip c-vencida">Vencida</span>':''}
+    ${urg?' <span class="chip c-'+esc(o.priority)+'">'+esc(PLBL[o.priority])+'</span>':''}</div>
+  </div>`}).join('');
+}
+function volver(){DET=null;view('vList')}
+function detalle(id){
+ const o=ORDERS.find(x=>x._id===id); if(!o)return;
+ DET=o; $('dNum').textContent=o.number||id;
+ const sig=NEXT[o.status];
+ $('detBody').innerHTML=`
+  <div class="card">
+   <div class="row"><span class="chip c-${esc(o.status)}">${esc(LBL[o.status]||o.status)}</span>
+    <span class="chip c-${esc(o.priority)}">${esc(PLBL[o.priority]||o.priority)}</span></div>
+   <div class="cli" style="margin-top:10px">${esc(o.clientName||'—')}</div>
+   <div class="sub">${esc(o.siteName||'—')}</div>
+   <dl class="dl">
+    <dt>Servicio</dt><dd>${esc(TLBL[o.type]||o.type||'—')}</dd>
+    <dt>Equipo</dt><dd>${esc(o.assetCode||'Sin equipo')}</dd>
+    <dt>Programada</dt><dd>${fdate(o.scheduledDate)}${o.scheduledTime?' · '+esc(o.scheduledTime):''}</dd>
+   </dl>
+   ${o.description?`<div class="sub" style="border-top:1px solid var(--line);padding-top:11px">${esc(o.description)}</div>`:''}
+  </div>
+  ${sig?`<div class="card">
+    <label>Nota (opcional)<textarea id="nota" placeholder="Diagnóstico, trabajo realizado, observaciones…"></textarea></label>
+    <button class="btn" id="avBtn" onclick="avanzar('${esc(o.status)}')">${esc(NEXTL[sig])}</button>
+    <div id="dmsg" class="msg"></div>
+   </div>`:`<div class="card"><div class="sub">Esta orden está ${esc((LBL[o.status]||'').toLowerCase())}. No hay nada más que hacer desde el celular.</div><div id="dmsg" class="msg"></div></div>`}
+  <div class="card"><div class="sub" style="font-weight:600;color:var(--text);margin-bottom:8px">Historial</div>
+   <div class="hist" id="hist"><div>Cargando…</div></div></div>`;
+ view('vDet'); cargarHistorial(o._id);
+}
+async function cargarHistorial(id){
+ try{
+  const ev=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'events'));
+  const l=[]; ev.forEach(d=>{const x=d.data();l.push({at:x.at&&x.at.toDate?x.at.toDate():null,status:x.status,note:x.note,by:x.byName})});
+  l.sort((a,b)=>(a.at&&b.at)?a.at-b.at:0);
+  $('hist').innerHTML=l.length?l.map(h=>`<div><b style="color:var(--text)">${esc(LBL[h.status]||h.status||'')}</b>
+   ${h.at?' · '+h.at.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'}):''}
+   ${h.by?' · '+esc(h.by):''}${h.note?'<br>'+esc(h.note):''}</div>`).join(''):'<div>Sin movimientos todavía.</div>';
+ }catch(e){ $('hist').innerHTML='<div>No se pudo cargar el historial.</div>' }
+}
+function ubicacion(){
+ return new Promise(res=>{
+  if(!navigator.geolocation) return res({lat:null,lng:null});
+  const t=setTimeout(()=>res({lat:null,lng:null}),6000);
+  navigator.geolocation.getCurrentPosition(
+   p=>{clearTimeout(t);res({lat:p.coords.latitude,lng:p.coords.longitude})},
+   ()=>{clearTimeout(t);res({lat:null,lng:null})},{timeout:5500,maximumAge:60000});
+ });
+}
+async function avanzar(desde){
+ const o=DET; if(!o||o.status!==desde) return;
+ const sig=NEXT[desde]; if(!sig) return;
+ const nota=($('nota')&&$('nota').value.trim())||'';
+ $('avBtn').disabled=true; msg('dmsg','Guardando…','ok');
+ try{
+  const g=await ubicacion();
+  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',o._id);
+  const cambio={status:sig,updatedAt:FB.serverTimestamp(),updatedBy:FB.auth.currentUser.uid};
+  if(nota) cambio.statusNote=nota;
+  if(sig==='en_servicio') cambio.startedAt=FB.serverTimestamp();
+  if(sig==='completada') cambio.completedAt=FB.serverTimestamp();
+  await FB.updateDoc(ref,cambio);
+  await FB.addDoc(FB.collection(FB.fs,'tenants',TENANT,'workOrders',o._id,'events'),{
+   type:'cambio_estado',status:sig,note:nota||null,by:FB.auth.currentUser.uid,
+   byName:(ME&&ME.name)||null,at:FB.serverTimestamp(),lat:g.lat,lng:g.lng});
+  msg('dmsg','Listo.','ok');
+  setTimeout(()=>{ if(sig==='completada') volver() },700);
+ }catch(e){
+  console.error(e);
+  msg('dmsg','No se pudo guardar: '+errMsg(e),'err');
+  $('avBtn').disabled=false;
+ }
+}
+function red(){ $('offline').hidden=navigator.onLine }
+window.addEventListener('online',red); window.addEventListener('offline',red); red();
+
+function arrancar(){
+ FB.onAuthStateChanged(FB.auth,u=>{
+  if(u) alEntrar(u);
+  else { TENANT=null;ME=null;ORDERS=[];if(unsub){unsub();unsub=null} $('inBtn').disabled=false; view('vLogin') }
+ });
+}
+if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);
+</script>
+</body>
+</html>

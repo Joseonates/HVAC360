@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    { "collectionGroup": "workOrders", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "techUid", "order": "ASCENDING" }, { "fieldPath": "scheduledDate", "order": "ASCENDING" } ] },
+    { "collectionGroup": "workOrders", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "clientId", "order": "ASCENDING" }, { "fieldPath": "scheduledDate", "order": "DESCENDING" } ] },
+    { "collectionGroup": "workOrders", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "scheduledDate", "order": "ASCENDING" } ] },
+    { "collectionGroup": "workOrders", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "assetId", "order": "ASCENDING" }, { "fieldPath": "scheduledDate", "order": "DESCENDING" } ] },
+    { "collectionGroup": "workOrders", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "branchId", "order": "ASCENDING" }, { "fieldPath": "scheduledDate", "order": "DESCENDING" } ] },
+    { "collectionGroup": "sites", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "clientId", "order": "ASCENDING" }, { "fieldPath": "name", "order": "ASCENDING" } ] },
+    { "collectionGroup": "assets", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "siteId", "order": "ASCENDING" }, { "fieldPath": "code", "order": "ASCENDING" } ] },
+    { "collectionGroup": "assets", "queryScope": "COLLECTION",
+      "fields": [ { "fieldPath": "clientId", "order": "ASCENDING" }, { "fieldPath": "code", "order": "ASCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}

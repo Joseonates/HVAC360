@@ -1,0 +1,354 @@
+rules_version = '2';
+
+// =====================================================================
+//  HVAC 360° · Reglas de seguridad de Cloud Firestore
+//  Fase 1.5 · Base multiempresa (SaaS) · VERSIÓN PLAN GRATUITO (Spark)
+//
+//  Diferencia con la versión anterior:
+//  Antes el rol y la empresa del usuario viajaban en el token (custom
+//  claims) y solo Cloud Functions podía asignarlos. Eso obligaba a
+//  contratar el plan Blaze.
+//
+//  Ahora el rol y la empresa viven en un documento de Firestore:
+//      /tenants/{empresaId}/members/{uid}
+//  Ese documento SOLO lo puede escribir un administrador de la misma
+//  empresa, y nadie puede tocar el suyo propio. Las reglas lo leen en
+//  cada operación, así que el efecto de seguridad es el mismo, sin
+//  necesidad de servidor.
+//
+//  Ventaja adicional: un cambio de rol es inmediato. Con el token había
+//  que volver a iniciar sesión para que surtiera efecto.
+//  Costo: cada operación lee 1 o 2 documentos extra. Con el tope gratis
+//  de 50.000 lecturas diarias eso da para miles de operaciones al día.
+//
+//  Roles: admin · coordinador · tecnico · cliente
+//  Estados de orden: pendiente · programada · en_ruta · en_servicio · completada · cancelada
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------
+    //  Identidad y roles (leídos de Firestore, no del token)
+    // ---------------------------------------------------------------
+    function signedIn() { return request.auth != null; }
+    function uid()      { return request.auth.uid; }
+
+    function tenantPath(t) { return /databases/$(database)/documents/tenants/$(t); }
+    function memberPath(t) { return /databases/$(database)/documents/tenants/$(t)/members/$(uid()); }
+
+    // ¿Existe la ficha de este usuario en esta empresa y está activa?
+    function inTenant(t) {
+      return signedIn() && exists(memberPath(t)) && get(memberPath(t)).data.active == true;
+    }
+    function me(t)   { return get(memberPath(t)).data; }
+    function role(t) { return me(t).role; }
+
+    function hasRole(t, roles) { return inTenant(t) && role(t) in roles; }
+
+    function isAdmin(t)    { return hasRole(t, ['admin']); }
+    function isManager(t)  { return hasRole(t, ['admin', 'coordinador']); }
+    function isStaff(t)    { return hasRole(t, ['admin', 'coordinador', 'tecnico']); }
+    function isTech(t)     { return hasRole(t, ['tecnico']); }
+    function isCustomer(t) { return hasRole(t, ['cliente']); }
+
+    // El cliente del portal trae su clientId en su propia ficha de miembro.
+    function myClientId(t) { return me(t).get('clientId', ''); }
+
+    // ---------------------------------------------------------------
+    //  Estado de la empresa (suscripción)
+    // ---------------------------------------------------------------
+    function tenantActive(t) { return get(tenantPath(t)).data.status in ['prueba', 'activo']; }
+    function canManage(t)    { return isManager(t) && tenantActive(t); }
+
+    // ---------------------------------------------------------------
+    //  Utilidades de validación
+    // ---------------------------------------------------------------
+    function newData()       { return request.resource.data; }
+    function oldData()       { return resource.data; }
+    function changedKeys()   { return newData().diff(oldData()).affectedKeys(); }
+    function unchanged(keys) { return !changedKeys().hasAny(keys); }
+
+    function str(v, min, max)  { return v is string && v.size() >= min && v.size() <= max; }
+    function optStr(d, k, max) { return !(k in d) || d[k] == null || (d[k] is string && d[k].size() <= max); }
+    function isDate(v)         { return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'); }
+    function optDate(d, k)     { return !(k in d) || d[k] == null || isDate(d[k]); }
+    function optTime(d, k)     { return !(k in d) || d[k] == null || (d[k] is string && d[k].matches('^[0-9]{2}:[0-9]{2}$')); }
+
+    function createdStamp() {
+      return newData().createdAt == request.time && newData().createdBy == uid()
+          && newData().updatedAt == request.time && newData().updatedBy == uid();
+    }
+    function updatedStamp() {
+      return newData().updatedAt == request.time && newData().updatedBy == uid()
+          && unchanged(['createdAt', 'createdBy']);
+    }
+
+    // =================================================================
+    //  COLECCIONES GLOBALES
+    // =================================================================
+
+    // Planes comerciales. Solo lectura; se cargan desde la consola.
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Índice global: a qué empresa pertenece cada usuario.
+    // Lo escribe el propio usuario al registrarse, y solo una vez.
+    match /users/{userId} {
+      allow read:   if signedIn() && uid() == userId;
+      allow create: if signedIn() && uid() == userId
+                    && newData().keys().hasOnly(['tenantId', 'email', 'createdAt'])
+                    && str(newData().tenantId, 1, 64)
+                    && newData().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // =================================================================
+    //  EMPRESA (TENANT)
+    // =================================================================
+    match /tenants/{t} {
+      allow read: if inTenant(t);
+
+      // Registro de una empresa nueva: quien la crea debe quedar como
+      // administrador en la MISMA operación, y la empresa nace en prueba.
+      allow create: if signedIn()
+        && newData().status == 'prueba'
+        && newData().createdBy == uid()
+        && newData().createdAt == request.time
+        && str(newData().name, 2, 120)
+        && getAfter(memberPath(t)).data.role == 'admin';
+
+      allow delete: if false;
+
+      // El plan y el estado NO se cambian desde la app: eso se hace
+      // desde la consola de Firebase (usted, como dueño de la plataforma).
+      allow update: if isAdmin(t) && tenantActive(t)
+        && changedKeys().hasOnly(['name', 'legalName', 'nit', 'phone', 'email', 'address', 'city', 'logoUrl', 'settings', 'updatedAt', 'updatedBy'])
+        && str(newData().name, 2, 120)
+        && newData().updatedAt == request.time && newData().updatedBy == uid();
+
+      // ---------------- Miembros: aquí vive el rol ----------------
+      //  Esta es la pieza que reemplaza a Cloud Functions.
+      //  Candados: nadie puede tocar su propia ficha (ni ascenderse, ni
+      //  desactivarse), y solo un admin de la misma empresa puede crear
+      //  o modificar la de otro.
+      match /members/{memberId} {
+        allow read: if isManager(t) || (signedIn() && uid() == memberId);
+
+        // Caso 1 · Arranque: el fundador se crea a sí mismo como admin
+        //          junto con la empresa (la empresa aún no existía).
+        // Caso 2 · Normal: un admin da de alta a otra persona.
+        allow create: if
+          (
+            memberId == uid()
+            && newData().role == 'admin'
+            && !exists(tenantPath(t))
+            && getAfter(tenantPath(t)).data.createdBy == uid()
+            && validMember(newData())
+          )
+          || (
+            isAdmin(t) && tenantActive(t)
+            && memberId != uid()
+            && validMember(newData())
+          );
+
+        // Un admin cambia el rol o activa/desactiva a OTRA persona.
+        // Nunca a sí mismo: así una empresa no se queda sin administrador
+        // por un clic equivocado.
+        allow update: if isAdmin(t) && tenantActive(t)
+          && memberId != uid()
+          && validMember(newData())
+          && unchanged(['createdAt', 'createdBy']);
+
+        allow delete: if false;
+      }
+      function validMember(d) {
+        return d.keys().hasOnly(['name', 'email', 'role', 'active', 'clientId', 'branchId',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.name, 2, 100)
+          && d.role in ['admin', 'coordinador', 'tecnico', 'cliente']
+          && d.active is bool
+          && optStr(d, 'email', 120) && optStr(d, 'branchId', 64)
+          // Un usuario del portal del cliente DEBE estar amarrado a un cliente.
+          && (d.role != 'cliente' || str(d.get('clientId', ''), 1, 64))
+          && (d.role == 'cliente' || d.get('clientId', null) == null);
+      }
+
+      // ---------------- Contadores (consecutivos OT-0001...) ----------------
+      match /counters/{name} {
+        allow read: if isManager(t);
+        allow create, delete: if false;
+        allow update: if canManage(t)
+          && newData().keys().hasOnly(['value'])
+          && newData().value == oldData().value + 1;
+      }
+
+      // ---------------- Sucursales / regionales ----------------
+      match /branches/{branchId} {
+        allow read: if isStaff(t);
+        allow create: if isAdmin(t) && tenantActive(t) && validBranch(newData()) && createdStamp();
+        allow update: if isAdmin(t) && tenantActive(t) && validBranch(newData()) && updatedStamp();
+        allow delete: if false;
+      }
+      function validBranch(d) {
+        return d.keys().hasOnly(['name', 'city', 'active', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.name, 2, 100) && optStr(d, 'city', 80) && d.active is bool;
+      }
+
+      // ---------------- Clientes ----------------
+      match /clients/{clientId} {
+        allow read: if isStaff(t) || (isCustomer(t) && clientId == myClientId(t));
+        allow create: if canManage(t) && validClient(newData()) && createdStamp();
+        allow update: if canManage(t) && validClient(newData()) && updatedStamp();
+        allow delete: if false;
+      }
+      function validClient(d) {
+        return d.keys().hasOnly(['name', 'nit', 'contact', 'phone', 'email', 'address', 'city', 'branchId', 'status', 'notes',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.name, 2, 150)
+          && d.status in ['activo', 'inactivo']
+          && optStr(d, 'nit', 30) && optStr(d, 'contact', 100) && optStr(d, 'phone', 40)
+          && optStr(d, 'email', 120) && optStr(d, 'address', 200) && optStr(d, 'city', 80)
+          && optStr(d, 'branchId', 64) && optStr(d, 'notes', 2000);
+      }
+
+      // ---------------- Sedes ----------------
+      match /sites/{siteId} {
+        allow read: if isStaff(t) || (isCustomer(t) && resource.data.clientId == myClientId(t));
+        allow create: if canManage(t) && validSite(newData()) && createdStamp()
+          && exists(/databases/$(database)/documents/tenants/$(t)/clients/$(newData().clientId));
+        allow update: if canManage(t) && validSite(newData()) && updatedStamp() && unchanged(['clientId']);
+        allow delete: if false;
+      }
+      function validSite(d) {
+        return d.keys().hasOnly(['clientId', 'name', 'city', 'address', 'contact', 'phone', 'lat', 'lng', 'active',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.clientId, 1, 64) && str(d.name, 2, 120) && d.active is bool
+          && optStr(d, 'city', 80) && optStr(d, 'address', 200) && optStr(d, 'contact', 100) && optStr(d, 'phone', 40)
+          && (!('lat' in d) || d.lat == null || d.lat is number)
+          && (!('lng' in d) || d.lng == null || d.lng is number);
+      }
+
+      // ---------------- Equipos HVAC ----------------
+      match /assets/{assetId} {
+        allow read: if isStaff(t) || (isCustomer(t) && resource.data.clientId == myClientId(t));
+        allow create: if canManage(t) && validAsset(newData()) && createdStamp()
+          && get(/databases/$(database)/documents/tenants/$(t)/sites/$(newData().siteId)).data.clientId == newData().clientId;
+        // Mover un equipo de cliente o sede se hace borrando y creando de
+        // nuevo, para no perder el historial de órdenes ya hechas.
+        allow update: if canManage(t) && validAsset(newData()) && updatedStamp() && unchanged(['clientId', 'siteId', 'code']);
+        allow delete: if false;
+      }
+      function validAsset(d) {
+        return d.keys().hasOnly(['code', 'clientId', 'siteId', 'location', 'type', 'brand', 'model', 'serial', 'btu',
+                                 'refrigerant', 'installDate', 'warrantyUntil', 'status', 'qr',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.code, 3, 30) && str(d.clientId, 1, 64) && str(d.siteId, 1, 64)
+          && str(d.type, 2, 40) && str(d.brand, 1, 60)
+          && d.status in ['operativo', 'requiere_atencion', 'fuera_de_servicio']
+          && optStr(d, 'location', 120) && optStr(d, 'model', 60) && optStr(d, 'serial', 60)
+          && optStr(d, 'refrigerant', 20) && optStr(d, 'qr', 120)
+          && (!('btu' in d) || d.btu == null || (d.btu is int && d.btu >= 0 && d.btu <= 10000000))
+          && optDate(d, 'installDate') && optDate(d, 'warrantyUntil');
+      }
+
+      // ---------------- Técnicos (ficha operativa) ----------------
+      match /technicians/{techId} {
+        allow read: if isStaff(t);
+        allow create: if canManage(t) && validTech(newData()) && createdStamp();
+        allow update: if canManage(t) && validTech(newData()) && updatedStamp();
+        allow delete: if false;
+      }
+      function validTech(d) {
+        return d.keys().hasOnly(['name', 'phone', 'email', 'specialties', 'branchId', 'active', 'uid',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.name, 2, 100) && d.active is bool
+          && optStr(d, 'phone', 40) && optStr(d, 'email', 120) && optStr(d, 'branchId', 64)
+          && optStr(d, 'uid', 128)
+          && (!('specialties' in d) || (d.specialties is list && d.specialties.size() <= 20));
+      }
+
+      // ---------------- Órdenes de trabajo ----------------
+      match /workOrders/{orderId} {
+        allow read: if isManager(t)
+          || (isTech(t) && resource.data.techUid == uid())
+          || (isCustomer(t) && resource.data.clientId == myClientId(t));
+
+        allow create: if canManage(t) && validOrder(newData()) && createdStamp()
+          && newData().status in ['pendiente', 'programada']
+          && getAfter(/databases/$(database)/documents/tenants/$(t)/counters/workOrders).data.value == newData().seq
+          && get(/databases/$(database)/documents/tenants/$(t)/counters/workOrders).data.value == newData().seq - 1
+          && get(/databases/$(database)/documents/tenants/$(t)/sites/$(newData().siteId)).data.clientId == newData().clientId;
+
+        allow update: if oldData().status in ['pendiente', 'programada', 'en_ruta', 'en_servicio']
+          && validOrder(newData()) && updatedStamp()
+          && unchanged(['seq', 'clientId'])
+          && (managerUpdate() || techUpdate());
+
+        allow delete: if false;
+
+        function managerUpdate() {
+          return canManage(t) && transitionOk(oldData().status, newData().status,
+            ['pendiente>programada', 'programada>pendiente', 'programada>en_ruta', 'en_ruta>en_servicio',
+             'en_servicio>completada', 'pendiente>cancelada', 'programada>cancelada', 'en_ruta>cancelada',
+             'en_servicio>cancelada']);
+        }
+        function techUpdate() {
+          return isTech(t) && tenantActive(t)
+            && oldData().techUid == uid()
+            && changedKeys().hasOnly(['status', 'statusNote', 'startedAt', 'completedAt', 'updatedAt', 'updatedBy'])
+            && transitionOk(oldData().status, newData().status,
+                 ['programada>en_ruta', 'en_ruta>en_servicio', 'en_servicio>completada']);
+        }
+
+        // Historial inmutable de la orden
+        match /events/{eventId} {
+          allow read: if isManager(t)
+            || (isTech(t) && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data.techUid == uid())
+            || (isCustomer(t) && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data.clientId == myClientId(t));
+          allow create: if tenantActive(t)
+            && (isManager(t) || (isTech(t) && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data.techUid == uid()))
+            && newData().keys().hasOnly(['type', 'status', 'note', 'by', 'byName', 'at'])
+            && newData().by == uid() && newData().at == request.time
+            && str(newData().type, 2, 40) && optStr(newData(), 'note', 2000) && optStr(newData(), 'byName', 100);
+          allow update, delete: if false;
+        }
+      }
+
+      function transitionOk(from, to, allowed) {
+        return from == to || (from + '>' + to) in allowed;
+      }
+
+      function validOrder(d) {
+        return d.keys().hasOnly(['seq', 'number', 'branchId', 'clientId', 'clientName', 'siteId', 'siteName',
+                                 'assetId', 'assetCode', 'type', 'priority', 'techId', 'techUid', 'techName',
+                                 'scheduledDate', 'scheduledTime', 'description', 'status', 'statusNote',
+                                 'startedAt', 'completedAt', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.seq is int && d.seq > 0 && str(d.number, 3, 20)
+          && str(d.clientId, 1, 64) && str(d.clientName, 1, 150)
+          && str(d.siteId, 1, 64) && str(d.siteName, 1, 120)
+          && d.type in ['preventivo', 'correctivo', 'instalacion', 'emergencia']
+          && d.priority in ['normal', 'media', 'alta', 'critica']
+          && d.status in ['pendiente', 'programada', 'en_ruta', 'en_servicio', 'completada', 'cancelada']
+          && isDate(d.scheduledDate) && optTime(d, 'scheduledTime')
+          && optStr(d, 'description', 4000) && optStr(d, 'statusNote', 2000) && optStr(d, 'branchId', 64)
+          && optStr(d, 'assetCode', 30) && optStr(d, 'techName', 100)
+          && (d.type == 'instalacion' || d.get('assetId', null) is string)
+          && (d.status != 'pendiente' || d.get('techId', null) == null)
+          && (!(d.status in ['programada', 'en_ruta', 'en_servicio', 'completada']) || d.get('techId', null) is string)
+          && (d.status != 'cancelada' || (d.get('statusNote', null) is string && d.statusNote.size() >= 5));
+      }
+
+      // ---------------- Bitácora de auditoría ----------------
+      // La escribe la app, pero una vez escrita no se toca nunca más.
+      match /auditLog/{entryId} {
+        allow read:   if isAdmin(t);
+        allow create: if isManager(t) && tenantActive(t)
+          && newData().by == uid() && newData().at == request.time;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

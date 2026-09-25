@@ -821,7 +821,7 @@ async function verReporte(id){
  try{
   const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
   if(!d.exists()){
-   cont.innerHTML='<p style="padding:40px;text-align:center;color:#555">El técnico todavía no ha llenado el reporte de esta orden.</p>';
+   cont.innerHTML='<p style="padding:40px;text-align:center;color:#555">El técnico todavía no ha llenado el reporte de la orden '+esc(id)+'.<br><span style="font-size:11px">Si él dice que ya lo firmó, pídale que abra el reporte otra vez y toque «Cerrar y firmar»: puede que el guardado le haya fallado.</span></p>';
    return;
   }
   cont.innerHTML=hojaReporte(o,d.data());

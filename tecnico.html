@@ -608,10 +608,15 @@ async function guardarReporte(firmar){
   if(!payload.createdAt){payload.createdAt=FB.serverTimestamp();payload.createdBy=FB.auth.currentUser.uid}
   await FB.setDoc(ref,payload);
   m.className='msg ok';
-  m.textContent=firmar?'Reporte firmado y guardado.':'Borrador guardado.';
-  if(firmar){ REP.firmaCliente=fc; pintarReporte() }
+  m.textContent=firmar?'Reporte firmado y guardado. Ya lo ve la oficina.':'Borrador guardado.';
+  m.scrollIntoView({block:'center'});
+  if(firmar){ REP.firmaCliente=fc; pintarReporte(); alert('Reporte guardado. La oficina ya lo puede ver e imprimir.') }
  }catch(e){
-  console.error(e); m.className='msg err'; m.textContent='No se pudo guardar: '+errMsg(e)+(e.code?' ['+e.code+']':'');
+  console.error(e);
+  const t='No se pudo guardar: '+errMsg(e)+(e.code?' ['+e.code+']':'');
+  m.className='msg err'; m.textContent=t; m.scrollIntoView({block:'center'});
+  // Un fallo aquí significa que el reporte NO quedó guardado: hay que verlo sí o sí.
+  alert(t);
  }
 }
 

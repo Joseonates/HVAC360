@@ -51,6 +51,41 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 .authbusy{margin-top:14px;font-size:13px;color:var(--muted,#6b7683);text-align:center}
 .userbtn{background:none;border:1px solid var(--line,#d6dce5);color:inherit;font:inherit;font-size:12px;padding:5px 10px;border-radius:7px;cursor:pointer}
 .userbtn:hover{background:var(--bg2,#f2f5f9)}
+/* ---- Visor de reportes de servicio ---- */
+#rvSheet{position:fixed;inset:0;z-index:900;background:#525659;overflow:auto;padding:0 0 40px}
+.rvbar{position:sticky;top:0;z-index:5;display:flex;gap:10px;justify-content:flex-end;padding:11px 16px;background:#333;border-bottom:1px solid #000}
+.rvbar button{padding:9px 18px;border-radius:8px;border:none;background:#2f7df6;color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.rvbar button.sec{background:transparent;border:1px solid #777;color:#eee}
+#rvPaper{background:#fff;color:#000;max-width:840px;margin:22px auto;padding:22px;box-shadow:0 6px 30px rgba(0,0,0,.4)}
+#rvBody{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#000}
+#rvBody .phead{display:flex;align-items:stretch;border:1px solid #000;margin-bottom:6px}
+#rvBody .pco{padding:6px 10px;font-weight:700;font-size:13px;border-right:1px solid #000;display:flex;align-items:center;justify-content:center;min-width:150px;max-width:190px}
+#rvBody .plogo{max-height:52px;max-width:170px}
+#rvBody .pti{flex:1;padding:8px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center}
+#rvBody .pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
+#rvBody .pnum .sm{font-size:8px;font-weight:700}
+#rvBody .pt{width:100%;border-collapse:collapse;margin-bottom:6px}
+#rvBody .pt td,#rvBody .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+#rvBody .pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
+#rvBody .pt th.gh{text-align:center;text-transform:uppercase}
+#rvBody .pt td.lb{background:#eef2f7;font-weight:700;width:90px}
+#rvBody .pt td.v{width:44px;text-align:center;font-weight:700}
+#rvBody .pt td.tall{height:52px}
+#rvBody .pcols{column-count:3;column-gap:6px}
+#rvBody .pcols table{break-inside:avoid;width:100%}
+#rvBody .pconv{font-size:7.5px;margin:-2px 0 7px;line-height:1.3}
+#rvBody .pfirmas{display:flex;gap:26px;margin-top:16px;text-align:center}
+#rvBody .pfirmas>div{flex:1}
+#rvBody .fbox{height:56px;border-bottom:1px solid #000;display:flex;align-items:flex-end;justify-content:center}
+#rvBody .fbox img{max-height:54px}
+#rvBody .fl{font-size:9px;font-weight:700;margin-top:3px}
+#rvBody .sm{font-size:8px}
+@media print{
+ body.viendo-reporte .app,body.viendo-reporte #modal,body.viendo-reporte #toast,body.viendo-reporte .rvbar{display:none!important}
+ body.viendo-reporte #rvSheet{position:static;background:#fff;padding:0;overflow:visible}
+ body.viendo-reporte #rvPaper{box-shadow:none;margin:0;padding:0;max-width:none}
+ @page{size:letter;margin:9mm}
+}
 </style>
 </head>
 <body>
@@ -244,6 +279,13 @@ try {
 
 <div id="modal" class="modal-bg" hidden onclick="if(event.target===this)closeModal()"><div class="modal" id="modalBody"></div></div>
 <div id="toast" class="toast" hidden></div>
+<div id="rvSheet" hidden>
+ <div class="rvbar">
+  <button class="sec" onclick="cerrarVisor()">Cerrar</button>
+  <button onclick="imprimirReporte()">Imprimir / Guardar PDF</button>
+ </div>
+ <div id="rvPaper"><div id="rvBody"></div></div>
+</div>
 
 <script>
 /* ================= CONFIGURACIÓN ================= */
@@ -397,6 +439,7 @@ function orderDetail(id){
   <button class="btn secondary" data-id="${esc(o.id)}" onclick="editOrder(this.dataset.id)">Editar</button>
   <button class="btn danger" data-id="${esc(o.id)}" onclick="changeStatus(this.dataset.id,'Cancelada')">Cancelar orden</button>
  </div>${needTech?'<div class="errors">Para programar la orden, primero asigne un técnico con “Editar”.</div>':''}`:''}
+ <hr><div class="actions"><button class="btn secondary" data-id="${esc(o.id)}" onclick="verReporte(this.dataset.id)">Ver reporte de servicio</button></div>
  <hr><h2 style="font-size:15px">Historial</h2><div class="timeline">${[...(o.history||[])].reverse().map(h=>`<div class="event"><b>${esc(h.status)}</b><span class="small">${fmtDateTime(h.at)}${h.note?' · '+esc(h.note):''}</span></div>`).join('')||'<span class="small">Sin movimientos.</span>'}</div>`);
 }
 function changeStatus(id,status){
@@ -719,6 +762,105 @@ async function crearAcceso(id){
   console.error('crearAcceso falló en el paso',paso,e);
   err.textContent='Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':'');
  }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
+}
+
+/* ================= VISOR DE REPORTES (oficina) ================= */
+const R_TIPOS=[['AC','Aire Central'],['AV','Ventana'],['MSPT','Mini Split Piso Techo'],['MSC','Mini Split Casette'],
+ ['MSP','Mini Split Pared'],['PAQ','Paquete'],['CH','Chiller'],['ER','Equipo de Refrigeración'],
+ ['MAF','Manejadora de Agua Fría'],['TE','Torre de Enfriamiento'],['BOM','Bomba']];
+const R_CHECKS={
+ 'Evaporador':['Revisar aislamiento térmico','Limpieza de filtros','Sondeo drenajes','Alineación de polea',
+  'Tensión de correas','Limpieza rotor','Lavado serpentín','Engrase y estado del eje','Lubricación rodamientos',
+  'Ajuste bulbo válvula expansión','Revisar y limpiar ductos / rejillas'],
+ 'Condensador':['Limpieza rotor y eje','Lavado serpentín','Lubricación rodamientos','Revisar operación de presostatos',
+  'Ajuste conexión eléctricas'],
+ 'Compresores':['Condiciones generales de operación','Fugas aceite / refrigerantes','Nivel y estado de aceite',
+  'Presostato aceite','Presostato alta / baja','Termo sensor','Resistencia cárter','Sonido operación'],
+ 'Tableros':['Ajuste conexión eléctricas','Revisar mandos / indicadores'],
+ 'Circuito de refrigeración':['Válvula paso','Aislamiento tubería','Filtro secador','Indicador líquido','Indicador humedad'],
+ 'Centro de cómputo':['Calibración control temperatura','Calibración control humedad','Lavado tanque humectación',
+  'Resistencia humectación','Resistencia calentamiento','Suministro agua','Alarma audio / visual',
+  'Control filtros obstruidos','Control flujo aire'],
+ 'Gabinetes / ductos':['Limpieza exterior','Ajuste tornillos','Pintura','Limpieza rejillas']};
+const R_DATOS={
+ 'Presión':['Succión compresor 1','Succión compresor 2','Descarga compresor 1','Descarga compresor 2','Aceite compresor 1','Aceite compresor 2'],
+ 'Temperatura':['Aire suministro o agua','Aire retorno o agua'],
+ 'Amperaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4','Resistencias'],
+ 'Voltaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4']};
+const R_EVALS=['Calidad del trabajo','Oportunidad en la entrega','Atención de los técnicos','Presentación y orden'];
+const R_ROLES=['Condensadora','Manejadora','Otros'];
+const rk=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+function tieneReporte(id){ return REPCACHE[id]===true }
+let REPCACHE={};
+
+async function verReporte(id){
+ const o=byId(db.orders,id); if(!o) return;
+ const cont=$('rvBody');
+ $('rvSheet').hidden=false; cont.innerHTML='<p style="padding:30px;text-align:center">Cargando el reporte…</p>';
+ document.body.classList.add('viendo-reporte');
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+  if(!d.exists()){
+   cont.innerHTML='<p style="padding:40px;text-align:center;color:#555">El técnico todavía no ha llenado el reporte de esta orden.</p>';
+   return;
+  }
+  cont.innerHTML=hojaReporte(o,d.data());
+ }catch(e){
+  console.error(e);
+  cont.innerHTML='<p style="padding:40px;text-align:center;color:#a33">No se pudo abrir el reporte: '+esc(errMsg(e))+'</p>';
+ }
+}
+function cerrarVisor(){ $('rvSheet').hidden=true; document.body.classList.remove('viendo-reporte') }
+function imprimirReporte(){ window.print() }
+
+function hojaReporte(o,R){
+ const prev=(R.tipo||'preventivo')==='preventivo';
+ const c=client(o.clientId), st=site(o.siteId), a=asset(o.assetId);
+ const eqs=R.equipos||[], checks=R.checks||{}, datos=R.datos||{}, ev=R.evaluacion||{};
+ const eq=[0,1,2].map(i=>{const e=eqs[i]||{};
+  return `<tr><td>${esc(R_ROLES[i])}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.capacidad||'')}</td>
+   <td>${esc(e.marca||'')}</td><td>${esc(e.modelo||'')}</td><td>${esc(e.serie||'')}</td>
+   <td>${esc(e.ubicacion||'')}</td><td>${esc(e.numero||'')}</td></tr>`}).join('');
+ const checksHtml=Object.entries(R_CHECKS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
+  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${checks['c_'+rk(g)+'_'+rk(it)]?'X':''}</td></tr>`).join('')}</table>`).join('');
+ const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
+ const matHtml=`<table class="pt"><tr><th>Descripción de materiales y repuestos</th><th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
+  ${mats.map(m=>`<tr><td>${esc(m.descripcion||'')}</td><td class="v">${esc(m.unidad||'')}</td><td class="v">${esc(m.cantidad||'')}</td></tr>`).join('')}</table>
+  <table class="pt"><tr><th>Descripción de la actividad</th></tr><tr><td class="tall">${esc(R.actividad||'')}</td></tr></table>`;
+ const datosHtml=Object.entries(R_DATOS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
+  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${esc(datos['d_'+rk(g)+'_'+rk(it)]||'')}</td></tr>`).join('')}</table>`).join('');
+ const evalHtml=`<table class="pt"><tr><th>Evaluación del servicio · califique de 1 a 5, donde 5 es el máximo</th>
+  <th style="width:44px">1</th><th style="width:44px">2</th><th style="width:44px">3</th><th style="width:44px">4</th><th style="width:44px">5</th></tr>
+  ${R_EVALS.map(e=>{const v=ev['e_'+rk(e)]||0;
+   return `<tr><td>${esc(e)}</td>${[1,2,3,4,5].map(n=>`<td class="v">${v===n?'X':''}</td>`).join('')}</tr>`}).join('')}</table>`;
+ const logo=(ME&&ME.logoUrl)||'';
+ return `
+ <div class="phead">
+  <div class="pco">${logo?`<img src="${logo}" class="plogo">`:esc((ME&&ME.company)||'HVAC 360°')}</div>
+  <div class="pti">REPORTE DE MANTENIMIENTO ${prev?'PREVENTIVO':'CORRECTIVO'}</div>
+  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(o.id)}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(c?.name||'')}</td><td class="lb">Fecha</td><td>${fmtDate(o.date)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(st?.name||'')}</td><td class="lb">Equipo</td><td>${esc(a?.id||'')}</td></tr>
+  <tr><td class="lb">Hora entrada</td><td>${esc(R.horaEntrada||'')}</td><td class="lb">Hora salida</td><td>${esc(R.horaSalida||'')}</td></tr>
+ </table>
+ <table class="pt"><tr><th colspan="8" class="gh">Identificación del equipo</th></tr>
+  <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicación</th><th>No.</th></tr>${eq}</table>
+ <div class="pconv">${R_TIPOS.map(t=>t[0]+': '+t[1]).join(' · ')}</div>
+ ${prev?`<div class="pcols">${checksHtml}</div>`:matHtml}
+ <div class="pcols">${datosHtml}</div>
+ ${prev?`<table class="pt"><tr><th>Recomendaciones del técnico</th></tr><tr><td class="tall">${esc(R.recomendaciones||'')}</td></tr>
+   <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(R.observaciones||'')}</td></tr></table>`:''}
+ ${evalHtml}
+ <div class="pfirmas">
+  <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
+   <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(R.firmaClienteNombre||'')}</div></div>
+  <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
+   <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${esc(R.firmaTecnicoNombre||'')}</div></div>
+ </div>
+ ${R.firmaCliente?'':'<p class="pconv" style="margin-top:10px">Reporte sin firmar: el técnico todavía puede modificarlo.</p>'}`;
 }
 
 /* ================= REPORTES ================= */

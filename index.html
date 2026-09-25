@@ -131,7 +131,7 @@ try {
 </aside>
 
 <main class="main">
-<header><div class="header-title">Centro de Operaciones HVAC <span class="small" id="uCompany"></span></div><div class="user"><span class="small"><b id="uName">—</b> <span id="uRole" class="small"></span></span><div class="avatar" id="uAvatar">—</div><button class="userbtn" onclick="doLogout()">Salir</button></div></header>
+<header><div class="header-title"><img id="hdLogo" hidden style="height:30px;background:#fff;padding:3px;border-radius:5px;vertical-align:middle;margin-right:9px"> Centro de Operaciones HVAC <span class="small" id="uCompany"></span></div><div class="user"><span class="small"><b id="uName">—</b> <span id="uRole" class="small"></span></span><div class="avatar" id="uAvatar">—</div><button class="userbtn" onclick="doLogout()">Salir</button></div></header>
 <div class="content">
 
 <!-- DASHBOARD -->
@@ -754,7 +754,7 @@ async function guardarLogo(dataUrl){
  try{
   await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),
    {logoUrl:dataUrl,updatedAt:FB.serverTimestamp(),updatedBy:uid()});
-  ME.logoUrl=dataUrl; pintarLogo();
+  ME.logoUrl=dataUrl; pintarLogo(); aplicarLogo();
   toast(dataUrl?'Logo guardado.':'Logo quitado.');
  }catch(e){ console.error(e); toast('No se pudo guardar el logo: '+errMsg(e)) }
 }
@@ -983,9 +983,23 @@ function bootUI(){
  $('statusFilter').innerHTML='<option value="">Todos los estados</option><option value="abiertas">Solo abiertas</option><option value="vencidas">Solo vencidas</option>'+opts(ORDER_STATUS,'');
  show('dashboard');
 }
-function setUserChip(){
+function aplicarLogo(){
+ const url=(ME&&ME.logoUrl)||'';
  const lg=document.querySelector('.sidebar .logo');
- if(lg&&ME&&ME.logoUrl) lg.innerHTML=`<img src="${ME.logoUrl}" style="max-width:100%;max-height:52px;background:#fff;padding:5px;border-radius:7px">`;
+ if(lg) lg.innerHTML=url?`<img src="${url}" style="max-width:100%;max-height:52px;background:#fff;padding:5px;border-radius:7px">`:'HVAC <span>360°</span>';
+ const hd=$('hdLogo'); if(hd){ hd.src=url||''; hd.hidden=!url }
+ // Ícono de la pestaña y de la pantalla de inicio del celular
+ if(url){
+  ['icon','apple-touch-icon'].forEach(r=>{
+   let l=document.querySelector(`link[rel="${r}"]`);
+   if(!l){ l=document.createElement('link'); l.rel=r; document.head.appendChild(l) }
+   l.href=url;
+  });
+ }
+ if(ME&&ME.company) document.title=ME.company+' · HVAC 360°';
+}
+function setUserChip(){
+ aplicarLogo();
  const n=(ME&&ME.name)||'Usuario';
  const ini=n.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
  $('uName').textContent=n;

@@ -55,6 +55,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .logo span{color:var(--accent)}
 .hist{border-left:2px solid var(--line);padding-left:12px;margin-top:6px}
 .hist div{font-size:13px;color:var(--muted);margin-bottom:7px}
+.hdlogo{height:34px;max-width:96px;background:#fff;padding:3px 5px;border-radius:7px;object-fit:contain}
 .off{background:var(--orange);color:#fff;text-align:center;font-size:12px;padding:5px;font-weight:600}
 .secTit{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:20px 0 9px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
@@ -121,6 +122,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 
 <div id="vList" hidden>
  <header>
+  <img id="hdLogo" class="hdlogo" hidden>
   <div style="flex:1"><h1 id="hName">—</h1><div class="who" id="hCo"></div></div>
   <button class="icbtn" onclick="salir()">Salir</button>
  </header>
@@ -146,7 +148,8 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 <div id="vRep" hidden>
  <header>
   <button class="icbtn" onclick="cerrarReporte()">‹ Volver</button>
-  <h1 id="repTit" style="text-align:center;font-size:14px">Reporte</h1>
+  <img id="repLogo" class="hdlogo" hidden>
+  <h1 id="repTit" style="text-align:center;font-size:14px;flex:1">Reporte</h1>
   <span style="width:62px"></span>
  </header>
  <main id="repBody"></main>
@@ -226,6 +229,7 @@ async function alEntrar(u){
    FB.getDoc(FB.doc(FB.fs,'tenants',TENANT))]);
   EMPRESA=td.exists()?(td.data().name||''):'';
   LOGO=td.exists()?(td.data().logoUrl||''):'';
+  aplicarLogo();
   if(!md.exists()||md.data().active===false){msg('lmsg','Su usuario está inactivo.','err');$('inBtn').disabled=false;await FB.signOut(FB.auth);return}
   ME=md.data();
   $('hName').textContent=ME.name||'Técnico';
@@ -616,6 +620,17 @@ function verImpresion(){
 function cerrarImpresion(){ view('vRep') }
 function imprimir(){ window.print() }
 
+function aplicarLogo(){
+ ['hdLogo','repLogo'].forEach(id=>{const e=$(id); if(e){ e.src=LOGO||''; e.hidden=!LOGO }});
+ if(LOGO){
+  ['icon','apple-touch-icon'].forEach(r=>{
+   let l=document.querySelector(`link[rel="${r}"]`);
+   if(!l){ l=document.createElement('link'); l.rel=r; document.head.appendChild(l) }
+   l.href=LOGO;
+  });
+ }
+ if(EMPRESA) document.title=EMPRESA+' · Técnico';
+}
 function red(){ $('offline').hidden=navigator.onLine }
 window.addEventListener('online',red); window.addEventListener('offline',red); red();
 

@@ -66,7 +66,15 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .stars{display:flex;gap:7px}
 .st{flex:1;padding:10px 0;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-weight:700}
 .st.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.firmaCv{width:100%;height:150px;background:#fff;border:1px solid var(--line);border-radius:9px;touch-action:none;display:block}
+.firmaVacia{height:78px;border:1px dashed var(--line);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+#vFirma{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 14px 16px}
+#vFirma[hidden]{display:none!important}
+.fmTop{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.fmTop span{font-size:16px;font-weight:700}
+.fmCv{flex:1;width:100%;background:#fff;border-radius:12px;touch-action:none;display:block}
+.fmHint{text-align:center;font-size:12px;color:var(--muted);margin:9px 0}
+.fmBtns{display:flex;gap:10px}
+.fmBtns .btn{margin-top:0}
 .firmaImg{width:100%;background:#fff;border:1px solid var(--line);border-radius:9px;display:block}
 /* ---- Hoja para imprimir o guardar como PDF ---- */
 #prSheet{background:#fff;color:#000;padding:12px}
@@ -155,6 +163,19 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
  <main id="repBody"></main>
 </div>
 
+<div id="vFirma" hidden>
+ <div class="fmTop">
+  <span id="fmTit">Firma</span>
+  <button class="icbtn" onclick="cerrarFirma()">Cancelar</button>
+ </div>
+ <canvas id="fmCv" class="fmCv"></canvas>
+ <div class="fmHint">Firme con el dedo dentro del recuadro blanco</div>
+ <div class="fmBtns">
+  <button class="btn sec" onclick="borrarFirma()">Borrar</button>
+  <button class="btn" onclick="guardarFirma()">Listo</button>
+ </div>
+</div>
+
 <div id="vPrint" hidden>
  <div class="prbar">
   <button class="sec" onclick="cerrarImpresion()">‹ Volver</button>
@@ -198,7 +219,7 @@ const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',c
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
-function view(v){['vLogin','vList','vDet','vRep','vPrint'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
+function view(v){['vLogin','vList','vDet','vRep','vPrint','vFirma'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
 function msg(el,t,cls){const e=$(el);e.textContent=t;e.className='msg'+(t?' '+cls:'')}
 
 function errMsg(e){
@@ -390,7 +411,7 @@ async function abrirReporte(){
  REP.equipos=REP.equipos||[]; REP.checks=REP.checks||{}; REP.materiales=REP.materiales||[];
  REP.datos=REP.datos||{}; REP.evaluacion=REP.evaluacion||{};
  firmas.cliente=REP.firmaCliente||null; firmas.tecnico=REP.firmaTecnico||null;
- pintarReporte(); view('vRep');
+ view('vRep'); pintarReporte();
 }
 function cerrarReporte(){ view('vDet') }
 
@@ -463,12 +484,12 @@ function pintarReporte(){
  <div class="secTit">Firmas</div>
  <div class="card" style="padding:11px">
   <label>Nombre de quien recibe<input id="rFCNom" value="${esc(REP.firmaClienteNombre||'')}" ${firmado?'disabled':''}></label>
-  <div class="sub" style="margin-bottom:5px">Firma del cliente</div>
-  ${firmas.cliente?`<img class="firmaImg" src="${firmas.cliente}">`:`<canvas id="cvCli" class="firmaCv"></canvas>
-   <button class="btn sec" onclick="limpiarFirma('cli')">Borrar firma</button>`}
-  <div class="sub" style="margin:14px 0 5px">Firma del técnico</div>
-  ${firmas.tecnico?`<img class="firmaImg" src="${firmas.tecnico}">`:`<canvas id="cvTec" class="firmaCv"></canvas>
-   <button class="btn sec" onclick="limpiarFirma('tec')">Borrar firma</button>`}
+  <div class="sub" style="margin-bottom:6px">Firma del cliente</div>
+  ${firmas.cliente?`<img class="firmaImg" src="${firmas.cliente}">`:'<div class="firmaVacia">Sin firma todavía</div>'}
+  ${firmado?'':`<button class="btn sec" onclick="abrirFirma('cliente')">${firmas.cliente?'Volver a firmar':'Firmar aquí'}</button>`}
+  <div class="sub" style="margin:18px 0 6px">Firma del técnico</div>
+  ${firmas.tecnico?`<img class="firmaImg" src="${firmas.tecnico}">`:'<div class="firmaVacia">Sin firma todavía</div>'}
+  ${firmado?'':`<button class="btn sec" onclick="abrirFirma('tecnico')">${firmas.tecnico?'Volver a firmar':'Firmar aquí'}</button>`}
  </div>
 
  <div id="rmsg" class="msg"></div>
@@ -478,7 +499,6 @@ function pintarReporte(){
  <div style="height:30px"></div>`;
 
  if(REP.tipo!=='preventivo') pintarMats();
- if(!firmado){ initFirma('cvCli','cli'); initFirma('cvTec','tec') }
  $('repBody').querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{
   REP.evaluacion[b.dataset.ev]=parseInt(b.dataset.n,10);
   $('repBody').querySelectorAll(`[data-ev="${b.dataset.ev}"]`).forEach(x=>
@@ -514,38 +534,66 @@ function recogerReporte(){
  REP.materiales=REP.materiales.filter(m=>(m.descripcion||'').trim());
 }
 
-/* ---- Firma con el dedo ---- */
-function initFirma(cid,key){
- const cv=$(cid); if(!cv) return;
+/* ---- Firma con el dedo, a pantalla completa ---- */
+let FIRMA_QUIEN=null, fmCtx=null, fmDirty=false;
+
+function abrirFirma(quien){
+ recogerReporte();
+ FIRMA_QUIEN=quien;
+ $('fmTit').textContent=(quien==='cliente')?'Firma del cliente':'Firma del técnico';
+ view('vFirma');
+ // El lienzo se dimensiona cuando la pantalla YA está visible: si se hace
+ // antes, mide cero y no pinta nada.
+ requestAnimationFrame(()=>requestAnimationFrame(prepararLienzo));
+}
+function prepararLienzo(){
+ const cv=$('fmCv'); if(!cv) return;
  const r=cv.getBoundingClientRect();
- cv.width=Math.round(r.width*2); cv.height=Math.round(r.height*2);
- const x=cv.getContext('2d'); x.scale(2,2); x.lineWidth=2.2; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#111';
- x.fillStyle='#fff'; x.fillRect(0,0,cv.width,cv.height);
- let d=false,px=0,py=0;
- const pos=e=>{const b=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[t.clientX-b.left,t.clientY-b.top]};
- const down=e=>{e.preventDefault();d=true;[px,py]=pos(e)};
- const move=e=>{if(!d)return;e.preventDefault();const[a,b]=pos(e);x.beginPath();x.moveTo(px,py);x.lineTo(a,b);x.stroke();px=a;py=b;cv.dataset.dirty='1'};
- const up=()=>{d=false};
- cv.addEventListener('pointerdown',down);cv.addEventListener('pointermove',move);
- window.addEventListener('pointerup',up);cv.addEventListener('pointerleave',up);
+ const w=Math.max(1,Math.round(r.width)), h=Math.max(1,Math.round(r.height));
+ const dpr=Math.min(window.devicePixelRatio||1,2);
+ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+ const x=cv.getContext('2d');
+ x.setTransform(dpr,0,0,dpr,0,0);
+ x.fillStyle='#fff'; x.fillRect(0,0,w,h);
+ x.lineWidth=2.6; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#111';
+ fmCtx=x; fmDirty=false;
+
+ let abajo=false, px=0, py=0;
+ const pos=e=>{const b=cv.getBoundingClientRect();return [e.clientX-b.left, e.clientY-b.top]};
+ cv.onpointerdown=e=>{
+  e.preventDefault();
+  try{ cv.setPointerCapture(e.pointerId) }catch(err){}
+  abajo=true; [px,py]=pos(e);
+  x.beginPath(); x.moveTo(px,py); x.lineTo(px+0.2,py+0.2); x.stroke();
+  fmDirty=true;
+ };
+ cv.onpointermove=e=>{
+  if(!abajo) return; e.preventDefault();
+  const [a,b2]=pos(e);
+  x.beginPath(); x.moveTo(px,py); x.lineTo(a,b2); x.stroke();
+  px=a; py=b2; fmDirty=true;
+ };
+ cv.onpointerup=cv.onpointercancel=cv.onpointerleave=()=>{ abajo=false };
 }
-function limpiarFirma(key){
- const cv=$(key==='cli'?'cvCli':'cvTec'); if(!cv)return;
- const x=cv.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,cv.width,cv.height); cv.dataset.dirty='';
-}
-function leerFirma(cid){
- const cv=$(cid); if(!cv||!cv.dataset.dirty) return null;
+function borrarFirma(){ prepararLienzo() }
+function cerrarFirma(){ view('vRep'); pintarReporte() }
+function guardarFirma(){
+ if(!fmDirty){ alert('Todavía no hay ninguna firma en la pantalla.'); return }
+ const cv=$('fmCv');
  // Se reduce para que quepa holgada dentro del documento de Firestore.
  const out=document.createElement('canvas'); out.width=520; out.height=170;
  const c=out.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,520,170);
  c.drawImage(cv,0,0,520,170);
- return out.toDataURL('image/png');
+ const url=out.toDataURL('image/png');
+ if(FIRMA_QUIEN==='cliente') firmas.cliente=url; else firmas.tecnico=url;
+ view('vRep'); pintarReporte();
 }
+window.addEventListener('orientationchange',()=>{ if(!$('vFirma').hidden) setTimeout(prepararLienzo,250) });
 
 async function guardarReporte(firmar){
  recogerReporte();
  const m=$('rmsg');
- const fc=leerFirma('cvCli'), ft=leerFirma('cvTec');
+ const fc=firmas.cliente, ft=firmas.tecnico;
  if(ft) REP.firmaTecnico=ft;
  if(firmar){
   if(!fc){ m.className='msg err'; m.textContent='Falta la firma del cliente. Páse le el celular para que firme.'; return }

@@ -56,6 +56,52 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .hist{border-left:2px solid var(--line);padding-left:12px;margin-top:6px}
 .hist div{font-size:13px;color:var(--muted);margin-bottom:7px}
 .off{background:var(--orange);color:#fff;text-align:center;font-size:12px;padding:5px;font-weight:600}
+.secTit{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:20px 0 9px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.g3{display:grid;grid-template-columns:1fr 64px 64px;gap:7px;margin-bottom:7px}
+.g3 input{margin-top:0}
+.ck{display:flex;align-items:center;gap:10px;font-weight:400;color:var(--text);font-size:14px;margin-bottom:9px}
+.ck input{width:21px;height:21px;margin:0;flex:none;accent-color:var(--accent)}
+.stars{display:flex;gap:7px}
+.st{flex:1;padding:10px 0;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-weight:700}
+.st.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.firmaCv{width:100%;height:150px;background:#fff;border:1px solid var(--line);border-radius:9px;touch-action:none;display:block}
+.firmaImg{width:100%;background:#fff;border:1px solid var(--line);border-radius:9px;display:block}
+/* ---- Hoja para imprimir o guardar como PDF ---- */
+#prSheet{background:#fff;color:#000;padding:12px}
+#prBody{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#000;max-width:800px;margin:0 auto}
+.phead{display:flex;align-items:stretch;border:1px solid #000;margin-bottom:6px}
+.pco{padding:6px 10px;font-weight:700;font-size:13px;border-right:1px solid #000;display:flex;align-items:center;justify-content:center;min-width:150px;max-width:190px}
+.plogo{max-height:52px;max-width:170px}
+.pti{flex:1;padding:8px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center}
+.pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
+.pnum .sm{font-size:8px;font-weight:700}
+.pt{width:100%;border-collapse:collapse;margin-bottom:6px}
+.pt td,.pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+.pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
+.pt th.gh{background:#1f6fd0;text-align:center;text-transform:uppercase}
+.pt td.lb{background:#eef2f7;font-weight:700;width:90px}
+.pt td.v{width:44px;text-align:center;font-weight:700}
+.pt td.tall{height:52px}
+.pcols{column-count:3;column-gap:6px}
+.pcols table{break-inside:avoid;width:100%}
+.pconv{font-size:7.5px;margin:-2px 0 7px;line-height:1.3}
+.pfirmas{display:flex;gap:26px;margin-top:16px;text-align:center}
+.pfirmas>div{flex:1}
+.fbox{height:56px;border-bottom:1px solid #000;display:flex;align-items:flex-end;justify-content:center}
+.fbox img{max-height:54px}
+.fl{font-size:9px;font-weight:700;margin-top:3px}
+.sm{font-size:8px}
+.prbar{position:sticky;top:0;z-index:5;display:flex;gap:8px;padding:10px;background:var(--panel);border-bottom:1px solid var(--line)}
+.prbar button{flex:1;padding:12px;border-radius:9px;border:none;background:var(--accent);color:#fff;font:inherit;font-weight:700}
+.prbar button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+@media print{
+ body{background:#fff}
+ #vLogin,#vList,#vDet,#vRep,#offline,.prbar{display:none!important}
+ #vPrint{display:block!important}
+ #prSheet{padding:0}
+ @page{size:letter;margin:9mm}
+}
 </style>
 </head>
 <body>
@@ -97,6 +143,23 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
  <main id="detBody"></main>
 </div>
 
+<div id="vRep" hidden>
+ <header>
+  <button class="icbtn" onclick="cerrarReporte()">‹ Volver</button>
+  <h1 id="repTit" style="text-align:center;font-size:14px">Reporte</h1>
+  <span style="width:62px"></span>
+ </header>
+ <main id="repBody"></main>
+</div>
+
+<div id="vPrint" hidden>
+ <div class="prbar">
+  <button class="sec" onclick="cerrarImpresion()">‹ Volver</button>
+  <button onclick="imprimir()">Imprimir / Guardar PDF</button>
+ </div>
+ <div id="prSheet"><div id="prBody"></div></div>
+</div>
+
 <script type="module">
 const V='12.19.0', B='https://www.gstatic.com/firebasejs/'+V+'/';
 try{
@@ -129,10 +192,10 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null;
+let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
-function view(v){['vLogin','vList','vDet'].forEach(x=>$(x).hidden=(x!==v))}
+function view(v){['vLogin','vList','vDet','vRep','vPrint'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
 function msg(el,t,cls){const e=$(el);e.textContent=t;e.className='msg'+(t?' '+cls:'')}
 
 function errMsg(e){
@@ -158,7 +221,11 @@ async function alEntrar(u){
   const ud=await FB.getDoc(FB.doc(FB.fs,'users',u.uid));
   if(!ud.exists()){msg('lmsg','Su cuenta no está vinculada a ninguna empresa.','err');$('inBtn').disabled=false;await FB.signOut(FB.auth);return}
   TENANT=ud.data().tenantId;
-  const md=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'members',u.uid));
+  const [md,td]=await Promise.all([
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'members',u.uid)),
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT))]);
+  EMPRESA=td.exists()?(td.data().name||''):'';
+  LOGO=td.exists()?(td.data().logoUrl||''):'';
   if(!md.exists()||md.data().active===false){msg('lmsg','Su usuario está inactivo.','err');$('inBtn').disabled=false;await FB.signOut(FB.auth);return}
   ME=md.data();
   $('hName').textContent=ME.name||'Técnico';
@@ -224,6 +291,7 @@ function detalle(id){
     <button class="btn" id="avBtn" onclick="avanzar('${esc(o.status)}')">${esc(NEXTL[sig])}</button>
     <div id="dmsg" class="msg"></div>
    </div>`:`<div class="card"><div class="sub">Esta orden está ${esc((LBL[o.status]||'').toLowerCase())}. No hay nada más que hacer desde el celular.</div><div id="dmsg" class="msg"></div></div>`}
+  <button class="btn sec" onclick="abrirReporte()">Reporte de servicio para el cliente</button>
   <div class="card"><div class="sub" style="font-weight:600;color:var(--text);margin-bottom:8px">Historial</div>
    <div class="hist" id="hist"><div>Cargando…</div></div></div>`;
  view('vDet'); cargarHistorial(o._id);
@@ -271,6 +339,283 @@ async function avanzar(desde){
   $('avBtn').disabled=false;
  }
 }
+/* ================= REPORTE DE SERVICIO ================= */
+const TIPOS_EQ=[['AC','Aire Central'],['AV','Ventana'],['MSPT','Mini Split Piso Techo'],['MSC','Mini Split Casette'],
+ ['MSP','Mini Split Pared'],['PAQ','Paquete'],['CH','Chiller'],['ER','Equipo de Refrigeración'],
+ ['MAF','Manejadora de Agua Fría'],['TE','Torre de Enfriamiento'],['BOM','Bomba']];
+
+const CHECKS={
+ 'Evaporador':['Revisar aislamiento térmico','Limpieza de filtros','Sondeo drenajes','Alineación de polea',
+  'Tensión de correas','Limpieza rotor','Lavado serpentín','Engrase y estado del eje','Lubricación rodamientos',
+  'Ajuste bulbo válvula expansión','Revisar y limpiar ductos / rejillas'],
+ 'Condensador':['Limpieza rotor y eje','Lavado serpentín','Lubricación rodamientos','Revisar operación de presostatos',
+  'Ajuste conexión eléctricas'],
+ 'Compresores':['Condiciones generales de operación','Fugas aceite / refrigerantes','Nivel y estado de aceite',
+  'Presostato aceite','Presostato alta / baja','Termo sensor','Resistencia cárter','Sonido operación'],
+ 'Tableros':['Ajuste conexión eléctricas','Revisar mandos / indicadores'],
+ 'Circuito de refrigeración':['Válvula paso','Aislamiento tubería','Filtro secador','Indicador líquido','Indicador humedad'],
+ 'Centro de cómputo':['Calibración control temperatura','Calibración control humedad','Lavado tanque humectación',
+  'Resistencia humectación','Resistencia calentamiento','Suministro agua','Alarma audio / visual',
+  'Control filtros obstruidos','Control flujo aire'],
+ 'Gabinetes / ductos':['Limpieza exterior','Ajuste tornillos','Pintura','Limpieza rejillas']};
+
+const DATOS={
+ 'Presión':['Succión compresor 1','Succión compresor 2','Descarga compresor 1','Descarga compresor 2','Aceite compresor 1','Aceite compresor 2'],
+ 'Temperatura':['Aire suministro o agua','Aire retorno o agua'],
+ 'Amperaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4','Resistencias'],
+ 'Voltaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4']};
+
+const EVALS=['Calidad del trabajo','Oportunidad en la entrega','Atención de los técnicos','Presentación y orden'];
+const ROLES_EQ=['Condensadora','Manejadora','Otros'];
+const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+let REP=null, REPORD=null, firmas={cliente:null,tecnico:null};
+
+function tipoReporte(o){ return (o.type==='preventivo')?'preventivo':'correctivo' }
+
+async function abrirReporte(){
+ const o=DET; if(!o) return;
+ REPORD=o;
+ $('detBody').scrollTop=0;
+ try{
+  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',o._id,'report','ficha');
+  const d=await FB.getDoc(ref);
+  REP=d.exists()?d.data():{tipo:tipoReporte(o),equipos:[],checks:{},materiales:[],datos:{},evaluacion:{}};
+ }catch(e){ REP={tipo:tipoReporte(o),equipos:[],checks:{},materiales:[],datos:{},evaluacion:{}} }
+ REP.tipo=REP.tipo||tipoReporte(o);
+ REP.equipos=REP.equipos||[]; REP.checks=REP.checks||{}; REP.materiales=REP.materiales||[];
+ REP.datos=REP.datos||{}; REP.evaluacion=REP.evaluacion||{};
+ firmas.cliente=REP.firmaCliente||null; firmas.tecnico=REP.firmaTecnico||null;
+ pintarReporte(); view('vRep');
+}
+function cerrarReporte(){ view('vDet') }
+
+function filaEquipo(i){
+ const e=REP.equipos[i]||{};
+ return `<div class="card" style="padding:11px">
+  <div style="font-weight:700;font-size:13px;margin-bottom:8px">${esc(ROLES_EQ[i])}</div>
+  <div class="g2">
+   <label>Tipo<select data-eq="${i}" data-f="tipo">${['',...TIPOS_EQ.map(t=>t[0])].map(v=>`<option value="${esc(v)}"${v===(e.tipo||'')?' selected':''}>${v?esc(v):'—'}</option>`).join('')}</select></label>
+   <label>Capacidad<input data-eq="${i}" data-f="capacidad" value="${esc(e.capacidad||'')}" placeholder="BTU / TR"></label>
+   <label>Marca<input data-eq="${i}" data-f="marca" value="${esc(e.marca||'')}"></label>
+   <label>Modelo<input data-eq="${i}" data-f="modelo" value="${esc(e.modelo||'')}"></label>
+   <label>Serie<input data-eq="${i}" data-f="serie" value="${esc(e.serie||'')}"></label>
+   <label>Ubicación<input data-eq="${i}" data-f="ubicacion" value="${esc(e.ubicacion||'')}"></label>
+   <label>No. equipo<input data-eq="${i}" data-f="numero" value="${esc(e.numero||'')}"></label>
+  </div></div>`;
+}
+function pintarReporte(){
+ const o=REPORD, prev=REP.tipo==='preventivo';
+ const firmado=!!REP.firmaCliente;
+ $('repTit').textContent=(prev?'Preventivo':'Correctivo')+' · '+(o.number||'');
+ $('repBody').innerHTML=`
+ ${firmado?'<div class="card" style="border-color:var(--green)"><b style="color:#4fc584">Reporte firmado por el cliente.</b><div class="sub">Ya no se puede modificar. Puede verlo o imprimirlo.</div></div>':''}
+
+ <div class="card">
+  <div class="sub" style="color:var(--text);font-weight:700;margin-bottom:9px">Servicio</div>
+  <div class="g2">
+   <label>Hora de entrada<input type="time" id="rHoraE" value="${esc(REP.horaEntrada||'')}"></label>
+   <label>Hora de salida<input type="time" id="rHoraS" value="${esc(REP.horaSalida||'')}"></label>
+  </div>
+  <div class="sub">${esc(o.clientName||'')} · ${esc(o.siteName||'')}</div>
+ </div>
+
+ <div class="secTit">Identificación del equipo</div>
+ ${[0,1,2].map(filaEquipo).join('')}
+
+ ${prev?`<div class="secTit">Ejecución de servicios</div>
+  ${Object.entries(CHECKS).map(([g,items])=>`<div class="card" style="padding:11px">
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">${esc(g)}</div>
+    ${items.map(it=>{const id='c_'+k(g)+'_'+k(it);
+     return `<label class="ck"><input type="checkbox" data-ck="${id}"${REP.checks[id]?' checked':''}><span>${esc(it)}</span></label>`}).join('')}
+   </div>`).join('')}`
+ :`<div class="secTit">Materiales y repuestos</div>
+   <div class="card" style="padding:11px"><div id="matList"></div>
+    <button class="btn sec" onclick="addMat()">+ Agregar material</button></div>
+   <div class="secTit">Descripción de la actividad</div>
+   <div class="card" style="padding:11px"><textarea id="rAct" placeholder="Describa el trabajo realizado…">${esc(REP.actividad||'')}</textarea></div>`}
+
+ <div class="secTit">Datos de operación</div>
+ ${Object.entries(DATOS).map(([g,items])=>`<div class="card" style="padding:11px">
+   <div style="font-weight:700;font-size:13px;margin-bottom:8px">${esc(g)}</div>
+   <div class="g2">${items.map(it=>{const id='d_'+k(g)+'_'+k(it);
+    return `<label>${esc(it)}<input data-dt="${id}" value="${esc(REP.datos[id]||'')}" inputmode="decimal"></label>`}).join('')}</div>
+  </div>`).join('')}
+
+ ${prev?`<div class="secTit">Recomendaciones y observaciones</div>
+  <div class="card" style="padding:11px">
+   <label>Recomendaciones del técnico<textarea id="rRec">${esc(REP.recomendaciones||'')}</textarea></label>
+   <label>Observaciones del cliente<textarea id="rObs">${esc(REP.observaciones||'')}</textarea></label>
+  </div>`:''}
+
+ <div class="secTit">Evaluación del servicio</div>
+ <div class="card" style="padding:11px">
+  <div class="sub" style="margin-bottom:10px">Que el cliente califique de 1 a 5, donde 5 es el máximo.</div>
+  ${EVALS.map(e=>{const id='e_'+k(e);
+   return `<div style="margin-bottom:11px"><div class="sub" style="color:var(--text);margin-bottom:5px">${esc(e)}</div>
+   <div class="stars">${[1,2,3,4,5].map(n=>`<button type="button" class="st${(REP.evaluacion[id]>=n)?' on':''}" data-ev="${id}" data-n="${n}">${n}</button>`).join('')}</div></div>`}).join('')}
+ </div>
+
+ <div class="secTit">Firmas</div>
+ <div class="card" style="padding:11px">
+  <label>Nombre de quien recibe<input id="rFCNom" value="${esc(REP.firmaClienteNombre||'')}" ${firmado?'disabled':''}></label>
+  <div class="sub" style="margin-bottom:5px">Firma del cliente</div>
+  ${firmas.cliente?`<img class="firmaImg" src="${firmas.cliente}">`:`<canvas id="cvCli" class="firmaCv"></canvas>
+   <button class="btn sec" onclick="limpiarFirma('cli')">Borrar firma</button>`}
+  <div class="sub" style="margin:14px 0 5px">Firma del técnico</div>
+  ${firmas.tecnico?`<img class="firmaImg" src="${firmas.tecnico}">`:`<canvas id="cvTec" class="firmaCv"></canvas>
+   <button class="btn sec" onclick="limpiarFirma('tec')">Borrar firma</button>`}
+ </div>
+
+ <div id="rmsg" class="msg"></div>
+ ${firmado?'':'<button class="btn sec" onclick="guardarReporte(false)">Guardar borrador</button>'}
+ ${firmado?'':'<button class="btn" onclick="guardarReporte(true)">Cerrar y firmar</button>'}
+ <button class="btn sec" onclick="verImpresion()">Ver / imprimir el reporte</button>
+ <div style="height:30px"></div>`;
+
+ if(REP.tipo!=='preventivo') pintarMats();
+ if(!firmado){ initFirma('cvCli','cli'); initFirma('cvTec','tec') }
+ $('repBody').querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{
+  REP.evaluacion[b.dataset.ev]=parseInt(b.dataset.n,10);
+  $('repBody').querySelectorAll(`[data-ev="${b.dataset.ev}"]`).forEach(x=>
+   x.classList.toggle('on',parseInt(x.dataset.n,10)<=REP.evaluacion[b.dataset.ev]));
+ });
+}
+function pintarMats(){
+ const c=$('matList'); if(!c) return;
+ c.innerHTML=REP.materiales.map((m,i)=>`<div class="g3">
+  <input data-mt="${i}" data-f="descripcion" value="${esc(m.descripcion||'')}" placeholder="Descripción">
+  <input data-mt="${i}" data-f="unidad" value="${esc(m.unidad||'')}" placeholder="Unid.">
+  <input data-mt="${i}" data-f="cantidad" value="${esc(m.cantidad||'')}" placeholder="Cant." inputmode="decimal">
+ </div>`).join('')||'<div class="sub" style="margin-bottom:9px">Sin materiales todavía.</div>';
+}
+function addMat(){ recogerReporte(); REP.materiales.push({descripcion:'',unidad:'',cantidad:''}); pintarMats() }
+
+function recogerReporte(){
+ const g=id=>$(id)?$(id).value:undefined;
+ if($('rHoraE'))REP.horaEntrada=g('rHoraE')||null;
+ if($('rHoraS'))REP.horaSalida=g('rHoraS')||null;
+ if($('rAct'))REP.actividad=g('rAct')||null;
+ if($('rRec'))REP.recomendaciones=g('rRec')||null;
+ if($('rObs'))REP.observaciones=g('rObs')||null;
+ if($('rFCNom'))REP.firmaClienteNombre=g('rFCNom')||null;
+ if(document.querySelector('[data-eq]')) REP.equipos=[0,1,2].map(i=>{
+  const o={rol:ROLES_EQ[i]};
+  document.querySelectorAll(`[data-eq="${i}"]`).forEach(el=>o[el.dataset.f]=el.value||'');
+  return o});
+ document.querySelectorAll('[data-ck]').forEach(el=>{REP.checks[el.dataset.ck]=el.checked});
+ document.querySelectorAll('[data-dt]').forEach(el=>{if(el.value)REP.datos[el.dataset.dt]=el.value;else delete REP.datos[el.dataset.dt]});
+ document.querySelectorAll('[data-mt]').forEach(el=>{
+  const i=+el.dataset.mt; REP.materiales[i]=REP.materiales[i]||{}; REP.materiales[i][el.dataset.f]=el.value});
+ REP.materiales=REP.materiales.filter(m=>(m.descripcion||'').trim());
+}
+
+/* ---- Firma con el dedo ---- */
+function initFirma(cid,key){
+ const cv=$(cid); if(!cv) return;
+ const r=cv.getBoundingClientRect();
+ cv.width=Math.round(r.width*2); cv.height=Math.round(r.height*2);
+ const x=cv.getContext('2d'); x.scale(2,2); x.lineWidth=2.2; x.lineCap='round'; x.lineJoin='round'; x.strokeStyle='#111';
+ x.fillStyle='#fff'; x.fillRect(0,0,cv.width,cv.height);
+ let d=false,px=0,py=0;
+ const pos=e=>{const b=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return[t.clientX-b.left,t.clientY-b.top]};
+ const down=e=>{e.preventDefault();d=true;[px,py]=pos(e)};
+ const move=e=>{if(!d)return;e.preventDefault();const[a,b]=pos(e);x.beginPath();x.moveTo(px,py);x.lineTo(a,b);x.stroke();px=a;py=b;cv.dataset.dirty='1'};
+ const up=()=>{d=false};
+ cv.addEventListener('pointerdown',down);cv.addEventListener('pointermove',move);
+ window.addEventListener('pointerup',up);cv.addEventListener('pointerleave',up);
+}
+function limpiarFirma(key){
+ const cv=$(key==='cli'?'cvCli':'cvTec'); if(!cv)return;
+ const x=cv.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,cv.width,cv.height); cv.dataset.dirty='';
+}
+function leerFirma(cid){
+ const cv=$(cid); if(!cv||!cv.dataset.dirty) return null;
+ // Se reduce para que quepa holgada dentro del documento de Firestore.
+ const out=document.createElement('canvas'); out.width=520; out.height=170;
+ const c=out.getContext('2d'); c.fillStyle='#fff'; c.fillRect(0,0,520,170);
+ c.drawImage(cv,0,0,520,170);
+ return out.toDataURL('image/png');
+}
+
+async function guardarReporte(firmar){
+ recogerReporte();
+ const m=$('rmsg');
+ const fc=leerFirma('cvCli'), ft=leerFirma('cvTec');
+ if(ft) REP.firmaTecnico=ft;
+ if(firmar){
+  if(!fc){ m.className='msg err'; m.textContent='Falta la firma del cliente. Páse le el celular para que firme.'; return }
+  if(!(REP.firmaClienteNombre||'').trim()){ m.className='msg err'; m.textContent='Escriba el nombre de quien recibe.'; return }
+  REP.firmaCliente=fc;
+ }
+ REP.firmaTecnicoNombre=(ME&&ME.name)||null;
+ m.className='msg ok'; m.textContent='Guardando…';
+ try{
+  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'report','ficha');
+  const payload=Object.assign({},REP,{updatedAt:FB.serverTimestamp(),updatedBy:FB.auth.currentUser.uid});
+  if(!payload.createdAt){payload.createdAt=FB.serverTimestamp();payload.createdBy=FB.auth.currentUser.uid}
+  await FB.setDoc(ref,payload);
+  m.className='msg ok';
+  m.textContent=firmar?'Reporte firmado y guardado.':'Borrador guardado.';
+  if(firmar){ REP.firmaCliente=fc; pintarReporte() }
+ }catch(e){
+  console.error(e); m.className='msg err'; m.textContent='No se pudo guardar: '+errMsg(e)+(e.code?' ['+e.code+']':'');
+ }
+}
+
+/* ---- Vista para imprimir o guardar como PDF ---- */
+function celdas(items,pre,fuente){
+ return items.map(it=>{const id=pre+k(it);
+  return `<tr><td>${esc(it)}</td><td class="v">${esc(fuente[id]!==undefined?(fuente[id]===true?'X':fuente[id]):'')}</td></tr>`}).join('');
+}
+function verImpresion(){
+ recogerReporte();
+ const o=REPORD, prev=REP.tipo==='preventivo';
+ const f=d=>{if(!d)return '';const[y,m,dd]=String(d).split('-');return `${dd}/${m}/${y}`};
+ const eq=REP.equipos.map((e,i)=>`<tr><td>${esc(ROLES_EQ[i])}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.capacidad||'')}</td>
+  <td>${esc(e.marca||'')}</td><td>${esc(e.modelo||'')}</td><td>${esc(e.serie||'')}</td><td>${esc(e.ubicacion||'')}</td><td>${esc(e.numero||'')}</td></tr>`).join('');
+ const checksHtml=Object.entries(CHECKS).map(([g,items])=>`
+  <table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
+  ${items.map(it=>{const id='c_'+k(g)+'_'+k(it);
+   return `<tr><td>${esc(it)}</td><td class="v">${REP.checks[id]?'X':''}</td></tr>`}).join('')}</table>`).join('');
+ const matHtml=`<table class="pt"><tr><th>Descripción de materiales y repuestos</th><th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
+  ${(REP.materiales.length?REP.materiales:[{}]).map(m=>`<tr><td>${esc(m.descripcion||'')}</td><td class="v">${esc(m.unidad||'')}</td><td class="v">${esc(m.cantidad||'')}</td></tr>`).join('')}</table>
+  <table class="pt"><tr><th>Descripción de la actividad</th></tr><tr><td class="tall">${esc(REP.actividad||'')}</td></tr></table>`;
+ const datosHtml=Object.entries(DATOS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>${celdas(items,'d_'+k(g)+'_',REP.datos)}</table>`).join('');
+ const evalHtml=`<table class="pt"><tr><th>Evaluación del servicio · califique de 1 a 5, donde 5 es el máximo</th><th style="width:44px">1</th><th style="width:44px">2</th><th style="width:44px">3</th><th style="width:44px">4</th><th style="width:44px">5</th></tr>
+  ${EVALS.map(e=>{const v=REP.evaluacion['e_'+k(e)]||0;
+   return `<tr><td>${esc(e)}</td>${[1,2,3,4,5].map(n=>`<td class="v">${v===n?'X':''}</td>`).join('')}</tr>`}).join('')}</table>`;
+
+ $('prBody').innerHTML=`
+ <div class="phead">
+  <div class="pco">${LOGO?`<img src="${LOGO}" class="plogo">`:esc(EMPRESA||'HVAC 360°')}</div>
+  <div class="pti">REPORTE DE MANTENIMIENTO ${prev?'PREVENTIVO':'CORRECTIVO'}</div>
+  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(o.number||'')}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(o.clientName||'')}</td><td class="lb">Fecha</td><td>${f(o.scheduledDate)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(o.siteName||'')}</td><td class="lb">Equipo</td><td>${esc(o.assetCode||'')}</td></tr>
+  <tr><td class="lb">Hora entrada</td><td>${esc(REP.horaEntrada||'')}</td><td class="lb">Hora salida</td><td>${esc(REP.horaSalida||'')}</td></tr>
+ </table>
+ <table class="pt"><tr><th colspan="8" class="gh">Identificación del equipo</th></tr>
+  <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicación</th><th>No.</th></tr>${eq}</table>
+ <div class="pconv">${TIPOS_EQ.map(t=>t[0]+': '+t[1]).join(' · ')}</div>
+ ${prev?`<div class="pcols">${checksHtml}</div>`:matHtml}
+ <div class="pcols">${datosHtml}</div>
+ ${prev?`<table class="pt"><tr><th>Recomendaciones del técnico</th></tr><tr><td class="tall">${esc(REP.recomendaciones||'')}</td></tr>
+   <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(REP.observaciones||'')}</td></tr></table>`:''}
+ ${evalHtml}
+ <div class="pfirmas">
+  <div><div class="fbox">${REP.firmaCliente?`<img src="${REP.firmaCliente}">`:''}</div>
+   <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(REP.firmaClienteNombre||'')}</div></div>
+  <div><div class="fbox">${REP.firmaTecnico?`<img src="${REP.firmaTecnico}">`:''}</div>
+   <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${esc(REP.firmaTecnicoNombre||(ME&&ME.name)||'')}</div></div>
+ </div>`;
+ view('vPrint');
+}
+function cerrarImpresion(){ view('vRep') }
+function imprimir(){ window.print() }
+
 function red(){ $('offline').hidden=navigator.onLine }
 window.addEventListener('online',red); window.addEventListener('offline',red); red();
 

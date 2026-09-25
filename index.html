@@ -228,6 +228,12 @@ try {
  <div class="topline"><div><h1>Respaldo de datos</h1><p>Los datos se guardan automáticamente en este navegador. Descargue una copia de seguridad con frecuencia.</p></div></div>
  <div class="grid three" style="margin-top:0">
   <div class="card"><h2>Exportar</h2><p>Descarga un archivo .json con clientes, sedes, equipos, técnicos y órdenes.</p><button class="btn primary" onclick="exportData()">Descargar respaldo</button></div>
+  <div class="card"><h2>Logo de la empresa</h2>
+   <p>Aparece en la cabecera de los reportes que firma el cliente.</p>
+   <div id="logoPrev" style="margin:10px 0"></div>
+   <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" onchange="subirLogo(this)">
+   <p class="small">Se reduce automáticamente. Use una imagen con fondo blanco o transparente.</p>
+  </div>
   <div class="card"><h2>Importar</h2><p>Reemplaza los datos actuales por los de un respaldo.</p><input type="file" id="importFile" accept=".json,application/json" onchange="importData(this)"></div>
   <div class="card"><h2>Datos de ejemplo</h2><p>Borra todo y carga de nuevo los datos de demostración.</p><button class="btn danger" onclick="resetDemo()">Restaurar demo</button></div>
  </div>
@@ -734,7 +740,45 @@ function renderReports(){
 
 /* ================= RESPALDO ================= */
 function renderBackup(){
+ pintarLogo();
  $('storageInfo').textContent=(storageOk?'✔ Guardado automático activo en este navegador.':'⚠ Este navegador no está guardando los datos; descargue un respaldo antes de cerrar.')+` Registros: ${db.clients.length} clientes, ${db.sites.length} sedes, ${db.assets.length} equipos, ${db.techs.length} técnicos, ${db.orders.length} órdenes.`;
+}
+function pintarLogo(){
+ const c=$('logoPrev'); if(!c) return;
+ c.innerHTML=(ME&&ME.logoUrl)
+  ? `<img src="${ME.logoUrl}" style="max-height:70px;background:#fff;padding:6px;border:1px solid var(--line);border-radius:8px">
+     <br><button class="btn secondary sm" style="margin-top:8px" onclick="quitarLogo()">Quitar logo</button>`
+  : '<span class="small">Todavía no hay logo cargado.</span>';
+}
+async function guardarLogo(dataUrl){
+ try{
+  await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),
+   {logoUrl:dataUrl,updatedAt:FB.serverTimestamp(),updatedBy:uid()});
+  ME.logoUrl=dataUrl; pintarLogo();
+  toast(dataUrl?'Logo guardado.':'Logo quitado.');
+ }catch(e){ console.error(e); toast('No se pudo guardar el logo: '+errMsg(e)) }
+}
+function quitarLogo(){ if(confirm('¿Quitar el logo de la empresa?')) guardarLogo(null) }
+function subirLogo(input){
+ const f=input.files[0]; if(!f) return;
+ const r=new FileReader();
+ r.onload=()=>{
+  const img=new Image();
+  img.onload=()=>{
+   // Se reduce a 150 px de alto: suficiente para imprimir y liviano para guardar.
+   const h=150, w=Math.round(img.width*h/img.height);
+   const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+   const x=cv.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,w,h);
+   x.drawImage(img,0,0,w,h);
+   let url=cv.toDataURL('image/jpeg',0.86);
+   if(url.length>130000) url=cv.toDataURL('image/jpeg',0.7);
+   if(url.length>130000){ toast('La imagen es demasiado pesada. Use una más sencilla.'); return }
+   guardarLogo(url);
+  };
+  img.onerror=()=>toast('No se pudo leer la imagen.');
+  img.src=r.result;
+ };
+ r.readAsDataURL(f); input.value='';
 }
 function exportData(){
  const blob=new Blob([JSON.stringify({app:'HVAC 360',version:1,exportedAt:nowIso(),...db},null,2)],{type:'application/json'});
@@ -940,6 +984,8 @@ function bootUI(){
  show('dashboard');
 }
 function setUserChip(){
+ const lg=document.querySelector('.sidebar .logo');
+ if(lg&&ME&&ME.logoUrl) lg.innerHTML=`<img src="${ME.logoUrl}" style="max-width:100%;max-height:52px;background:#fff;padding:5px;border-radius:7px">`;
  const n=(ME&&ME.name)||'Usuario';
  const ini=n.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
  $('uName').textContent=n;
@@ -962,7 +1008,7 @@ async function onSignedIn(user){
   if(!md.exists()||md.data().active===false){
    authErr('Su usuario está inactivo en esta empresa.'); authBusy(false); await FB.signOut(FB.auth); return;
   }
-  ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:''});
+  ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:'',logoUrl:td.exists()?(td.data().logoUrl||''):''});
   await fsLoad();
   setUserChip();
   $('authScreen').style.display='none';

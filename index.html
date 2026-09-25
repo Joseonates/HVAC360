@@ -428,7 +428,7 @@ function orderDetail(id){
   <div><span class="small">Cliente</span><b>${esc(c?.name)}</b></div>
   <div><span class="small">Sede</span><b>${esc(st?.name||'—')}</b><span class="small">${esc([st?.address,st?.city].filter(Boolean).join(', '))}</span></div>
   <div><span class="small">Equipo</span><b>${a?`${esc(a.id)} · ${esc(a.type)} ${esc(a.brand)}`:'Por instalar'}</b><span class="small">${esc(a?.location||'')}</span></div>
-  <div><span class="small">Técnico</span><b>${esc(t?.name||'Sin asignar')}</b></div>
+  <div><span class="small">Técnico</span><b>${esc(t?.name||'Sin asignar')}</b>${t&&!t.uid?'<span class="small" style="color:var(--danger)">Sin acceso a la app: no la verá en el celular</span>':''}</div>
   <div><span class="small">Fecha programada</span><b>${fmtDate(o.date)} ${esc(o.time||'')}</b></div>
   <div><span class="small">Contacto cliente</span><b>${esc(c?.contact||'—')}</b><span class="small">${esc(c?.phone||'')}</span></div>
  </div>
@@ -670,7 +670,8 @@ function renderTechs(){
   const mine=db.orders.filter(o=>o.techId===t.id);
   const done=mine.filter(o=>o.status==='Completada'&&(o.date||'').startsWith(month)).length;
   const open=mine.filter(isOpen).length, late=mine.filter(isOverdue).length;
-  return `<div class="card" style="cursor:pointer" data-id="${esc(t.id)}" onclick="techForm(this.dataset.id)"><div class="kpi"><h2 style="margin:0">${esc(t.name)}</h2>${badge(techStatus(t))}</div><p>${esc(t.specialty||'Sin especialidad')}${t.phone?'<br>'+esc(t.phone):''}</p>
+  return `<div class="card" style="cursor:pointer" data-id="${esc(t.id)}" onclick="techForm(this.dataset.id)"><div class="kpi"><h2 style="margin:0">${esc(t.name)}</h2>${badge(techStatus(t))}</div><p>${esc(t.specialty||'Sin especialidad')}${t.phone?'<br>'+esc(t.phone):''}
+  <br>${t.uid?'<span class="status green">Con acceso a la app</span>':'<span class="status orange">Sin acceso a la app</span>'}</p>
   <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px"><div><div class="small">Completadas mes</div><div class="metric">${done}</div></div><div><div class="small">Abiertas</div><div class="metric">${open}</div></div><div><div class="small">Vencidas</div><div class="metric" style="color:${late?'var(--danger)':'inherit'}">${late}</div></div></div></div>`}).join('')||'<div class="empty">No hay técnicos.</div>';
 }
 function techForm(id){
@@ -684,7 +685,9 @@ function techForm(id){
  </div>
  <hr><h2 style="font-size:14px;margin:0 0 8px">Acceso a la app del técnico</h2>
  ${t.uid
-  ? `<p class="small">Ya tiene cuenta: <b>${esc(t.email||'—')}</b>. Puede entrar desde el celular con esa clave.</p>`
+  ? `<p class="small">Ya tiene cuenta: <b>${esc(t.email||'—')}</b>. Puede entrar desde el celular con esa clave.</p>
+       <button class="btn secondary" onclick="revincular('${id}')">Revincular sus órdenes</button>
+       <p class="small">Úselo si el técnico entra a la app pero no ve sus órdenes.</p>`
   : (id
     ? `<div class="formgrid">
         <label>Correo del técnico<input id="tAccEmail" type="email" placeholder="tecnico@empresa.com"></label>
@@ -703,6 +706,22 @@ function saveTech(id){
  if(id&&!v.active&&db.orders.some(o=>o.techId===id&&isOpen(o))){$('tErr').textContent='No se puede inactivar: tiene órdenes abiertas. Reasígnelas primero.';return}
  if(id)Object.assign(tech(id),v);else db.techs.push({id:nextId('T-',db.techs,3),...v,uid:'',email:''});
  save();closeModal();refresh();toast('Técnico guardado.');
+}
+
+/* ---- Reescribe el identificador de cuenta en las órdenes del técnico ---- */
+async function revincular(id){
+ const t=tech(id); if(!t||!t.uid){ toast('Ese técnico todavía no tiene cuenta.'); return }
+ const abiertas=db.orders.filter(o=>o.techId===id&&isOpen(o));
+ if(!abiertas.length){ toast('Ese técnico no tiene órdenes abiertas.'); return }
+ toast('Revinculando '+abiertas.length+' orden(es)…');
+ let ok=0, mal=0;
+ for(const o of abiertas){
+  try{ await FB.updateDoc(P('workOrders',o.id),Object.assign(upOrder(o),stampUpd()));
+       remote.orders[o.id]=JSON.stringify(o); ok++ }
+  catch(e){ console.error('orden '+o.id,e); mal++ }
+ }
+ closeModal();
+ toast(ok+' orden(es) revinculada(s)'+(mal?', '+mal+' con error':'')+'. Pídale al técnico que refresque.');
 }
 
 /* ---- Crear la cuenta de acceso de un técnico ---- */

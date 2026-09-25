@@ -86,6 +86,10 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
  body.viendo-reporte #rvPaper{box-shadow:none;margin:0;padding:0;max-width:none}
  @page{size:letter;margin:9mm}
 }
+.chk{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:14px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+.g-exc{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.g-exc select{max-width:190px}
 </style>
 </head>
 <body>
@@ -157,6 +161,7 @@ try {
     <button data-page="sites" title="Sedes">⌂ <span>Sedes</span></button>
     <button data-page="assets" title="Equipos HVAC">❄ <span>Equipos HVAC</span></button>
     <button data-page="technicians" title="Técnicos">🔧 <span>Técnicos</span></button>
+    <button data-page="contracts" title="Contratos">📄 <span>Contratos</span></button>
     <div class="section">Servicio</div>
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
@@ -227,6 +232,13 @@ try {
 </section>
 
 <!-- NUEVA / EDITAR ORDEN -->
+<section id="contracts" class="page">
+ <div class="topline"><div><h1>Contratos de mantenimiento</h1><p>Programación automática de los preventivos.</p></div>
+  <button class="btn primary" onclick="contractForm('')">＋ Nuevo contrato</button></div>
+ <div id="ctAviso" style="margin-bottom:16px"></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Frecuencia</th><th>Genera</th><th>Cobertura</th><th>Vigencia</th><th>Pendientes</th><th>Estado</th></tr></thead><tbody id="contractsTable" class="clickable"></tbody></table></div></div>
+</section>
+
 <section id="neworder" class="page">
  <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
  <div class="panel">
@@ -363,9 +375,174 @@ function seed(){
  }}
 function save(){ fsSave(); }
 function validDb(d){return d&&['clients','sites','assets','techs','orders'].every(k=>Array.isArray(d[k]))}
+/* ================= CONTRATOS DE MANTENIMIENTO ================= */
+const FREQS=[['mensual','Mensual',1],['bimestral','Bimestral',2],['trimestral','Trimestral',3],
+             ['semestral','Semestral',6],['anual','Anual',12]];
+const FMESES=Object.fromEntries(FREQS.map(f=>[f[0],f[2]]));
+const FLABEL=Object.fromEntries(FREQS.map(f=>[f[0],f[1]]));
+const CT_STATUS=[['activo','Activo'],['suspendido','Suspendido'],['terminado','Terminado']];
+const HORIZONTE=15;   // días de anticipación con que se avisa un preventivo
+
+function addMeses(iso,n){
+ const [y,m,d]=String(iso).split('-').map(Number);
+ const dt=new Date(y,m-1+n,d);
+ return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+const contract=id=>byId(db.contracts,id);
+const ctVigente=c=>c.status==='activo'&&c.startDate<=todayStr()&&(!c.endDate||c.endDate>=todayStr());
+const ctSedes=c=>db.sites.filter(s=>(c.siteIds||[]).includes(s.id));
+const ctEquipos=c=>db.assets.filter(a=>(c.siteIds||[]).includes(a.siteId)&&(c.overrides||{})[a.id]!=='excluir');
+
+/* ---- Qué preventivos están por generar ---- */
+function pendientes(){
+ const tope=todayStr(HORIZONTE), out=[];
+ db.contracts.filter(ctVigente).forEach(c=>{
+  const objetivos = c.mode==='equipo'
+   ? ctEquipos(c).map(a=>({tipo:'equipo',id:a.id,siteId:a.siteId,label:`${a.id} · ${a.type} ${a.brand}`}))
+   : ctSedes(c).map(s=>({tipo:'sede',id:s.id,siteId:s.id,label:s.name}));
+  objetivos.forEach(o=>{
+   const freq=(c.overrides||{})[o.id]&&(c.overrides||{})[o.id]!=='excluir'?(c.overrides||{})[o.id]:c.frequency;
+   const previas=db.orders.filter(x=>x.contractId===c.id&&x.type==='Preventivo'&&x.status!=='Cancelada'
+     &&(c.mode==='equipo'?x.assetId===o.id:x.siteId===o.id));
+   const ultima=previas.length?previas.map(x=>x.date).sort().pop():null;
+   const proxima=ultima?addMeses(ultima,FMESES[freq]||3):c.startDate;
+   if(proxima<=tope&&(!c.endDate||proxima<=c.endDate))
+    out.push({contractId:c.id,contrato:c.name,clientId:c.clientId,siteId:o.siteId,
+              assetId:c.mode==='equipo'?o.id:'',label:o.label,date:proxima,freq,
+              vencida:proxima<todayStr()});
+  });
+ });
+ return out.sort((a,b)=>a.date<b.date?-1:1);
+}
+
+/* ---- Página de contratos ---- */
+function renderContracts(){
+ const pend=pendientes();
+ $('ctAviso').innerHTML = pend.length
+  ? `<div class="panel" style="border-left:4px solid var(--${pend.some(p=>p.vencida)?'danger':'accent'})">
+      <div class="kpi"><h2 style="margin:0">${pend.length} preventivo(s) por generar</h2>
+      <button class="btn primary" onclick="verPendientes()">Revisar y generar</button></div>
+      <p class="small">${pend.filter(p=>p.vencida).length} vencido(s) · el resto vence en los próximos ${HORIZONTE} días.</p></div>`
+  : '<div class="panel"><p class="small" style="margin:0">Todo al día: no hay preventivos por generar.</p></div>';
+
+ $('contractsTable').innerHTML=db.contracts.map(c=>{
+  const cl=client(c.clientId), n=c.mode==='equipo'?ctEquipos(c).length:ctSedes(c).length;
+  const mios=pend.filter(p=>p.contractId===c.id).length;
+  return `<tr data-id="${esc(c.id)}" onclick="contractForm(this.dataset.id)">
+   <td><b>${esc(c.name)}</b></td><td>${esc(cl?.name||'—')}</td>
+   <td>${esc(FLABEL[c.frequency]||c.frequency)}</td>
+   <td>${c.mode==='equipo'?'Por equipo':'Por visita'}</td>
+   <td>${n} ${c.mode==='equipo'?'equipo(s)':'sede(s)'}</td>
+   <td>${fmtDate(c.startDate)}${c.endDate?' → '+fmtDate(c.endDate):''}</td>
+   <td>${mios?`<span class="status orange">${mios} por generar</span>`:''}</td>
+   <td>${badge(c.status==='activo'?'Activo':(c.status==='suspendido'?'Media':'Inactivo'))
+        .replace('Media','Suspendido').replace('Inactivo','Terminado')}</td></tr>`}).join('')
+  ||emptyRow(8,'No hay contratos. Cree uno con “Nuevo contrato”.');
+}
+
+function contractForm(id){
+ const c=id?contract(id):{name:'',clientId:'',siteIds:[],frequency:'trimestral',mode:'equipo',
+                          overrides:{},startDate:todayStr(),endDate:'',techId:'',status:'activo',notes:''};
+ const sedes=c.clientId?db.sites.filter(s=>s.clientId===c.clientId):[];
+ openModal(`<div class="modal-head"><h2>${id?'Editar contrato':'Nuevo contrato'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Nombre del contrato <span class="req">*</span><input id="ctName" value="${esc(c.name)}" placeholder="Ej. Mantenimiento 2026"></label>
+  <label>Cliente <span class="req">*</span><select id="ctClient" onchange="recargarSedes()" ${id?'disabled':''}>${opts(db.clients.map(x=>({value:x.id,label:x.name})),c.clientId,'Seleccione cliente')}</select></label>
+  <label>Frecuencia <span class="req">*</span><select id="ctFreq">${opts(FREQS.map(f=>({value:f[0],label:f[1]})),c.frequency)}</select></label>
+  <label>Genera <span class="req">*</span><select id="ctMode">${opts([{value:'equipo',label:'Una orden por equipo'},{value:'visita',label:'Una orden por visita a la sede'}],c.mode)}</select></label>
+  <label>Inicio <span class="req">*</span><input id="ctStart" type="date" value="${esc(c.startDate)}"></label>
+  <label>Fin (opcional)<input id="ctEnd" type="date" value="${esc(c.endDate||'')}"></label>
+  <label>Técnico preferente<select id="ctTech">${opts(db.techs.filter(t=>t.active).map(t=>({value:t.id,label:t.name})),c.techId,'Sin asignar')}</select></label>
+  <label>Estado<select id="ctStatus">${opts(CT_STATUS.map(x=>({value:x[0],label:x[1]})),c.status)}</select></label>
+  <label style="grid-column:1/-1">Notas<textarea id="ctNotes">${esc(c.notes||'')}</textarea></label>
+ </div>
+ <hr><h2 style="font-size:14px">Sedes cubiertas</h2>
+ <div id="ctSedes">${sedes.length?sedes.map(s=>`<label class="chk"><input type="checkbox" data-sede="${esc(s.id)}" ${(c.siteIds||[]).includes(s.id)?'checked':''}> ${esc(s.name)} <span class="small">${esc(s.city||'')}</span></label>`).join(''):'<p class="small">Escoja primero un cliente.</p>'}</div>
+ <hr><h2 style="font-size:14px">Excepciones por equipo</h2>
+ <p class="small">Deje “Según el contrato” para la mayoría. Use esto solo para el equipo que necesita otra frecuencia o que no se cubre.</p>
+ <div id="ctExc"></div>
+ <div id="ctErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveContract('${id||''}')">Guardar</button>
+  ${id?`<button class="btn secondary" onclick="verPendientes('${id}')">Ver preventivos por generar</button>`:''}
+  <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ pintarExcepciones(c);
+}
+function recargarSedes(){
+ const cid=$('ctClient').value, sedes=db.sites.filter(s=>s.clientId===cid);
+ $('ctSedes').innerHTML=sedes.length?sedes.map(s=>`<label class="chk"><input type="checkbox" data-sede="${esc(s.id)}" onchange="pintarExcepciones()"> ${esc(s.name)} <span class="small">${esc(s.city||'')}</span></label>`).join(''):'<p class="small">Ese cliente no tiene sedes registradas.</p>';
+ pintarExcepciones();
+}
+function sedesMarcadas(){ return [...document.querySelectorAll('[data-sede]')].filter(x=>x.checked).map(x=>x.dataset.sede) }
+function pintarExcepciones(c){
+ const cont=$('ctExc'); if(!cont) return;
+ const over=(c&&c.overrides)||leerExcepciones()||{};
+ const eqs=db.assets.filter(a=>sedesMarcadas().includes(a.siteId));
+ cont.innerHTML=eqs.length?eqs.map(a=>`<div class="g-exc"><span>${esc(a.id)} · ${esc(a.type)} ${esc(a.brand)} <span class="small">${esc(site(a.siteId)?.name||'')}</span></span>
+   <select data-exc="${esc(a.id)}">${opts([{value:'',label:'Según el contrato'},...FREQS.map(f=>({value:f[0],label:f[1]})),{value:'excluir',label:'No cubierto'}],over[a.id]||'')}</select></div>`).join('')
+  :'<p class="small">Marque al menos una sede para ver sus equipos.</p>';
+}
+function leerExcepciones(){
+ const o={}; document.querySelectorAll('[data-exc]').forEach(el=>{ if(el.value) o[el.dataset.exc]=el.value });
+ return o;
+}
+function saveContract(id){
+ const err=$('ctErr');
+ const v={name:$('ctName').value.trim(),clientId:$('ctClient').value,frequency:$('ctFreq').value,
+  mode:$('ctMode').value,startDate:$('ctStart').value,endDate:$('ctEnd').value||'',
+  techId:$('ctTech').value,status:$('ctStatus').value,notes:$('ctNotes').value.trim(),
+  siteIds:sedesMarcadas(),overrides:leerExcepciones()};
+ if(v.name.length<2){err.textContent='Escriba el nombre del contrato.';return}
+ if(!v.clientId){err.textContent='Escoja el cliente.';return}
+ if(!v.startDate){err.textContent='Ponga la fecha de inicio.';return}
+ if(v.endDate&&v.endDate<v.startDate){err.textContent='La fecha de fin no puede ser anterior al inicio.';return}
+ if(!v.siteIds.length){err.textContent='Marque al menos una sede.';return}
+ v.clientName=(client(v.clientId)||{}).name||'';
+ if(id)Object.assign(contract(id),v); else db.contracts.push({id:nextId('CT-',db.contracts,3),...v});
+ save();closeModal();refresh();toast('Contrato guardado.');
+}
+
+/* ---- Generar los preventivos ---- */
+function verPendientes(soloContrato){
+ let pend=pendientes();
+ if(soloContrato) pend=pend.filter(p=>p.contractId===soloContrato);
+ if(!pend.length){ toast('No hay preventivos por generar.'); return }
+ openModal(`<div class="modal-head"><h2>Preventivos por generar</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <p class="small">Se crearán como órdenes preventivas. Desmarque las que no quiera generar todavía.</p>
+ <div class="table-wrap"><table><thead><tr><th style="width:34px"></th><th>Fecha</th><th>Contrato</th><th>Cliente / Sede</th><th>Cubre</th></tr></thead>
+ <tbody>${pend.map((p,i)=>`<tr><td><input type="checkbox" data-gen="${i}" checked></td>
+   <td>${fmtDate(p.date)}${p.vencida?' '+badge('Vencida'):''}</td>
+   <td>${esc(p.contrato)}</td>
+   <td>${esc(client(p.clientId)?.name||'')}<br><span class="small">${esc(site(p.siteId)?.name||'')}</span></td>
+   <td>${esc(p.label)}</td></tr>`).join('')}</tbody></table></div>
+ <div class="actions"><button class="btn primary" id="genBtn" onclick="generarPreventivos()">Generar las marcadas</button>
+  <button class="btn secondary" onclick="closeModal()">Cerrar</button></div>`);
+ window.__PEND=pend;
+}
+function generarPreventivos(){
+ const pend=window.__PEND||[];
+ const sel=[...document.querySelectorAll('[data-gen]')].filter(x=>x.checked).map(x=>pend[+x.dataset.gen]);
+ if(!sel.length){ toast('No marcó ninguna.'); return }
+ $('genBtn').disabled=true;
+ const hoy=todayStr();
+ sel.forEach(p=>{
+  const c=contract(p.contractId), t=c&&c.techId?tech(c.techId):null;
+  const status=(t&&t.active)?'Programada':'Pendiente';
+  const id=nextId('OT-',db.orders,4);
+  db.orders.push({id,clientId:p.clientId,siteId:p.siteId,assetId:p.assetId||'',
+   type:'Preventivo',priority:'Normal',techId:(t&&t.active)?t.id:'',
+   date:p.date<hoy?hoy:p.date,time:'08:00',
+   desc:`Preventivo ${FLABEL[p.freq]||p.freq} · contrato ${c?c.name:''}`,
+   contractId:p.contractId,status,createdAt:nowIso(),
+   history:[{at:nowIso(),status,note:'Generada desde el contrato'}]});
+  if(c) c.lastRun=hoy;
+ });
+ save();closeModal();refresh();
+ toast(sel.length+' orden(es) preventiva(s) creada(s).');
+}
+
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,reports:renderReports,backup:renderBackup};
+const RENDER={dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -982,7 +1159,9 @@ const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',
 const dnSite=(id,d)=>({id,clientId:d.clientId||'',name:d.name||'',city:d.city||'',address:d.address||''});
 const dnAsset=(id,d)=>({id,clientId:d.clientId||'',siteId:d.siteId||'',type:d.type||'Otro',brand:d.brand||'',model:d.model||'',serial:d.serial||'',btu:d.btu||0,refrigerant:d.refrigerant||'',installDate:d.installDate||'',location:d.location||'',status:Mi.astStatus[d.status]||'Operativo'});
 const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false,uid:d.uid||'',email:d.email||''});
-const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
+const dnContract=(id,d)=>({id,name:d.name||'',clientId:d.clientId||'',clientName:d.clientName||'',siteIds:d.siteIds||[],frequency:d.frequency||'trimestral',mode:d.mode||'equipo',overrides:d.overrides||{},startDate:d.startDate||'',endDate:d.endDate||'',techId:d.techId||'',status:d.status||'activo',notes:d.notes||'',lastRun:d.lastRun||''});
+const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName),siteIds:c.siteIds||[],frequency:c.frequency,mode:c.mode,overrides:c.overrides||{},startDate:c.startDate,endDate:nn(c.endDate),techId:nn(c.techId),status:c.status,notes:nn(c.notes),lastRun:nn(c.lastRun)});
+const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',contractId:d.contractId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
 
 /* --- De la app hacia la base --- */
 const upClient=c=>({name:c.name,nit:nn(c.nit),contact:nn(c.contact),phone:nn(c.phone),email:nn(c.email),status:M.cliStatus[c.status]||'activo'});
@@ -997,24 +1176,27 @@ function upOrder(o){
   assetId:nn(o.assetId),assetCode:as?as.id:null,type:M.ordType[o.type]||'preventivo',priority:M.prio[o.priority]||'normal',
   techId:nn(o.techId),techUid:(te&&te.uid)?te.uid:null,techName:te?te.name:null,
   scheduledDate:o.date,scheduledTime:nn(o.time),description:nn(o.desc),status:st,
+  contractId:nn(o.contractId),
   statusNote:(st==='cancelada'&&(!lastNote||lastNote.length<5))?'Cancelada desde el panel':nn(lastNote),
   startedAt:null,completedAt:null};
 }
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
-  FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDoc(P('counters','workOrders'))]);
+  FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
+  FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[]};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[]};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
  take(as,db.assets,'assets',dnAsset);
  take(te,db.techs,'techs',dnTech);
  take(or,db.orders,'orders',dnOrder);
+ take(ct,db.contracts,'contracts',dnContract);
  db.orders.sort((a,b)=>(b.seq||0)-(a.seq||0));
  await Promise.all(db.orders.slice(0,60).map(async o=>{
   try{const ev=await FB.getDocs(C('workOrders',o.id,'events'));
@@ -1070,6 +1252,7 @@ async function fsSave(){
   await syncColl('sites','sites',upSite);
   await syncColl('assets','assets',upAsset);
   await syncColl('techs','technicians',upTech);
+  await syncColl('contracts','contracts',upContract);
   await syncOrders();
   storageOk=true;
  }catch(e){

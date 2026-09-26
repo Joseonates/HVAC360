@@ -203,7 +203,7 @@ const ROLES_EQ=['Condensadora','Manejadora','Otros'];
 const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 
-const VERSION='v2026.09.27-1';
+const VERSION='v2026.09.27-2';
 let TENANT=null, ME=null, CLIID='', EMPRESA='', LOGO='';
 let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], COTS=[], TAB='ordenes', DET=null, DETCOT=null, COTERR='';
 const COT_EST={borrador:'Borrador',enviada:'Pendiente de su aprobación',aprobada:'Aprobada',rechazada:'Rechazada',vencida:'Vencida',anulada:'Anulada'};

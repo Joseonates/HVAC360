@@ -331,7 +331,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.27-1';
+const VERSION='v2026.09.27-2';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -1920,7 +1920,11 @@ async function guardarAjustes(){
  if(s.ivaPct<0||s.ivaPct>100){alert('El IVA debe estar entre 0 y 100.');return}
  try{
   await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),{settings:s,updatedAt:sv(),updatedBy:uid()});
-  ME.settings=s; toast('Valores guardados.');
+  // Se vuelve a leer de la nube: así usted ve lo que de verdad quedó guardado.
+  const td=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT));
+  ME.settings=(td.exists()&&td.data().settings)||s;
+  renderQuotes();
+  toast('Guardado · mano de obra '+money(ME.settings.tarifaHora||0)+'/h · IVA '+(ME.settings.ivaPct||0)+'%');
  }catch(e){ console.error(e); alert('No se pudo guardar: '+errMsg(e)) }
 }
 
@@ -1960,7 +1964,7 @@ function quoteForm(id,prefill){
    <tbody id="cotBody"></tbody></table></div>
   <div class="actions" style="margin-top:10px">
    <button class="btn secondary sm" onclick="cotPicker()">＋ Repuesto del catálogo</button>
-   <button class="btn secondary sm" onclick="cotAgregar('obra')">＋ Mano de obra</button>
+   <button class="btn secondary sm" onclick="cotAgregar('obra')">＋ Mano de obra${cotSet('tarifaHora',0)?' ('+money(cotSet('tarifaHora',0))+'/h)':''}</button>
    <button class="btn secondary sm" onclick="cotAgregar('otro')">＋ Línea libre</button>
   </div>
   <div id="qResumen" style="margin-top:16px"></div>
@@ -1994,13 +1998,19 @@ function cotSede(assetId){
 }
 function cotPintar(){
  $('cotBody').innerHTML=cotLineas.map((l,i)=>`<tr>
-  <td><select class="cl-kind" data-i="${i}" onchange="cotLee()">${opts(Object.entries(COT_TIPOS).map(([va,lb])=>({value:va,label:lb})),l.kind)}</select></td>
+  <td><select class="cl-kind" data-i="${i}" onchange="cotTipo(+this.dataset.i)">${opts(Object.entries(COT_TIPOS).map(([va,lb])=>({value:va,label:lb})),l.kind)}</select></td>
   <td><input class="cl-desc" data-i="${i}" maxlength="200" value="${esc(l.desc)}" oninput="cotLee()" placeholder="Descripción de lo que se cotiza"></td>
   <td><input class="cl-qty" data-i="${i}" type="number" min="0" step="0.5" value="${l.qty}" oninput="cotLee()"></td>
   <td><input class="cl-price" data-i="${i}" type="number" min="0" step="1000" value="${l.unitPrice}" oninput="cotLee()"></td>
   <td style="text-align:right" id="clTot${i}">${money(l.qty*l.unitPrice)}</td>
   <td><button class="btn danger sm" data-i="${i}" onclick="cotQuitar(+this.dataset.i)" title="Quitar">✕</button></td></tr>`).join('');
  cotLee();
+}
+// Al pasar una línea en blanco a "Mano de obra" se le pone la tarifa por hora.
+function cotTipo(i){
+ cotLee();
+ const l=cotLineas[i], t=Number(cotSet('tarifaHora',0))||0;
+ if(l&&l.kind==='obra'&&!l.unitPrice&&!l.partId&&t){ l.unitPrice=t; if(!l.desc.trim())l.desc='Mano de obra'; cotPintar() }
 }
 function cotLee(){
  const leer=(cls,fn)=>document.querySelectorAll('#cotBody .'+cls).forEach(el=>fn(cotLineas[+el.dataset.i],el));
@@ -2024,7 +2034,11 @@ function cotCalcula(){
 }
 function cotAgregar(kind,extra){
  cotLee();
- const nueva=Object.assign({kind:kind||'otro',desc:'',qty:1,unitPrice:0,partId:''},extra||{});
+ // La mano de obra arranca con la tarifa por hora de "Valores por defecto".
+ const base=(kind==='obra')
+  ? {kind:'obra',desc:'Mano de obra',qty:1,unitPrice:Number(cotSet('tarifaHora',0))||0,partId:''}
+  : {kind:kind||'otro',desc:'',qty:1,unitPrice:0,partId:''};
+ const nueva=Object.assign(base,extra||{});
  // Si la última línea está en blanco, se reemplaza: así no queda una fila vacía colgando.
  const u=cotLineas[cotLineas.length-1];
  if(u&&!u.desc.trim()&&!u.unitPrice&&!u.partId) cotLineas[cotLineas.length-1]=nueva;

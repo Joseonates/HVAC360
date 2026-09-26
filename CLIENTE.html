@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>Portal del cliente</title>
+<style>
+:root{--bg:#0f1419;--panel:#182029;--line:#28323e;--text:#e8edf3;--muted:#8b97a5;--accent:#2f7df6;
+ --green:#1f9d55;--red:#c8392f}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;font-size:15px;line-height:1.45}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);
+ padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;align-items:center;gap:11px}
+header h1{font-size:16px;margin:0;font-weight:600}
+.who{font-size:12px;color:var(--muted)}
+.hdlogo{height:34px;max-width:96px;background:#fff;padding:3px 5px;border-radius:7px;object-fit:contain}
+.icbtn{background:none;border:1px solid var(--line);color:var(--text);font:inherit;font-size:12px;padding:6px 10px;border-radius:8px}
+main{padding:14px 16px 80px;max-width:760px;margin:0 auto}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:600}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:11px}
+.card.tap:active{border-color:var(--accent)}
+.row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.num{font-weight:700}
+.sub{font-size:13px;color:var(--muted)}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.c-programada{background:rgba(201,147,26,.18);color:#e8b84b}
+.c-en_ruta{background:rgba(47,125,246,.18);color:#6fa8ff}
+.c-en_servicio,.c-completada{background:rgba(31,157,85,.18);color:#4fc584}
+.c-pendiente{background:rgba(210,118,42,.18);color:#e29a5c}
+.c-cancelada{background:rgba(139,151,165,.18);color:var(--muted)}
+.c-firmado{background:rgba(31,157,85,.18);color:#4fc584}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:11px;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:700;margin-top:12px}
+.btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
+input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:44px 16px;font-size:14px}
+.msg{padding:11px 13px;border-radius:9px;font-size:13px;margin-top:12px;display:none}
+.msg.err{background:rgba(200,57,47,.15);color:#e8756b;display:block}
+.msg.ok{background:rgba(31,157,85,.15);color:#4fc584;display:block}
+.login{max-width:360px;margin:0 auto;padding:40px 4px}
+.logo{font-size:25px;font-weight:700;margin-bottom:4px}
+.logo span{color:var(--accent)}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:7px 12px;font-size:14px;margin:12px 0}
+.dl dt{color:var(--muted);font-size:13px}
+.dl dd{margin:0}
+/* ---- Hoja del reporte ---- */
+#prBar{position:sticky;top:0;z-index:5;display:flex;gap:8px;padding:10px;background:var(--panel);border-bottom:1px solid var(--line)}
+#prBar button{flex:1;padding:12px;border-radius:9px;border:none;background:var(--accent);color:#fff;font:inherit;font-weight:700}
+#prBar button.sec{background:transparent;border:1px solid var(--line);color:var(--text)}
+#prSheet{background:#fff;padding:12px}
+#prBody{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#000;max-width:800px;margin:0 auto}
+.phead{display:flex;align-items:stretch;border:1px solid #000;margin-bottom:6px}
+.pco{padding:6px 10px;font-weight:700;font-size:13px;border-right:1px solid #000;display:flex;align-items:center;justify-content:center;min-width:150px;max-width:190px}
+.plogo{max-height:52px;max-width:170px}
+.pti{flex:1;padding:8px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center}
+.pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
+.pnum .sm{font-size:8px;font-weight:700}
+.pt{width:100%;border-collapse:collapse;margin-bottom:6px}
+.pt td,.pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+.pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
+.pt th.gh{text-align:center;text-transform:uppercase}
+.pt td.lb{background:#eef2f7;font-weight:700;width:90px}
+.pt td.v{width:44px;text-align:center;font-weight:700}
+.pt td.tall{height:52px}
+.pcols{column-count:3;column-gap:6px}
+.pcols table{break-inside:avoid;width:100%}
+.pconv{font-size:7.5px;margin:-2px 0 7px;line-height:1.3}
+.pfirmas{display:flex;gap:26px;margin-top:16px;text-align:center}
+.pfirmas>div{flex:1}
+.fbox{height:56px;border-bottom:1px solid #000;display:flex;align-items:flex-end;justify-content:center}
+.fbox img{max-height:54px}
+.fl{font-size:9px;font-weight:700;margin-top:3px}
+.sm{font-size:8px}
+@media print{
+ body{background:#fff}
+ #vLogin,#vMain,#vDet,#prBar{display:none!important}
+ #vPrint{display:block!important}
+ #prSheet{padding:0}
+ @page{size:letter;margin:9mm}
+}
+</style>
+</head>
+<body>
+
+<div id="vLogin" hidden>
+ <main><div class="login">
+  <div class="logo">Portal <span>del cliente</span></div>
+  <p class="sub" style="margin:0 0 26px">Consulte sus servicios y sus reportes firmados.</p>
+  <label>Correo<input id="em" type="email" autocomplete="username" inputmode="email"></label>
+  <label>Contrase&ntilde;a<input id="pw" type="password" autocomplete="current-password"></label>
+  <button class="btn" id="inBtn" onclick="entrar()">Entrar</button>
+  <div id="lmsg" class="msg"></div>
+ </div></main>
+</div>
+
+<div id="vMain" hidden>
+ <header>
+  <img id="hdLogo" class="hdlogo" hidden>
+  <div style="flex:1"><h1 id="hCli">&mdash;</h1><div class="who" id="hEmp"></div></div>
+  <button class="icbtn" onclick="salir()">Salir</button>
+ </header>
+ <main>
+  <div class="tabs">
+   <button id="tOrd" class="on" onclick="setTab('ordenes')">Servicios</button>
+   <button id="tEqu" onclick="setTab('equipos')">Mis equipos</button>
+   <button id="tCon" onclick="setTab('contratos')">Contratos</button>
+  </div>
+  <div id="lista"></div>
+ </main>
+</div>
+
+<div id="vDet" hidden>
+ <header>
+  <button class="icbtn" onclick="volver()">&lsaquo; Volver</button>
+  <h1 id="dNum" style="flex:1;text-align:center">&mdash;</h1>
+  <span style="width:62px"></span>
+ </header>
+ <main id="detBody"></main>
+</div>
+
+<div id="vPrint" hidden>
+ <div id="prBar">
+  <button class="sec" onclick="cerrarImpresion()">&lsaquo; Volver</button>
+  <button onclick="imprimir()">Imprimir / Guardar PDF</button>
+ </div>
+ <div id="prSheet"><div id="prBody"></div></div>
+</div>
+
+<script type="module">
+const V='12.19.0', B='https://www.gstatic.com/firebasejs/'+V+'/';
+try{
+ const [A,Au,Fs]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
+ const app=A.initializeApp({
+  apiKey:"AIzaSyBDsf7oXAlsw38mYHHCn6wVxM4JcGq-jDU",
+  authDomain:"hvac360.firebaseapp.com",
+  projectId:"hvac360",
+  storageBucket:"hvac360.firebasestorage.app",
+  messagingSenderId:"217756579102",
+  appId:"1:217756579102:web:343e9b8bdf004dbac4050f"});
+ window.FB=Object.assign({},Au,Fs,{auth:Au.getAuth(app),fs:Fs.getFirestore(app)});
+ window.dispatchEvent(new Event('fb-ready'));
+}catch(e){
+ document.getElementById('lmsg').className='msg err';
+ document.getElementById('lmsg').textContent='No se pudo cargar Firebase: '+e.message;
+ document.getElementById('vLogin').hidden=false;
+}
+</script>
+
+<script>
+const $=i=>document.getElementById(i);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LBL={pendiente:'Pendiente',programada:'Programada',en_ruta:'En ruta',en_servicio:'En servicio',completada:'Completada',cancelada:'Cancelada'};
+const TLBL={preventivo:'Preventivo',correctivo:'Correctivo',instalacion:'Instalaci\u00f3n',emergencia:'Emergencia'};
+const ALBL={operativo:'Operativo',requiere_atencion:'Requiere atenci\u00f3n',fuera_de_servicio:'Fuera de servicio'};
+const FLBL={mensual:'Mensual',bimestral:'Bimestral',trimestral:'Trimestral',semestral:'Semestral',anual:'Anual'};
+
+const TIPOS_EQ=[['AC','Aire Central'],['AV','Ventana'],['MSPT','Mini Split Piso Techo'],['MSC','Mini Split Casette'],
+ ['MSP','Mini Split Pared'],['PAQ','Paquete'],['CH','Chiller'],['ER','Equipo de Refrigeración'],
+ ['MAF','Manejadora de Agua Fría'],['TE','Torre de Enfriamiento'],['BOM','Bomba']];
+
+const CHECKS={
+ 'Evaporador':['Revisar aislamiento térmico','Limpieza de filtros','Sondeo drenajes','Alineación de polea',
+  'Tensión de correas','Limpieza rotor','Lavado serpentín','Engrase y estado del eje','Lubricación rodamientos',
+  'Ajuste bulbo válvula expansión','Revisar y limpiar ductos / rejillas'],
+ 'Condensador':['Limpieza rotor y eje','Lavado serpentín','Lubricación rodamientos','Revisar operación de presostatos',
+  'Ajuste conexión eléctricas'],
+ 'Compresores':['Condiciones generales de operación','Fugas aceite / refrigerantes','Nivel y estado de aceite',
+  'Presostato aceite','Presostato alta / baja','Termo sensor','Resistencia cárter','Sonido operación'],
+ 'Tableros':['Ajuste conexión eléctricas','Revisar mandos / indicadores'],
+ 'Circuito de refrigeración':['Válvula paso','Aislamiento tubería','Filtro secador','Indicador líquido','Indicador humedad'],
+ 'Centro de cómputo':['Calibración control temperatura','Calibración control humedad','Lavado tanque humectación',
+  'Resistencia humectación','Resistencia calentamiento','Suministro agua','Alarma audio / visual',
+  'Control filtros obstruidos','Control flujo aire'],
+ 'Gabinetes / ductos':['Limpieza exterior','Ajuste tornillos','Pintura','Limpieza rejillas']};
+
+const DATOS={
+ 'Presión':['Succión compresor 1','Succión compresor 2','Descarga compresor 1','Descarga compresor 2','Aceite compresor 1','Aceite compresor 2'],
+ 'Temperatura':['Aire suministro o agua','Aire retorno o agua'],
+ 'Amperaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4','Resistencias'],
+ 'Voltaje':['Compresor 1','Compresor 2','Motor acondicionadora','Motor condensadora 1','Motor condensadora 2','Motor condensadora 3','Motor condensadora 4']};
+
+const EVALS=['Calidad del trabajo','Oportunidad en la entrega','Atención de los técnicos','Presentación y orden'];
+const ROLES_EQ=['Condensadora','Manejadora','Otros'];
+const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+
+
+let TENANT=null, ME=null, CLIID='', EMPRESA='', LOGO='';
+let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], TAB='ordenes', DET=null;
+
+const fdate=s=>{if(!s)return '\u2014';const[y,m,d]=String(s).split('-');return `${d}/${m}/${y}`};
+function view(v){['vLogin','vMain','vDet','vPrint'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
+function msg(id,t,cls){const e=$(id);e.textContent=t;e.className='msg'+(t?' '+cls:'')}
+function errMsg(e){
+ const c=(e&&e.code)||'';
+ if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found'))return 'Correo o contrase\u00f1a incorrectos.';
+ if(c.includes('too-many-requests'))return 'Demasiados intentos. Espere un momento.';
+ if(c.includes('unauthorized-domain'))return 'Este dominio no est\u00e1 autorizado en Firebase.';
+ if(c.includes('permission-denied'))return 'Su usuario no tiene permiso para ver esta informaci\u00f3n.';
+ return (e&&e.message)||'Error desconocido.';
+}
+async function entrar(){
+ const e=$('em').value.trim(), p=$('pw').value;
+ if(!e||!p){msg('lmsg','Escriba su correo y su contrase\u00f1a.','err');return}
+ msg('lmsg','Entrando\u2026','ok'); $('inBtn').disabled=true;
+ try{ await FB.signInWithEmailAndPassword(FB.auth,e,p) }
+ catch(err){ msg('lmsg',errMsg(err),'err'); $('inBtn').disabled=false }
+}
+async function salir(){ if(!confirm('\u00bfCerrar sesi\u00f3n?'))return; await FB.signOut(FB.auth); location.reload() }
+
+async function alEntrar(u){
+ try{
+  const ud=await FB.getDoc(FB.doc(FB.fs,'users',u.uid));
+  if(!ud.exists()){ msg('lmsg','Su cuenta no est\u00e1 vinculada a ninguna empresa.','err'); $('inBtn').disabled=false; await FB.signOut(FB.auth); return }
+  TENANT=ud.data().tenantId;
+  const [md,td]=await Promise.all([
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'members',u.uid)),
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT))]);
+  if(!md.exists()||md.data().active===false){ msg('lmsg','Su usuario est\u00e1 inactivo.','err'); $('inBtn').disabled=false; await FB.signOut(FB.auth); return }
+  ME=md.data(); CLIID=ME.clientId||'';
+  if(ME.role!=='cliente'||!CLIID){
+   msg('lmsg','Este portal es solo para clientes. Use la direcci\u00f3n que le corresponde.','err');
+   $('inBtn').disabled=false; await FB.signOut(FB.auth); return;
+  }
+  EMPRESA=td.exists()?(td.data().name||''):'';
+  LOGO=td.exists()?(td.data().logoUrl||''):'';
+  aplicarLogo();
+  await cargar();
+  $('hCli').textContent=ME.name||'Cliente';
+  $('hEmp').textContent=EMPRESA?('Servicios prestados por '+EMPRESA):'';
+  view('vMain'); pintar();
+ }catch(e){ console.error(e); msg('lmsg',errMsg(e),'err'); $('inBtn').disabled=false }
+}
+function aplicarLogo(){
+ const e=$('hdLogo'); if(e){ e.src=LOGO||''; e.hidden=!LOGO }
+ if(LOGO){ ['icon','apple-touch-icon'].forEach(r=>{
+   let l=document.querySelector(`link[rel="${r}"]`);
+   if(!l){ l=document.createElement('link'); l.rel=r; document.head.appendChild(l) } l.href=LOGO }) }
+ if(EMPRESA) document.title=EMPRESA+' \u00b7 Portal del cliente';
+}
+async function cargar(){
+ const q=(col)=>FB.getDocs(FB.query(FB.collection(FB.fs,'tenants',TENANT,col),FB.where('clientId','==',CLIID)));
+ const [or,as,si,ct]=await Promise.all([q('workOrders'),q('assets'),q('sites'),q('contracts')]);
+ ORDERS=[]; or.forEach(d=>ORDERS.push(Object.assign({_id:d.id},d.data())));
+ ORDERS.sort((a,b)=>((b.scheduledDate||'')).localeCompare(a.scheduledDate||''));
+ EQUIPOS=[]; as.forEach(d=>EQUIPOS.push(Object.assign({_id:d.id},d.data())));
+ SEDES=[];  si.forEach(d=>SEDES.push(Object.assign({_id:d.id},d.data())));
+ CONTRATOS=[]; ct.forEach(d=>CONTRATOS.push(Object.assign({_id:d.id},d.data())));
+}
+const sede=id=>SEDES.find(s=>s._id===id);
+function setTab(t){TAB=t;$('tOrd').className=t==='ordenes'?'on':'';$('tEqu').className=t==='equipos'?'on':'';$('tCon').className=t==='contratos'?'on':'';pintar()}
+
+function pintar(){
+ const c=$('lista');
+ if(TAB==='ordenes'){
+  c.innerHTML=ORDERS.length?ORDERS.map(o=>`<div class="card tap" onclick="detalle('${esc(o._id)}')">
+    <div class="row"><span class="num">${esc(o.number||o._id)}</span><span class="chip c-${esc(o.status)}">${esc(LBL[o.status]||o.status)}</span></div>
+    <div class="sub" style="margin-top:6px;color:var(--text)">${esc(TLBL[o.type]||o.type||'')} \u00b7 ${esc(o.siteName||'')}</div>
+    <div class="sub">${fdate(o.scheduledDate)}${o.assetCode?' \u00b7 '+esc(o.assetCode):''}</div>
+   </div>`).join(''):'<div class="empty">Todav\u00eda no hay servicios registrados.</div>';
+ } else if(TAB==='equipos'){
+  c.innerHTML=EQUIPOS.length?EQUIPOS.map(a=>`<div class="card">
+    <div class="row"><span class="num">${esc(a.code||a._id)}</span><span class="chip c-${a.status==='operativo'?'completada':'pendiente'}">${esc(ALBL[a.status]||a.status||'')}</span></div>
+    <div class="sub" style="margin-top:6px;color:var(--text)">${esc(a.type||'')} ${esc(a.brand||'')} ${esc(a.model||'')}</div>
+    <div class="sub">${esc((sede(a.siteId)||{}).name||'')}${a.location?' \u00b7 '+esc(a.location):''}</div>
+    ${a.btu?`<div class="sub">${esc(a.btu)} BTU${a.refrigerant?' \u00b7 '+esc(a.refrigerant):''}</div>`:''}
+   </div>`).join(''):'<div class="empty">No hay equipos registrados a su nombre.</div>';
+ } else {
+  c.innerHTML=CONTRATOS.length?CONTRATOS.map(k=>`<div class="card">
+    <div class="row"><span class="num">${esc(k.name||'')}</span><span class="chip c-${k.status==='activo'?'completada':'cancelada'}">${esc(k.status||'')}</span></div>
+    <dl class="dl">
+     <dt>Frecuencia</dt><dd>${esc(FLBL[k.frequency]||k.frequency||'')}</dd>
+     <dt>Vigencia</dt><dd>${fdate(k.startDate)}${k.endDate?' \u2192 '+fdate(k.endDate):' en adelante'}</dd>
+     <dt>Cobertura</dt><dd>${(k.siteIds||[]).map(id=>esc((sede(id)||{}).name||id)).join(', ')||'\u2014'}</dd>
+    </dl></div>`).join(''):'<div class="empty">No tiene contratos de mantenimiento registrados.</div>';
+ }
+}
+function volver(){DET=null;view('vMain');pintar()}
+async function detalle(id){
+ const o=ORDERS.find(x=>x._id===id); if(!o)return;
+ DET=o; $('dNum').textContent=o.number||id;
+ $('detBody').innerHTML=`<div class="card">
+   <div class="row"><span class="chip c-${esc(o.status)}">${esc(LBL[o.status]||o.status)}</span></div>
+   <dl class="dl">
+    <dt>Servicio</dt><dd>${esc(TLBL[o.type]||o.type||'')}</dd>
+    <dt>Sede</dt><dd>${esc(o.siteName||'')}</dd>
+    <dt>Equipo</dt><dd>${esc(o.assetCode||'Varios / sin equipo puntual')}</dd>
+    <dt>Fecha</dt><dd>${fdate(o.scheduledDate)}${o.scheduledTime?' \u00b7 '+esc(o.scheduledTime):''}</dd>
+    <dt>T\u00e9cnico</dt><dd>${esc(o.techName||'Por asignar')}</dd>
+   </dl>
+   ${o.description?`<div class="sub" style="border-top:1px solid var(--line);padding-top:10px">${esc(o.description)}</div>`:''}
+  </div>
+  <div class="card" id="repCard"><div class="sub">Buscando el reporte del servicio\u2026</div></div>`;
+ view('vDet');
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+  const card=$('repCard');
+  if(!d.exists()){ card.innerHTML='<div class="sub">Todav\u00eda no hay reporte para este servicio.</div>'; return }
+  const R=d.data(); window.__REP=R;
+  card.innerHTML=(R.firmaCliente
+    ? '<div class="row"><span class="num">Reporte de servicio</span><span class="chip c-firmado">Firmado</span></div>'
+    : '<div class="row"><span class="num">Reporte de servicio</span><span class="chip c-pendiente">Sin firmar</span></div>')
+   +'<button class="btn sec" onclick="verHoja()">Ver / descargar el reporte</button>';
+ }catch(e){ $('repCard').innerHTML='<div class="sub">No se pudo cargar el reporte: '+esc(errMsg(e))+'</div>' }
+}
+function cerrarImpresion(){ view('vDet') }
+function imprimir(){ window.print() }
+function verHoja(){
+ const o=DET, R=window.__REP; if(!o||!R) return;
+ const prev=(R.tipo||'preventivo')==='preventivo';
+ const eqs=R.equipos||[], checks=R.checks||{}, datos=R.datos||{}, ev=R.evaluacion||{};
+ const eq=[0,1,2].map(i=>{const e=eqs[i]||{};
+  return `<tr><td>${esc(ROLES_EQ[i])}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.capacidad||'')}</td>
+   <td>${esc(e.marca||'')}</td><td>${esc(e.modelo||'')}</td><td>${esc(e.serie||'')}</td>
+   <td>${esc(e.ubicacion||'')}</td><td>${esc(e.numero||'')}</td></tr>`}).join('');
+ const checksHtml=Object.entries(CHECKS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
+  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${checks['c_'+k(g)+'_'+k(it)]?'X':''}</td></tr>`).join('')}</table>`).join('');
+ const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
+ const matHtml=`<table class="pt"><tr><th>Descripci\u00f3n de materiales y repuestos</th><th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
+  ${mats.map(m=>`<tr><td>${esc(m.descripcion||'')}</td><td class="v">${esc(m.unidad||'')}</td><td class="v">${esc(m.cantidad||'')}</td></tr>`).join('')}</table>
+  <table class="pt"><tr><th>Descripci\u00f3n de la actividad</th></tr><tr><td class="tall">${esc(R.actividad||'')}</td></tr></table>`;
+ const datosHtml=Object.entries(DATOS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
+  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${esc(datos['d_'+k(g)+'_'+k(it)]||'')}</td></tr>`).join('')}</table>`).join('');
+ const evalHtml=`<table class="pt"><tr><th>Evaluaci\u00f3n del servicio \u00b7 califique de 1 a 5, donde 5 es el m\u00e1ximo</th>
+  <th style="width:44px">1</th><th style="width:44px">2</th><th style="width:44px">3</th><th style="width:44px">4</th><th style="width:44px">5</th></tr>
+  ${EVALS.map(e=>{const v=ev['e_'+k(e)]||0;
+   return `<tr><td>${esc(e)}</td>${[1,2,3,4,5].map(n=>`<td class="v">${v===n?'X':''}</td>`).join('')}</tr>`}).join('')}</table>`;
+ $('prBody').innerHTML=`
+ <div class="phead">
+  <div class="pco">${LOGO?`<img src="${LOGO}" class="plogo">`:esc(EMPRESA||'')}</div>
+  <div class="pti">REPORTE DE MANTENIMIENTO ${prev?'PREVENTIVO':'CORRECTIVO'}</div>
+  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(o.number||'')}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(o.clientName||'')}</td><td class="lb">Fecha</td><td>${fdate(o.scheduledDate)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(o.siteName||'')}</td><td class="lb">Equipo</td><td>${esc(o.assetCode||'')}</td></tr>
+  <tr><td class="lb">Hora entrada</td><td>${esc(R.horaEntrada||'')}</td><td class="lb">Hora salida</td><td>${esc(R.horaSalida||'')}</td></tr>
+ </table>
+ <table class="pt"><tr><th colspan="8" class="gh">Identificaci\u00f3n del equipo</th></tr>
+  <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicaci\u00f3n</th><th>No.</th></tr>${eq}</table>
+ <div class="pconv">${TIPOS_EQ.map(t=>t[0]+': '+t[1]).join(' \u00b7 ')}</div>
+ ${prev?`<div class="pcols">${checksHtml}</div>`:matHtml}
+ <div class="pcols">${datosHtml}</div>
+ ${prev?`<table class="pt"><tr><th>Recomendaciones del t\u00e9cnico</th></tr><tr><td class="tall">${esc(R.recomendaciones||'')}</td></tr>
+   <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(R.observaciones||'')}</td></tr></table>`:''}
+ ${evalHtml}
+ <div class="pfirmas">
+  <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
+   <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(R.firmaClienteNombre||'')}</div></div>
+  <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
+   <div class="fl">FIRMA DEL T\u00c9CNICO</div><div class="sm">${esc(R.firmaTecnicoNombre||'')}</div></div>
+ </div>`;
+ view('vPrint');
+}
+function arrancar(){
+ FB.onAuthStateChanged(FB.auth,u=>{
+  if(u) alEntrar(u);
+  else { TENANT=null;ME=null;ORDERS=[];EQUIPOS=[];SEDES=[];CONTRATOS=[]; $('inBtn').disabled=false; view('vLogin') }
+ });
+}
+if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);
+</script>
+</body>
+</html>

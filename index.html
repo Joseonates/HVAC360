@@ -721,7 +721,7 @@ function saveClient(id){
  const v={name:$('cName').value.trim(),nit:$('cNit').value.trim(),contact:$('cContact').value.trim(),phone:$('cPhone').value.trim(),email:$('cEmail').value.trim(),status:$('cStatus').value};
  if(!v.name){$('cErr').textContent='El nombre es obligatorio.';return}
  if(db.clients.some(c=>c.id!==id&&c.name.toLowerCase()===v.name.toLowerCase())){$('cErr').textContent='Ya existe un cliente con ese nombre.';return}
- if(id)Object.assign(client(id),v);else{id=nextId('C-',db.clients,3);db.clients.push({id,...v})}
+ if(id)Object.assign(client(id),v);else{id=nextId('C-',db.clients,3);db.clients.push({id,...v,portalUid:'',portalEmail:''})}
  save();closeModal();refresh();toast('Cliente guardado.');
  if(!db.sites.some(s=>s.clientId===id)&&confirm('El cliente no tiene sedes. ¿Desea crear su primera sede ahora?'))siteForm(null,id);
 }

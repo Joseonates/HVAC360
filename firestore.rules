@@ -98,10 +98,13 @@ service cloud.firestore {
     // Lo escribe el propio usuario al registrarse, y solo una vez.
     match /users/{userId} {
       allow read:   if signedIn() && uid() == userId;
-      allow create: if signedIn() && uid() == userId
+      // Lo crea el propio usuario al registrar su empresa, o un admin de
+      // esa empresa al dar de alta a un técnico o coordinador.
+      allow create: if signedIn()
                     && newData().keys().hasOnly(['tenantId', 'email', 'createdAt'])
                     && str(newData().tenantId, 1, 64)
-                    && newData().createdAt == request.time;
+                    && newData().createdAt == request.time
+                    && (uid() == userId || isAdmin(newData().tenantId));
       allow update, delete: if false;
     }
 
@@ -127,6 +130,8 @@ service cloud.firestore {
       allow update: if isAdmin(t) && tenantActive(t)
         && changedKeys().hasOnly(['name', 'legalName', 'nit', 'phone', 'email', 'address', 'city', 'logoUrl', 'settings', 'updatedAt', 'updatedBy'])
         && str(newData().name, 2, 120)
+        // El logo se guarda como imagen pequeña dentro del propio documento.
+        && optStr(newData(), 'logoUrl', 140000)
         && newData().updatedAt == request.time && newData().updatedBy == uid();
 
       // ---------------- Miembros: aquí vive el rol ----------------
@@ -179,7 +184,12 @@ service cloud.firestore {
       // ---------------- Contadores (consecutivos OT-0001...) ----------------
       match /counters/{name} {
         allow read: if isManager(t);
-        allow create, delete: if false;
+        // El admin crea el contador en cero al terminar de registrar la
+        // empresa. Después ya solo puede subir de uno en uno.
+        allow create: if isAdmin(t) && tenantActive(t)
+          && newData().keys().hasOnly(['value'])
+          && newData().value == 0;
+        allow delete: if false;
         allow update: if canManage(t)
           && newData().keys().hasOnly(['value'])
           && newData().value == oldData().value + 1;
@@ -206,7 +216,9 @@ service cloud.firestore {
       }
       function validClient(d) {
         return d.keys().hasOnly(['name', 'nit', 'contact', 'phone', 'email', 'address', 'city', 'branchId', 'status', 'notes',
+                                 'portalUid', 'portalEmail',
                                  'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && optStr(d, 'portalUid', 128) && optStr(d, 'portalEmail', 120)
           && str(d.name, 2, 150)
           && d.status in ['activo', 'inactivo']
           && optStr(d, 'nit', 30) && optStr(d, 'contact', 100) && optStr(d, 'phone', 40)
@@ -270,6 +282,28 @@ service cloud.firestore {
           && (!('specialties' in d) || (d.specialties is list && d.specialties.size() <= 20));
       }
 
+      // ---------------- Contratos de mantenimiento ----------------
+      match /contracts/{contractId} {
+        allow read: if isStaff(t) || (isCustomer(t) && resource.data.clientId == myClientId(t));
+        allow create: if canManage(t) && validContract(newData()) && createdStamp();
+        allow update: if canManage(t) && validContract(newData()) && updatedStamp() && unchanged(['clientId']);
+        allow delete: if false;
+      }
+      function validContract(d) {
+        return d.keys().hasOnly(['name','clientId','clientName','siteIds','frequency','mode','overrides',
+                                 'startDate','endDate','techId','status','notes','lastRun',
+                                 'createdAt','createdBy','updatedAt','updatedBy'])
+          && str(d.name, 2, 120)
+          && str(d.clientId, 1, 64)
+          && d.frequency in ['mensual','bimestral','trimestral','semestral','anual']
+          && d.mode in ['visita','equipo']
+          && d.status in ['activo','suspendido','terminado']
+          && isDate(d.startDate) && optDate(d, 'endDate')
+          && d.siteIds is list && d.siteIds.size() <= 200
+          && optStr(d, 'techId', 64) && optStr(d, 'notes', 2000) && optStr(d, 'clientName', 150)
+          && optDate(d, 'lastRun');
+      }
+
       // ---------------- Órdenes de trabajo ----------------
       match /workOrders/{orderId} {
         allow read: if isManager(t)
@@ -303,6 +337,44 @@ service cloud.firestore {
                  ['programada>en_ruta', 'en_ruta>en_servicio', 'en_servicio>completada']);
         }
 
+        // ---- Reporte de servicio que el técnico llena en sitio ----
+        //  Un solo documento por orden: /workOrders/{id}/report/ficha
+        //  Lo llena el técnico asignado o un coordinador. Una vez el
+        //  cliente firma, queda cerrado: la firma es la prueba del servicio
+        //  y no se puede cambiar lo que el cliente ya avaló.
+        match /report/{docId} {
+          function ord() { return get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data; }
+          function miOrden() { return isTech(t) && ord().techUid == uid(); }
+
+          allow read: if isManager(t) || miOrden()
+            || (isCustomer(t) && ord().clientId == myClientId(t));
+
+          allow create: if tenantActive(t) && (isManager(t) || miOrden()) && validReport(newData());
+
+          // Mientras el cliente no haya firmado, se puede seguir editando.
+          allow update: if tenantActive(t) && (isManager(t) || miOrden())
+            && validReport(newData())
+            && (!('firmaCliente' in oldData()) || oldData().firmaCliente == null);
+
+          allow delete: if false;
+        }
+        function validReport(d) {
+          return d.keys().hasOnly(['tipo','horaEntrada','horaSalida','equipos','checks','materiales',
+                                   'actividad','datos','recomendaciones','observaciones','evaluacion',
+                                   'firmaCliente','firmaClienteNombre','firmaTecnico','firmaTecnicoNombre',
+                                   'createdAt','createdBy','updatedAt','updatedBy'])
+            && d.tipo in ['preventivo','correctivo']
+            && d.updatedAt == request.time && d.updatedBy == uid()
+            && optStr(d, 'actividad', 4000)
+            && optStr(d, 'recomendaciones', 2000)
+            && optStr(d, 'observaciones', 2000)
+            && optStr(d, 'firmaClienteNombre', 120)
+            && optStr(d, 'firmaTecnicoNombre', 120)
+            // Las firmas son imágenes pequeñas guardadas como texto.
+            && optStr(d, 'firmaCliente', 260000)
+            && optStr(d, 'firmaTecnico', 260000);
+        }
+
         // Historial inmutable de la orden
         match /events/{eventId} {
           allow read: if isManager(t)
@@ -310,9 +382,11 @@ service cloud.firestore {
             || (isCustomer(t) && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data.clientId == myClientId(t));
           allow create: if tenantActive(t)
             && (isManager(t) || (isTech(t) && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data.techUid == uid()))
-            && newData().keys().hasOnly(['type', 'status', 'note', 'by', 'byName', 'at'])
+            && newData().keys().hasOnly(['type', 'status', 'note', 'by', 'byName', 'at', 'lat', 'lng'])
             && newData().by == uid() && newData().at == request.time
-            && str(newData().type, 2, 40) && optStr(newData(), 'note', 2000) && optStr(newData(), 'byName', 100);
+            && str(newData().type, 2, 40) && optStr(newData(), 'note', 2000) && optStr(newData(), 'byName', 100)
+            && (!('lat' in newData()) || newData().lat == null || newData().lat is number)
+            && (!('lng' in newData()) || newData().lng == null || newData().lng is number);
           allow update, delete: if false;
         }
       }
@@ -325,7 +399,9 @@ service cloud.firestore {
         return d.keys().hasOnly(['seq', 'number', 'branchId', 'clientId', 'clientName', 'siteId', 'siteName',
                                  'assetId', 'assetCode', 'type', 'priority', 'techId', 'techUid', 'techName',
                                  'scheduledDate', 'scheduledTime', 'description', 'status', 'statusNote',
-                                 'startedAt', 'completedAt', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+                                 'startedAt', 'completedAt', 'contractId',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && optStr(d, 'contractId', 64)
           && d.seq is int && d.seq > 0 && str(d.number, 3, 20)
           && str(d.clientId, 1, 64) && str(d.clientName, 1, 150)
           && str(d.siteId, 1, 64) && str(d.siteName, 1, 120)
@@ -335,7 +411,7 @@ service cloud.firestore {
           && isDate(d.scheduledDate) && optTime(d, 'scheduledTime')
           && optStr(d, 'description', 4000) && optStr(d, 'statusNote', 2000) && optStr(d, 'branchId', 64)
           && optStr(d, 'assetCode', 30) && optStr(d, 'techName', 100)
-          && (d.type == 'instalacion' || d.get('assetId', null) is string)
+          && (d.type == 'instalacion' || d.get('contractId', null) is string || d.get('assetId', null) is string)
           && (d.status != 'pendiente' || d.get('techId', null) == null)
           && (!(d.status in ['programada', 'en_ruta', 'en_servicio', 'completada']) || d.get('techId', null) is string)
           && (d.status != 'cancelada' || (d.get('statusNote', null) is string && d.statusNote.size() >= 5));

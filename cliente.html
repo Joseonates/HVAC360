@@ -303,10 +303,12 @@ async function detalle(id){
   <div class="card" id="repCard"><div class="sub">Buscando el reporte del servicio\u2026</div></div>`;
  view('vDet');
  try{
-  const [d,ph]=await Promise.all([
+  const [d,ph,pf]=await Promise.all([
    FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha')),
-   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')).catch(()=>null)]);
-  window.__FOTOS=[]; if(ph) ph.forEach(x=>window.__FOTOS.push(x.data()));
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')).catch(()=>null),
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photoFiles')).catch(()=>null)]);
+  const grandes={}; if(pf) pf.forEach(x=>grandes[x.id]=x.data().data);
+  window.__FOTOS=[]; if(ph) ph.forEach(x=>{const v=x.data(); window.__FOTOS.push({fase:v.fase,data:grandes[x.id]||v.thumb||v.data||''})});
   const card=$('repCard');
   if(!d.exists()){ card.innerHTML='<div class="sub">Todav\u00eda no hay reporte para este servicio.</div>'; return }
   const R=d.data(); window.__REP=R;

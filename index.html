@@ -1055,10 +1055,12 @@ async function verReporte(id){
  $('rvSheet').hidden=false; cont.innerHTML='<p style="padding:30px;text-align:center">Cargando el reporte…</p>';
  document.body.classList.add('viendo-reporte');
  try{
-  const [d,ph]=await Promise.all([
+  const [d,ph,pf]=await Promise.all([
    FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha')),
-   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')).catch(()=>null)]);
-  const fotos=[]; if(ph) ph.forEach(x=>fotos.push(x.data()));
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')).catch(()=>null),
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photoFiles')).catch(()=>null)]);
+  const grandes={}; if(pf) pf.forEach(x=>grandes[x.id]=x.data().data);
+  const fotos=[]; if(ph) ph.forEach(x=>{const v=x.data(); fotos.push({fase:v.fase,data:grandes[x.id]||v.thumb||v.data||''})});
   if(!d.exists()){
    cont.innerHTML='<p style="padding:40px;text-align:center;color:#555">El técnico todavía no ha llenado el reporte de la orden '+esc(id)+'.<br><span style="font-size:11px">Si él dice que ya lo firmó, pídale que abra el reporte otra vez y toque «Cerrar y firmar»: puede que el guardado le haya fallado.</span></p>';
    return;

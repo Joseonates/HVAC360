@@ -897,6 +897,28 @@ function saveTech(id){
  save();closeModal();refresh();toast('Técnico guardado.');
 }
 
+/* ---- Crea (o recupera) una cuenta secundaria sin cerrar la sesión del admin ---- */
+async function altaCuenta(secAuth, em, pw, quienEs){
+ try{
+  return (await FB.createUserWithEmailAndPassword(secAuth,em,pw)).user.uid;
+ }catch(e){
+  if(!(e.code||'').includes('email-already-in-use')) throw e;
+  // El correo ya existe. Puede ser un intento anterior a medias, o una
+  // cuenta de otra persona del sistema.
+  const miCorreo=(FB.auth.currentUser&&FB.auth.currentUser.email||'').toLowerCase();
+  if(em.toLowerCase()===miCorreo){
+   const err=new Error('Ese es su propio correo de administrador. Un correo no puede ser dos usuarios a la vez: use uno distinto para '+quienEs+'.');
+   err.amable=true; throw err;
+  }
+  try{
+   return (await FB.signInWithEmailAndPassword(secAuth,em,pw)).user.uid;
+  }catch(e2){
+   const err=new Error('Ese correo ya tiene una cuenta en el sistema, con otra clave. Use un correo distinto para '+quienEs+', o escriba la clave que esa cuenta ya tiene.');
+   err.amable=true; throw err;
+  }
+ }
+}
+
 /* ---- Acceso al portal para un cliente ---- */
 async function crearAccesoCliente(id){
  const c=client(id); if(!c) return;
@@ -908,12 +930,7 @@ async function crearAccesoCliente(id){
  try{
   sec=FB.initializeApp(FB.cfg,'portal-'+Date.now());
   const secAuth=FB.getAuth(sec);
-  let nu;
-  try{ nu=(await FB.createUserWithEmailAndPassword(secAuth,em,pw)).user.uid }
-  catch(e){
-   if((e.code||'').includes('email-already-in-use')) nu=(await FB.signInWithEmailAndPassword(secAuth,em,pw)).user.uid;
-   else throw e;
-  }
+  const nu=await altaCuenta(secAuth,em,pw,'el portal del cliente');
   paso='2 · darle acceso a sus datos'; err.textContent='Paso '+paso+'…';
   const b=FB.writeBatch(FB.fs);
   b.set(FB.doc(FB.fs,'tenants',TENANT,'members',nu),{name:c.name,email:em,role:'cliente',active:true,clientId:id,
@@ -928,7 +945,7 @@ async function crearAccesoCliente(id){
   toast('Acceso al portal creado para '+c.name+'.');
  }catch(e){
   console.error('portal falló en el paso',paso,e);
-  err.textContent='Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':'');
+  err.textContent=e.amable?e.message:('Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':''));
  }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
 }
 
@@ -961,17 +978,7 @@ async function crearAcceso(id){
   // la sesión del administrador.
   sec=FB.initializeApp(FB.cfg,'alta-'+Date.now());
   const secAuth=FB.getAuth(sec);
-  let nu;
-  try{
-   const cred=await FB.createUserWithEmailAndPassword(secAuth,em,pw);
-   nu=cred.user.uid;
-  }catch(e){
-   if((e.code||'').includes('email-already-in-use')){
-    // La cuenta quedó creada en un intento anterior: se recupera.
-    const cred=await FB.signInWithEmailAndPassword(secAuth,em,pw);
-    nu=cred.user.uid;
-   }else throw e;
-  }
+  const nu=await altaCuenta(secAuth,em,pw,'el técnico');
 
   paso='2 · dar de alta al técnico en su empresa'; err.textContent='Paso '+paso+'…';
   const b=FB.writeBatch(FB.fs);
@@ -1003,7 +1010,7 @@ async function crearAcceso(id){
   toast(m);
  }catch(e){
   console.error('crearAcceso falló en el paso',paso,e);
-  err.textContent='Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':'');
+  err.textContent=e.amable?e.message:('Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':''));
  }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
 }
 

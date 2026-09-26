@@ -314,7 +314,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.26-2';
+const VERSION='v2026.09.26-3';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -1528,6 +1528,61 @@ function upOrder(o){
   startedAt:null,completedAt:null};
 }
 
+/* ================= ESCUCHA EN VIVO ================= */
+//  La oficina ve los cambios del técnico sin refrescar. Dos candados:
+//  nunca se pisa una orden que usted tenga editada sin subir, y no se
+//  repinta la pantalla mientras usted está escribiendo en un campo.
+let unsubOrders=null, unsubMovs=null, refrescoPend=null;
+const escribiendo=()=>{
+ const a=document.activeElement;
+ return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
+};
+function refrescarSuave(){
+ if(escribiendo()){
+  clearTimeout(refrescoPend);
+  refrescoPend=setTimeout(refrescarSuave, 2500);
+  return;
+ }
+ refresh();
+}
+function escucharCambios(){
+ if(unsubOrders){ unsubOrders(); unsubOrders=null }
+ if(unsubMovs){ unsubMovs(); unsubMovs=null }
+ if(!TENANT) return;
+
+ unsubOrders=FB.onSnapshot(C('workOrders'), snap=>{
+  let cambios=0; const avisos=[];
+  snap.docChanges().forEach(ch=>{
+   if(ch.type==='removed') return;
+   const nuevo=dnOrder(ch.doc.id, ch.doc.data());
+   const i=db.orders.findIndex(o=>o.id===nuevo.id);
+   if(i<0){ nuevo.history=[]; db.orders.unshift(nuevo); remote.orders[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
+   const local=db.orders[i];
+   // Si usted tiene cambios sin subir en esa orden, no se toca.
+   if(remote.orders[local.id]!==JSON.stringify(local)) return;
+   nuevo.history=local.history||[];     // el historial se carga aparte
+   if(JSON.stringify(local)===JSON.stringify(nuevo)) return;
+   if(local.status!==nuevo.status) avisos.push(nuevo.id+' → '+nuevo.status);
+   db.orders[i]=nuevo; remote.orders[nuevo.id]=JSON.stringify(nuevo); cambios++;
+  });
+  if(cambios){ refrescarSuave(); if(avisos.length) toast(avisos.slice(0,3).join(' · ')) }
+ }, err=>console.error('escucha de órdenes', err));
+
+ unsubMovs=FB.onSnapshot(C('movements'), snap=>{
+  let cambios=0, pend=0;
+  snap.docChanges().forEach(ch=>{
+   if(ch.type==='removed') return;
+   const m=dnMov(ch.doc.id, ch.doc.data());
+   const i=db.movements.findIndex(x=>x.id===m.id);
+   if(i<0){ db.movements.push(m); remote.movements[m.id]=JSON.stringify(m); cambios++; if(m.status==='pendiente')pend++; return }
+   if(JSON.stringify(db.movements[i])===JSON.stringify(m)) return;
+   if(db.movements[i].status!=='pendiente'&&m.status==='pendiente') pend++;
+   db.movements[i]=m; remote.movements[m.id]=JSON.stringify(m); cambios++;
+  });
+  if(cambios){ refrescarSuave(); if(pend) toast(pend+' repuesto(s) esperando aprobación') }
+ }, err=>console.error('escucha de movimientos', err));
+}
+
 /* ================= CARGA ================= */
 async function fsLoad(){
  const [cl,si,as,te,or,ct,wh,pa,mv,cn]=await Promise.all([
@@ -1728,6 +1783,7 @@ async function onSignedIn(user){
   }
   ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:'',logoUrl:td.exists()?(td.data().logoUrl||''):''});
   await fsLoad();
+  escucharCambios();
   setUserChip();
   $('authScreen').style.display='none';
   bootUI();
@@ -1738,7 +1794,11 @@ function startAuth(){
  FB.onAuthStateChanged(FB.auth,u=>{
   if(registrando) return;
   if(u) onSignedIn(u);
-  else { TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false); }
+  else {
+   if(unsubOrders){ unsubOrders(); unsubOrders=null }
+   if(unsubMovs){ unsubMovs(); unsubMovs=null }
+   TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false);
+  }
  });
 }
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);

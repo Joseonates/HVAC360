@@ -242,7 +242,7 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.09.26-2';
+const VERSION='v2026.09.26-3';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -343,7 +343,11 @@ async function pedirRepuesto(){
   REP.materiales.push({descripcion:p.name,unidad:p.unit,cantidad:String(q),partId:pid,movId:ref.id});
   marcarSucio();
   pintarReporte();
-  m.className='msg ok'; m.textContent='Agregado. Queda pendiente de aprobación.';
+  const falta=faltanFases();
+  m.className=falta.length?'msg err':'msg ok';
+  m.textContent=falta.length
+   ? 'Agregado. Ahora el reporte exige fotos de: '+falta.join(', ')+'.'
+   : 'Agregado. Queda pendiente de aprobación.';
  }catch(e){
   console.error(e); m.className='msg err';
   m.textContent='No se pudo pedir: '+errMsg(e)+(e.code?' ['+e.code+']':'');
@@ -660,11 +664,22 @@ async function cargarFotos(oid){
  }catch(e){ console.error('fotos',e) }
 }
 
+const usaMateriales=()=>((REP&&REP.materiales)||[]).length>0;
+const faseFalta=k=>usaMateriales()&&!FOTOS[k].length;
+function faltanFases(){ return FASES.filter(([k])=>faseFalta(k)).map(([,l])=>l) }
+
 function bloqueFotos(firmado){
+ const falta=faltanFases();
  return `<div class="secTit">Registro fotográfico</div>
+ ${usaMateriales()&&!firmado?`<div class="card" style="padding:11px;border-color:${falta.length?'var(--red)':'var(--green)'}">
+   <b style="font-size:13px;color:${falta.length?'#e8756b':'#4fc584'}">${falta.length
+     ? 'Faltan fotos: '+falta.join(', ')
+     : 'Evidencia completa'}</b>
+   <div class="sub" style="margin-top:4px">Este servicio consumió repuestos, así que el reporte exige al menos una foto de antes, una de durante y una de después.</div>
+  </div>`:''}
  ${FASES.map(([k,lbl])=>`<div class="card" style="padding:11px">
    <div class="row" style="margin-bottom:8px">
-    <span style="font-weight:700;font-size:13px">${lbl}</span>
+    <span style="font-weight:700;font-size:13px">${lbl}${faseFalta(k)?' <span class="chip c-pendiente">obligatoria</span>':''}</span>
     <span class="sub">${FOTOS[k].length}/${MAX_FOTOS}</span>
    </div>
    <div class="fotoGrid">${FOTOS[k].map(f=>`<div class="fotoBox">
@@ -897,6 +912,18 @@ async function guardarReporte(firmar){
  if(firmar){
   if(!fc){ m.className='msg err'; m.textContent='Falta la firma del cliente. Páse le el celular para que firme.'; return }
   if(!(REP.firmaClienteNombre||'').trim()){ m.className='msg err'; m.textContent='Escriba el nombre de quien recibe.'; return }
+  // Si se usaron repuestos, el reporte debe señalar una foto de cada fase.
+  if(usaMateriales()){
+   const falta=faltanFases();
+   if(falta.length){
+    m.className='msg err';
+    m.textContent='No se puede cerrar: este servicio consumió repuestos y faltan fotos de '+falta.join(', ')+'.';
+    m.scrollIntoView({block:'center'});
+    alert('Faltan fotos de: '+falta.join(', ')+'.\n\nCuando se usan repuestos, el reporte exige una foto de antes, una de durante y una de después.');
+    return;
+   }
+   REP.evidencia={antes:FOTOS.antes[0].id,durante:FOTOS.durante[0].id,despues:FOTOS.despues[0].id};
+  }
   REP.firmaCliente=fc;
  }
  REP.firmaTecnicoNombre=(ME&&ME.name)||null;

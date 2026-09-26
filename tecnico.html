@@ -66,6 +66,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .stars{display:flex;gap:7px}
 .st{flex:1;padding:10px 0;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-weight:700}
 .st.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.verTag{text-align:right;font-size:10px;color:var(--muted);margin:-6px 0 8px;opacity:.75}
 .autoE{font-size:12px;text-align:center;padding:6px 12px;color:var(--muted);min-height:28px}
 .autoE.pend{background:rgba(210,118,42,.14);color:#e29a5c}
 .autoE.ok{background:rgba(31,157,85,.13);color:#4fc584}
@@ -153,6 +154,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <button class="icbtn" onclick="salir()">Salir</button>
  </header>
  <main>
+  <div class="verTag" id="verTag"></div>
   <div class="tabs">
    <button id="tHoy" class="on" onclick="setTab('hoy')">Hoy</button>
    <button id="tAbi" onclick="setTab('abiertas')">Abiertas</button>
@@ -240,6 +242,7 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
+const VERSION='v2026.09.26-1';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
@@ -447,7 +450,7 @@ async function abrirReporte(){
  sucio=false; ultimoOk=null;
  view('vRep'); pintarReporte(); ponerOyentes(); estadoAuto(sucio?'pend':'');
 }
-function cerrarReporte(){ view('vDet') }
+function cerrarReporte(){ guardarLocal(); autoGuardar(); view('vDet') }
 
 function filaEquipo(i){
  const e=REP.equipos[i]||{};
@@ -679,6 +682,7 @@ function abrirFirma(quien){
  recogerReporte();
  FIRMA_QUIEN=quien;
  $('fmTit').textContent=(quien==='cliente')?'Firma del cliente':'Firma del técnico';
+ guardarLocal();
  view('vFirma');
  // El lienzo se dimensiona cuando la pantalla YA está visible: si se hace
  // antes, mide cero y no pinta nada.
@@ -754,7 +758,7 @@ function marcarSucio(){
  if(!REPORD||REP&&REP.firmaCliente) return;
  recogerReporte(); guardarLocal();
  sucio=true; estadoAuto('pend');
- clearTimeout(autoT); autoT=setTimeout(autoGuardar, 10000);
+ clearTimeout(autoT); autoT=setTimeout(autoGuardar, 4000);
 }
 async function escribirFicha(){
  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'report','ficha');
@@ -781,6 +785,8 @@ function ponerOyentes(){
  const b=$('repBody');
  b.addEventListener('input', marcarSucio);
  b.addEventListener('change', marcarSucio);
+ // Al salir de un campo se sube de una, sin esperar el temporizador.
+ b.addEventListener('focusout',()=>{ marcarSucio(); clearTimeout(autoT); autoT=setTimeout(autoGuardar,800) });
  // Al salir de la app o apagar la pantalla, se asegura la copia local
  // y se intenta subir lo pendiente.
  document.addEventListener('visibilitychange',()=>{ if(document.hidden&&REPORD){ guardarLocal(); autoGuardar() } });
@@ -870,6 +876,7 @@ function cerrarImpresion(){ view('vRep') }
 function imprimir(){ window.print() }
 
 function aplicarLogo(){
+ const vt=$('verTag'); if(vt) vt.textContent='App del técnico · '+VERSION;
  ['hdLogo','repLogo'].forEach(id=>{const e=$(id); if(e){ e.src=LOGO||''; e.hidden=!LOGO }});
  if(LOGO){
   ['icon','apple-touch-icon'].forEach(r=>{

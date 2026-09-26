@@ -36,6 +36,7 @@ main{padding:14px 16px 80px;max-width:760px;margin:0 auto}
 .btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
 input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
 label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
+.verTag{text-align:right;font-size:10px;color:var(--muted);margin:-4px 0 8px;opacity:.75}
 .empty{text-align:center;color:var(--muted);padding:44px 16px;font-size:14px}
 .msg{padding:11px 13px;border-radius:9px;font-size:13px;margin-top:12px;display:none}
 .msg.err{background:rgba(200,57,47,.15);color:#e8756b;display:block}
@@ -107,6 +108,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <button class="icbtn" onclick="salir()">Salir</button>
  </header>
  <main>
+  <div class="verTag" id="verTag"></div>
   <div class="tabs">
    <button id="tOrd" class="on" onclick="setTab('ordenes')">Servicios</button>
    <button id="tEqu" onclick="setTab('equipos')">Mis equipos</button>
@@ -191,6 +193,7 @@ const ROLES_EQ=['Condensadora','Manejadora','Otros'];
 const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 
+const VERSION='v2026.09.26-1';
 let TENANT=null, ME=null, CLIID='', EMPRESA='', LOGO='';
 let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], TAB='ordenes', DET=null;
 
@@ -238,6 +241,7 @@ async function alEntrar(u){
  }catch(e){ console.error(e); msg('lmsg',errMsg(e),'err'); $('inBtn').disabled=false }
 }
 function aplicarLogo(){
+ const vt=$('verTag'); if(vt) vt.textContent='Portal del cliente · '+VERSION;
  const e=$('hdLogo'); if(e){ e.src=LOGO||''; e.hidden=!LOGO }
  if(LOGO){ ['icon','apple-touch-icon'].forEach(r=>{
    let l=document.querySelector(`link[rel="${r}"]`);

@@ -154,7 +154,7 @@ try {
 <div class="app">
 <aside class="sidebar">
   <div class="logo">HVAC <span>360°</span></div>
-  <div class="subtitle">FASE 1.5 · EN LA NUBE</div>
+  <div class="subtitle" id="verTag">EN LA NUBE</div>
   <nav class="nav">
     <div class="section">Principal</div>
     <button data-page="dashboard" title="Dashboard">▦ <span>Dashboard</span></button>
@@ -306,6 +306,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
+const VERSION='v2026.09.26-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -1399,6 +1400,7 @@ function bootUI(){
  show('dashboard');
 }
 function aplicarLogo(){
+ const vt=$('verTag'); if(vt) vt.textContent='EN LA NUBE · '+VERSION;
  const url=(ME&&ME.logoUrl)||'';
  const lg=document.querySelector('.sidebar .logo');
  if(lg) lg.innerHTML=url?`<img src="${url}" style="max-width:100%;max-height:52px;background:#fff;padding:5px;border-radius:7px">`:'HVAC <span>360°</span>';

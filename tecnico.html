@@ -66,6 +66,10 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .stars{display:flex;gap:7px}
 .st{flex:1;padding:10px 0;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-weight:700}
 .st.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.autoE{font-size:12px;text-align:center;padding:6px 12px;color:var(--muted);min-height:28px}
+.autoE.pend{background:rgba(210,118,42,.14);color:#e29a5c}
+.autoE.ok{background:rgba(31,157,85,.13);color:#4fc584}
+.autoE.err{background:rgba(200,57,47,.15);color:#e8756b}
 .fotoGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
 .fotoBox{position:relative;aspect-ratio:1;border-radius:9px;overflow:hidden;background:#000}
 .fotoBox img{width:100%;height:100%;object-fit:cover;display:block}
@@ -174,6 +178,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <h1 id="repTit" style="text-align:center;font-size:14px;flex:1">Reporte</h1>
   <span style="width:62px"></span>
  </header>
+ <div id="autoEstado" class="autoE"></div>
  <main id="repBody"></main>
 </div>
 
@@ -431,7 +436,16 @@ async function abrirReporte(){
  REP.datos=REP.datos||{}; REP.evaluacion=REP.evaluacion||{};
  firmas.cliente=REP.firmaCliente||null; firmas.tecnico=REP.firmaTecnico||null;
  await cargarFotos(o._id);
- view('vRep'); pintarReporte();
+ // ¿Quedó un borrador sin subir en este celular?
+ const loc=leerLocal();
+ if(loc&&loc.rep&&!REP.firmaCliente){
+  const cuando=new Date(loc.ts).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'});
+  if(confirm('Hay un borrador de esta orden sin subir, de '+cuando+'.\n\n¿Recuperarlo?')){
+   REP=loc.rep; firmas=loc.firmas||firmas; sucio=true;
+  }else limpiarLocal();
+ }
+ sucio=false; ultimoOk=null;
+ view('vRep'); pintarReporte(); ponerOyentes(); estadoAuto(sucio?'pend':'');
 }
 function cerrarReporte(){ view('vDet') }
 
@@ -710,9 +724,68 @@ function guardarFirma(){
  c.drawImage(cv,0,0,520,170);
  const url=out.toDataURL('image/png');
  if(FIRMA_QUIEN==='cliente') firmas.cliente=url; else firmas.tecnico=url;
- view('vRep'); pintarReporte();
+ view('vRep'); pintarReporte(); guardarLocal(); sucio=true; estadoAuto('pend');
 }
 window.addEventListener('orientationchange',()=>{ if(!$('vFirma').hidden) setTimeout(prepararLienzo,250) });
+
+/* ================= AUTOGUARDADO ================= */
+//  Dos capas: el borrador se copia al celular en cada tecla (instantáneo,
+//  sobrevive a que se cierre la app) y se sube a la nube cada pocos
+//  segundos. Si la subida falla, la copia local queda esperando.
+let autoT=null, sucio=false, guardando=false, ultimoOk=null, oyentePuesto=false;
+const claveBorrador=()=> 'hvac360_borrador_'+TENANT+'_'+(REPORD?REPORD._id:'');
+
+function guardarLocal(){
+ try{ localStorage.setItem(claveBorrador(), JSON.stringify({rep:REP,firmas,ts:Date.now()})) }catch(e){}
+}
+function limpiarLocal(){ try{ localStorage.removeItem(claveBorrador()) }catch(e){} }
+function leerLocal(){ try{ return JSON.parse(localStorage.getItem(claveBorrador())||'null') }catch(e){ return null } }
+
+function estadoAuto(e,extra){
+ const b=$('autoEstado'); if(!b) return;
+ const h=ultimoOk?ultimoOk.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'}):'';
+ if(e==='pend')      { b.className='autoE pend'; b.textContent='Cambios sin subir \u2014 se guardan solos' }
+ else if(e==='sube') { b.className='autoE pend'; b.textContent='Guardando\u2026' }
+ else if(e==='ok')   { b.className='autoE ok';   b.textContent='Guardado'+(h?' a las '+h:'') }
+ else if(e==='err')  { b.className='autoE err';  b.textContent='No se pudo subir ('+(extra||'')+'). Queda guardado en este celular.' }
+ else                { b.className='autoE'; b.textContent='' }
+}
+function marcarSucio(){
+ if(!REPORD||REP&&REP.firmaCliente) return;
+ recogerReporte(); guardarLocal();
+ sucio=true; estadoAuto('pend');
+ clearTimeout(autoT); autoT=setTimeout(autoGuardar, 10000);
+}
+async function escribirFicha(){
+ const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'report','ficha');
+ const payload=Object.assign({},REP,{updatedAt:FB.serverTimestamp(),updatedBy:FB.auth.currentUser.uid});
+ if(!payload.createdAt){payload.createdAt=FB.serverTimestamp();payload.createdBy=FB.auth.currentUser.uid}
+ await FB.setDoc(ref,payload);
+}
+async function autoGuardar(){
+ if(!sucio||!REPORD||guardando) return;
+ if(REP.firmaCliente) return;          // ya firmado: no se toca
+ guardando=true; estadoAuto('sube');
+ try{
+  if(firmas.tecnico) REP.firmaTecnico=firmas.tecnico;
+  await escribirFicha();
+  sucio=false; ultimoOk=new Date(); limpiarLocal(); estadoAuto('ok');
+ }catch(e){
+  console.error('autoguardado',e);
+  estadoAuto('err', e.code||'sin conexión');
+ }
+ guardando=false;
+}
+function ponerOyentes(){
+ if(oyentePuesto) return; oyentePuesto=true;
+ const b=$('repBody');
+ b.addEventListener('input', marcarSucio);
+ b.addEventListener('change', marcarSucio);
+ // Al salir de la app o apagar la pantalla, se asegura la copia local
+ // y se intenta subir lo pendiente.
+ document.addEventListener('visibilitychange',()=>{ if(document.hidden&&REPORD){ guardarLocal(); autoGuardar() } });
+ window.addEventListener('pagehide',()=>{ if(REPORD) guardarLocal() });
+}
 
 async function guardarReporte(firmar){
  recogerReporte();
@@ -727,10 +800,8 @@ async function guardarReporte(firmar){
  REP.firmaTecnicoNombre=(ME&&ME.name)||null;
  m.className='msg ok'; m.textContent='Guardando…';
  try{
-  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'report','ficha');
-  const payload=Object.assign({},REP,{updatedAt:FB.serverTimestamp(),updatedBy:FB.auth.currentUser.uid});
-  if(!payload.createdAt){payload.createdAt=FB.serverTimestamp();payload.createdBy=FB.auth.currentUser.uid}
-  await FB.setDoc(ref,payload);
+  await escribirFicha();
+  sucio=false; ultimoOk=new Date(); limpiarLocal(); estadoAuto('ok');
   m.className='msg ok';
   m.textContent=firmar?'Reporte firmado y guardado. Ya lo ve la oficina.':'Borrador guardado.';
   m.scrollIntoView({block:'center'});

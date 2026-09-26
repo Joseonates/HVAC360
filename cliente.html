@@ -17,7 +17,8 @@ header h1{font-size:16px;margin:0;font-weight:600}
 .hdlogo{height:34px;max-width:96px;background:#fff;padding:3px 5px;border-radius:7px;object-fit:contain}
 .icbtn{background:none;border:1px solid var(--line);color:var(--text);font:inherit;font-size:12px;padding:6px 10px;border-radius:8px}
 main{padding:14px 16px 80px;max-width:760px;margin:0 auto}
-.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.tabs button{min-width:calc(50% - 4px)}
 .tabs button{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:600}
 .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:11px}
@@ -34,7 +35,15 @@ main{padding:14px 16px 80px;max-width:760px;margin:0 auto}
 .c-firmado{background:rgba(31,157,85,.18);color:#4fc584}
 .btn{display:block;width:100%;padding:14px;border:none;border-radius:11px;background:var(--accent);color:#fff;font:inherit;font-size:15px;font-weight:700;margin-top:12px}
 .btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
-input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+textarea{min-height:80px;resize:vertical}
+.c-borrador,.c-anulada{background:rgba(139,151,165,.18);color:var(--muted)}
+.c-enviada{background:rgba(47,125,246,.18);color:#6fa8ff}
+.c-aprobada{background:rgba(31,157,85,.18);color:#4fc584}
+.c-rechazada{background:rgba(200,57,47,.18);color:#e8756b}
+.c-vencida{background:rgba(210,118,42,.18);color:#e29a5c}
+.tot{display:flex;justify-content:space-between;font-size:14px;padding:3px 0}
+.tot.big{font-size:17px;font-weight:700;border-top:1px solid var(--line);margin-top:6px;padding-top:8px}
 label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
 .verTag{text-align:right;font-size:10px;color:var(--muted);margin:-4px 0 8px;opacity:.75}
 .empty{text-align:center;color:var(--muted);padding:44px 16px;font-size:14px}
@@ -113,6 +122,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
    <button id="tOrd" class="on" onclick="setTab('ordenes')">Servicios</button>
    <button id="tEqu" onclick="setTab('equipos')">Mis equipos</button>
    <button id="tCon" onclick="setTab('contratos')">Contratos</button>
+   <button id="tCot" onclick="setTab('cotizaciones')">Cotizaciones</button>
   </div>
   <div id="lista"></div>
  </main>
@@ -193,9 +203,12 @@ const ROLES_EQ=['Condensadora','Manejadora','Otros'];
 const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 
-const VERSION='v2026.09.26-2';
+const VERSION='v2026.09.27-1';
 let TENANT=null, ME=null, CLIID='', EMPRESA='', LOGO='';
-let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], TAB='ordenes', DET=null;
+let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], COTS=[], TAB='ordenes', DET=null, DETCOT=null, COTERR='';
+const COT_EST={borrador:'Borrador',enviada:'Pendiente de su aprobación',aprobada:'Aprobada',rechazada:'Rechazada',vencida:'Vencida',anulada:'Anulada'};
+const COT_TIPOS={repuesto:'Repuesto',obra:'Mano de obra',otro:'Otro'};
+const money=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
 
 const fdate=s=>{if(!s)return '\u2014';const[y,m,d]=String(s).split('-');return `${d}/${m}/${y}`};
 function view(v){['vLogin','vMain','vDet','vPrint'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
@@ -250,7 +263,12 @@ function aplicarLogo(){
 }
 async function cargar(){
  const q=(col)=>FB.getDocs(FB.query(FB.collection(FB.fs,'tenants',TENANT,col),FB.where('clientId','==',CLIID)));
- const [or,as,si,ct]=await Promise.all([q('workOrders'),q('assets'),q('sites'),q('contracts')]);
+ const qCot=FB.getDocs(FB.query(FB.collection(FB.fs,'tenants',TENANT,'quotes'),
+   FB.where('clientId','==',CLIID),
+   FB.where('status','in',['enviada','aprobada','rechazada','vencida']))).catch(e=>{console.error('cotizaciones',e);COTERR=errMsg(e);return null});
+ const [or,as,si,ct,co]=await Promise.all([q('workOrders'),q('assets'),q('sites'),q('contracts'),qCot]);
+ COTS=[]; if(co) co.forEach(d=>COTS.push(Object.assign({_id:d.id},d.data())));
+ COTS.sort((a,b)=>(b.seq||0)-(a.seq||0));
  ORDERS=[]; or.forEach(d=>ORDERS.push(Object.assign({_id:d.id},d.data())));
  ORDERS.sort((a,b)=>((b.scheduledDate||'')).localeCompare(a.scheduledDate||''));
  EQUIPOS=[]; as.forEach(d=>EQUIPOS.push(Object.assign({_id:d.id},d.data())));
@@ -258,7 +276,7 @@ async function cargar(){
  CONTRATOS=[]; ct.forEach(d=>CONTRATOS.push(Object.assign({_id:d.id},d.data())));
 }
 const sede=id=>SEDES.find(s=>s._id===id);
-function setTab(t){TAB=t;$('tOrd').className=t==='ordenes'?'on':'';$('tEqu').className=t==='equipos'?'on':'';$('tCon').className=t==='contratos'?'on':'';pintar()}
+function setTab(t){TAB=t;$('tOrd').className=t==='ordenes'?'on':'';$('tEqu').className=t==='equipos'?'on':'';$('tCon').className=t==='contratos'?'on':'';$('tCot').className=t==='cotizaciones'?'on':'';pintar()}
 
 function pintar(){
  const c=$('lista');
@@ -275,6 +293,16 @@ function pintar(){
     <div class="sub">${esc((sede(a.siteId)||{}).name||'')}${a.location?' \u00b7 '+esc(a.location):''}</div>
     ${a.btu?`<div class="sub">${esc(a.btu)} BTU${a.refrigerant?' \u00b7 '+esc(a.refrigerant):''}</div>`:''}
    </div>`).join(''):'<div class="empty">No hay equipos registrados a su nombre.</div>';
+ } else if(TAB==='cotizaciones'){
+  const pend=COTS.filter(x=>x.status==='enviada').length;
+  c.innerHTML=(pend?`<div class="card" style="border-color:var(--accent)"><b>${pend} cotización(es) esperan su respuesta.</b><div class="sub">Ábrala, revísela y apruébela o recházela.</div></div>`:'')
+   +(COTERR?`<div class="card"><div class="sub">No se pudieron cargar las cotizaciones: ${esc(COTERR)}</div></div>`:'')
+   +(COTS.length?COTS.map(x=>`<div class="card tap" onclick="detCot('${esc(x._id)}')">
+    <div class="row"><span class="num">${esc(x.number||x._id)}</span><span class="chip c-${esc(x.status)}">${esc(COT_EST[x.status]||x.status)}</span></div>
+    <div class="sub" style="margin-top:6px;color:var(--text)">${esc(x.title||'')}</div>
+    <div class="sub">${fdate(x.date)}${x.validUntil?' · válida hasta '+fdate(x.validUntil):''}</div>
+    <div class="sub" style="margin-top:4px;color:var(--text)"><b>${money(x.total)}</b></div>
+   </div>`).join(''):'<div class="empty">No tiene cotizaciones por el momento.</div>');
  } else {
   c.innerHTML=CONTRATOS.length?CONTRATOS.map(k=>`<div class="card">
     <div class="row"><span class="num">${esc(k.name||'')}</span><span class="chip c-${k.status==='activo'?'completada':'cancelada'}">${esc(k.status||'')}</span></div>
@@ -285,7 +313,7 @@ function pintar(){
     </dl></div>`).join(''):'<div class="empty">No tiene contratos de mantenimiento registrados.</div>';
  }
 }
-function volver(){DET=null;view('vMain');pintar()}
+function volver(){DET=null;DETCOT=null;view('vMain');pintar()}
 async function detalle(id){
  const o=ORDERS.find(x=>x._id===id); if(!o)return;
  DET=o; $('dNum').textContent=o.number||id;
@@ -317,6 +345,86 @@ async function detalle(id){
     : '<div class="row"><span class="num">Reporte de servicio</span><span class="chip c-pendiente">Sin firmar</span></div>')
    +'<button class="btn sec" onclick="verHoja()">Ver / descargar el reporte</button>';
  }catch(e){ $('repCard').innerHTML='<div class="sub">No se pudo cargar el reporte: '+esc(errMsg(e))+'</div>' }
+}
+/* ---------------- Cotizaciones ---------------- */
+function detCot(id){
+ const q=COTS.find(x=>x._id===id); if(!q) return;
+ DETCOT=q; DET=null;
+ $('dNum').textContent=q.number||id;
+ const vencida=q.status==='enviada'&&q.validUntil&&q.validUntil<hoyStr();
+ const puede=q.status==='enviada'&&!vencida;
+ $('detBody').innerHTML=`<div class="card">
+   <div class="row"><span class="num">${esc(q.title||'')}</span><span class="chip c-${esc(vencida?'vencida':q.status)}">${esc(vencida?'Vencida':(COT_EST[q.status]||q.status))}</span></div>
+   <dl class="dl">
+    <dt>Fecha</dt><dd>${fdate(q.date)}</dd>
+    <dt>Válida hasta</dt><dd>${fdate(q.validUntil)}</dd>
+    <dt>Sede</dt><dd>${esc(q.siteName||'—')}</dd>
+    ${q.assetId?`<dt>Equipo</dt><dd>${esc(q.assetId)}</dd>`:''}
+   </dl>
+  </div>
+  <div class="card">
+   ${(q.items||[]).map(l=>`<div style="border-bottom:1px solid var(--line);padding:8px 0">
+     <div style="font-weight:600">${esc(l.desc||'')}</div>
+     <div class="sub">${esc(COT_TIPOS[l.kind]||'')} · ${esc(l.qty)} × ${money(l.unitPrice)} = <b style="color:var(--text)">${money((l.qty||0)*(l.unitPrice||0))}</b></div>
+    </div>`).join('')}
+   <div class="tot"><span>Subtotal</span><span>${money(q.subtotal)}</span></div>
+   <div class="tot"><span>IVA ${esc(q.ivaPct)}%</span><span>${money(q.ivaValue)}</span></div>
+   <div class="tot big"><span>Total</span><span>${money(q.total)}</span></div>
+  </div>
+  ${q.notes?`<div class="card"><div class="num">Condiciones</div><div class="sub" style="white-space:pre-wrap;margin-top:6px">${esc(q.notes)}</div></div>`:''}
+  ${puede?`<div class="card">
+    <div class="num">¿Aprueba esta cotización?</div>
+    <label style="margin-top:8px">Comentario (opcional)<textarea id="cotNota" maxlength="1000" placeholder="Escriba aquí cualquier observación..."></textarea></label>
+    <button class="btn" id="cotOkBtn" data-id="${esc(id)}" onclick="decidirCot(this.dataset.id,'aprobada')">Aprobar</button>
+    <button class="btn sec" data-id="${esc(id)}" onclick="decidirCot(this.dataset.id,'rechazada')">No aprobar</button>
+    <div id="cotMsg" class="msg"></div>
+   </div>`:''}
+  ${(q.status==='aprobada'||q.status==='rechazada')?`<div class="card"><div class="sub">Usted ${q.status==='aprobada'?'aprobó':'rechazó'} esta cotización${q.clientNote?': “'+esc(q.clientNote)+'”':'.'}</div></div>`:''}
+  ${vencida?'<div class="card"><div class="sub">La fecha de validez ya pasó. Pídale a la empresa una cotización nueva.</div></div>':''}
+  <button class="btn sec" onclick="verHojaCot()">Ver / descargar la cotización</button>`;
+ view('vDet');
+}
+const hoyStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+async function decidirCot(id,decision){
+ const q=COTS.find(x=>x._id===id); if(!q) return;
+ const nota=(($('cotNota')||{}).value||'').trim();
+ if(decision==='rechazada'&&!nota){ msg('cotMsg','Escriba brevemente por qué no la aprueba.','err'); $('cotNota')&&$('cotNota').focus(); return }
+ if(!confirm(decision==='aprobada'?'¿Aprobar la cotización '+(q.number||id)+' por '+money(q.total)+'?':'¿Rechazar la cotización '+(q.number||id)+'?')) return;
+ msg('cotMsg','Guardando…','ok');
+ try{
+  const u=FB.auth.currentUser.uid;
+  await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT,'quotes',id),{
+   status:decision, clientNote:nota||null, decidedBy:u, decidedAt:FB.serverTimestamp(),
+   updatedAt:FB.serverTimestamp(), updatedBy:u});
+  q.status=decision; q.clientNote=nota;
+  msg('cotMsg',decision==='aprobada'?'Aprobada. La empresa ya fue notificada.':'Rechazo registrado.','ok');
+  detCot(id);
+ }catch(e){ console.error(e); msg('cotMsg','No se pudo guardar: '+errMsg(e),'err') }
+}
+function verHojaCot(){
+ const q=DETCOT; if(!q) return;
+ $('prBody').innerHTML=`
+ <div class="phead">
+  <div class="pco">${LOGO?`<img src="${LOGO}" class="plogo">`:esc(EMPRESA||'')}</div>
+  <div class="pti">COTIZACIÓN DE SERVICIO</div>
+  <div class="pnum"><div class="sm">NÚMERO</div><b>${esc(q.number||'')}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(q.clientName||'')}</td><td class="lb">Fecha</td><td>${fdate(q.date)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(q.siteName||'')}</td><td class="lb">Válida hasta</td><td>${fdate(q.validUntil)}</td></tr>
+  <tr><td class="lb">Asunto</td><td colspan="3">${esc(q.title||'')}</td></tr>
+ </table>
+ <table class="pt">
+  <tr><th style="width:80px">Tipo</th><th>Descripción</th><th style="width:50px">Cant.</th><th style="width:80px">Vr. unit.</th><th style="width:90px">Vr. total</th></tr>
+  ${(q.items||[]).map(l=>`<tr><td>${esc(COT_TIPOS[l.kind]||'')}</td><td>${esc(l.desc||'')}</td><td class="v">${esc(l.qty)}</td>
+   <td style="text-align:right">${money(l.unitPrice)}</td><td style="text-align:right">${money((l.qty||0)*(l.unitPrice||0))}</td></tr>`).join('')}
+  <tr><td colspan="4" style="text-align:right"><b>Subtotal</b></td><td style="text-align:right"><b>${money(q.subtotal)}</b></td></tr>
+  <tr><td colspan="4" style="text-align:right"><b>IVA ${esc(q.ivaPct)}%</b></td><td style="text-align:right"><b>${money(q.ivaValue)}</b></td></tr>
+  <tr><td colspan="4" style="text-align:right"><b>TOTAL</b></td><td style="text-align:right"><b>${money(q.total)}</b></td></tr>
+ </table>
+ ${q.notes?`<table class="pt"><tr><th>Condiciones</th></tr><tr><td style="white-space:pre-wrap">${esc(q.notes)}</td></tr></table>`:''}
+ <p class="pconv" style="margin-top:8px">Estado: ${esc(COT_EST[q.status]||q.status)}${q.clientNote?' · comentario del cliente: '+esc(q.clientNote):''}</p>`;
+ view('vPrint');
 }
 function cerrarImpresion(){ view('vDet') }
 function imprimir(){ window.print() }
@@ -380,7 +488,7 @@ function verHoja(){
 function arrancar(){
  FB.onAuthStateChanged(FB.auth,u=>{
   if(u) alEntrar(u);
-  else { TENANT=null;ME=null;ORDERS=[];EQUIPOS=[];SEDES=[];CONTRATOS=[]; $('inBtn').disabled=false; view('vLogin') }
+  else { TENANT=null;ME=null;ORDERS=[];EQUIPOS=[];SEDES=[];CONTRATOS=[];COTS=[]; $('inBtn').disabled=false; view('vLogin') }
  });
 }
 if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);

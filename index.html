@@ -169,6 +169,7 @@ try {
     <div class="section">Inventario</div>
     <button data-page="inventory" title="Inventario">📦 <span>Inventario</span></button>
     <div class="section">Servicio</div>
+    <button data-page="quotes" title="Cotizaciones">🧮 <span>Cotizaciones</span></button>
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
     <div class="section">Sistema</div>
@@ -251,6 +252,22 @@ try {
  <div id="invBody"></div>
 </section>
 
+<!-- COTIZACIONES -->
+<section id="quotes" class="page">
+ <div class="topline"><div><h1>Cotizaciones</h1><p>Propuestas de servicio. El cliente las aprueba o las rechaza desde su portal.</p></div>
+  <button class="btn primary" onclick="quoteForm('')">＋ Nueva cotización</button></div>
+ <div id="qList">
+  <div class="grid cards" id="qCards"></div>
+  <div class="toolbar">
+   <input class="search" id="qSearch" placeholder="Buscar número, cliente o asunto..." oninput="renderQuotes()">
+   <select id="qStatusFilter" onchange="renderQuotes()"><option value="">Todos los estados</option><option value="borrador">Borradores</option><option value="enviada">Enviadas</option><option value="aprobada">Aprobadas</option><option value="rechazada">Rechazadas</option><option value="anulada">Anuladas</option></select>
+  </div>
+  <div class="panel"><div class="table-wrap"><table><thead><tr><th>Número</th><th>Fecha</th><th>Cliente / Sede</th><th>Asunto</th><th style="text-align:right">Total</th><th>Válida hasta</th><th>Estado</th></tr></thead><tbody id="quotesTable" class="clickable"></tbody></table></div></div>
+  <div class="panel" id="qAjustes" style="margin-top:18px"></div>
+ </div>
+ <div id="qForm" hidden></div>
+</section>
+
 <section id="neworder" class="page">
  <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
  <div class="panel">
@@ -314,7 +331,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.26-3';
+const VERSION='v2026.09.27-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -810,7 +827,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -884,8 +901,11 @@ function orderDetail(id){
   <button class="btn secondary" data-id="${esc(o.id)}" onclick="editOrder(this.dataset.id)">Editar</button>
   <button class="btn danger" data-id="${esc(o.id)}" onclick="changeStatus(this.dataset.id,'Cancelada')">Cancelar orden</button>
  </div>${needTech?'<div class="errors">Para programar la orden, primero asigne un técnico con “Editar”.</div>':''}`:''}
- <hr><div class="actions"><button class="btn secondary" data-id="${esc(o.id)}" onclick="verReporte(this.dataset.id)">Ver reporte de servicio</button></div>
+ <hr><div class="actions"><button class="btn secondary" data-id="${esc(o.id)}" onclick="verReporte(this.dataset.id)">Ver reporte de servicio</button>
+  <button class="btn secondary" data-id="${esc(o.id)}" onclick="cotDesdeOrden(this.dataset.id)">Cotizar este trabajo</button></div>
+ <hr><div id="odCosto"><span class="small">Calculando costo…</span></div>
  <hr><h2 style="font-size:15px">Historial</h2><div class="timeline">${[...(o.history||[])].reverse().map(h=>`<div class="event"><b>${esc(h.status)}</b><span class="small">${fmtDateTime(h.at)}${h.note?' · '+esc(h.note):''}</span></div>`).join('')||'<span class="small">Sin movimientos.</span>'}</div>`);
+ pintarCosto(o.id);
 }
 function changeStatus(id,status){
  const o=byId(db.orders,id);if(!o||!isOpen(o))return;
@@ -1506,6 +1526,22 @@ const dnMov=(id,d)=>({id,type:d.type||'salida',partId:d.partId||'',partName:d.pa
  warehouseId:d.warehouseId||'',qty:d.qty||0,unitCost:d.unitCost,orderId:d.orderId||'',orderNumber:d.orderNumber||'',
  note:d.note||'',status:d.status||'pendiente',requestedBy:d.requestedBy||'',requestedByName:d.requestedByName||'',
  approvedBy:d.approvedBy||'',at:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():''});
+const dnQuote=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',clientName:d.clientName||'',
+ siteId:d.siteId||'',siteName:d.siteName||'',orderId:d.orderId||'',orderNumber:d.orderNumber||'',
+ assetId:d.assetId||'',title:d.title||'',date:d.date||'',validUntil:d.validUntil||'',
+ items:(d.items||[]).map(l=>({kind:l.kind||'otro',desc:l.desc||'',qty:Number(l.qty)||0,unitPrice:Number(l.unitPrice)||0,partId:l.partId||''})),
+ notes:d.notes||'',subtotal:d.subtotal||0,ivaPct:(d.ivaPct===undefined||d.ivaPct===null)?0:d.ivaPct,
+ ivaValue:d.ivaValue||0,total:d.total||0,status:d.status||'borrador',
+ clientNote:d.clientNote||'',decidedBy:d.decidedBy||'',
+ decidedAt:(d.decidedAt&&d.decidedAt.toDate)?d.decidedAt.toDate().toISOString():'',
+ resultOrderId:d.resultOrderId||''});
+// Ojo: no se suben decidedBy/decidedAt/clientNote. Eso lo escribe el
+// cliente desde su portal y las reglas prohiben que la oficina lo toque.
+const upQuote=q=>({seq:q.seq,number:q.id,clientId:q.clientId,clientName:nn(q.clientName),
+ siteId:nn(q.siteId),siteName:nn(q.siteName),orderId:nn(q.orderId),orderNumber:nn(q.orderNumber),
+ assetId:nn(q.assetId),title:q.title,date:q.date,validUntil:nn(q.validUntil),
+ items:q.items,notes:nn(q.notes),subtotal:q.subtotal,ivaPct:q.ivaPct,ivaValue:q.ivaValue,total:q.total,
+ status:q.status,resultOrderId:nn(q.resultOrderId)});
 const dnContract=(id,d)=>({id,name:d.name||'',clientId:d.clientId||'',clientName:d.clientName||'',siteIds:d.siteIds||[],frequency:d.frequency||'trimestral',mode:d.mode||'equipo',overrides:d.overrides||{},startDate:d.startDate||'',endDate:d.endDate||'',techId:d.techId||'',status:d.status||'activo',notes:d.notes||'',lastRun:d.lastRun||''});
 const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName),siteIds:c.siteIds||[],frequency:c.frequency,mode:c.mode,overrides:c.overrides||{},startDate:c.startDate,endDate:nn(c.endDate),techId:nn(c.techId),status:c.status,notes:nn(c.notes),lastRun:nn(c.lastRun)});
 const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',contractId:d.contractId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
@@ -1532,7 +1568,7 @@ function upOrder(o){
 //  La oficina ve los cambios del técnico sin refrescar. Dos candados:
 //  nunca se pisa una orden que usted tenga editada sin subir, y no se
 //  repinta la pantalla mientras usted está escribiendo en un campo.
-let unsubOrders=null, unsubMovs=null, refrescoPend=null;
+let unsubOrders=null, unsubMovs=null, unsubQuotes=null, refrescoPend=null;
 const escribiendo=()=>{
  const a=document.activeElement;
  return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
@@ -1548,6 +1584,7 @@ function refrescarSuave(){
 function escucharCambios(){
  if(unsubOrders){ unsubOrders(); unsubOrders=null }
  if(unsubMovs){ unsubMovs(); unsubMovs=null }
+ if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
  if(!TENANT) return;
 
  unsubOrders=FB.onSnapshot(C('workOrders'), snap=>{
@@ -1581,18 +1618,38 @@ function escucharCambios(){
   });
   if(cambios){ refrescarSuave(); if(pend) toast(pend+' repuesto(s) esperando aprobación') }
  }, err=>console.error('escucha de movimientos', err));
+
+ // Cuando el cliente aprueba o rechaza desde su portal, la oficina lo ve solo.
+ unsubQuotes=FB.onSnapshot(C('quotes'), snap=>{
+  let cambios=0; const avisos=[];
+  db.quotes=db.quotes||[];
+  snap.docChanges().forEach(ch=>{
+   if(ch.type==='removed') return;
+   const nuevo=dnQuote(ch.doc.id, ch.doc.data());
+   const i=db.quotes.findIndex(x=>x.id===nuevo.id);
+   if(i<0){ db.quotes.push(nuevo); remote.quotes[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
+   const local=db.quotes[i];
+   if(remote.quotes[local.id]!==JSON.stringify(local)) return;   // edición local sin subir
+   if(JSON.stringify(local)===JSON.stringify(nuevo)) return;
+   if(local.status!==nuevo.status&&(nuevo.status==='aprobada'||nuevo.status==='rechazada'))
+    avisos.push(nuevo.id+': el cliente la '+(nuevo.status==='aprobada'?'aprobó':'rechazó'));
+   db.quotes[i]=nuevo; remote.quotes[nuevo.id]=JSON.stringify(nuevo); cambios++;
+  });
+  if(cambios){ refrescarSuave(); if(avisos.length) toast(avisos.slice(0,2).join(' · ')) }
+ }, err=>console.error('escucha de cotizaciones', err));
 }
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,ct,wh,pa,mv,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,wh,pa,mv,co,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
   FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
   FB.getDocs(C('warehouses')),FB.getDocs(C('parts')),FB.getDocs(C('movements')),
+  FB.getDocs(C('quotes')).catch(()=>null),
   FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],stock:{}};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],stock:{}};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
@@ -1603,6 +1660,7 @@ async function fsLoad(){
  take(wh,db.warehouses,'warehouses',dnWarehouse);
  take(pa,db.parts,'parts',dnPart);
  take(mv,db.movements,'movements',dnMov);
+ if(co) take(co,db.quotes,'quotes',dnQuote);
  // La existencia vive dentro de cada bodega
  await Promise.all(db.warehouses.map(async w=>{
   try{ const st=await FB.getDocs(C('warehouses',w.id,'stock'));
@@ -1667,6 +1725,7 @@ async function fsSave(){
   await syncColl('contracts','contracts',upContract);
   await syncColl('warehouses','warehouses',upWarehouse);
   await syncColl('parts','parts',upPart);
+  await syncColl('quotes','quotes',upQuote);
   await syncOrders();
   storageOk=true;
  }catch(e){
@@ -1781,7 +1840,7 @@ async function onSignedIn(user){
   if(!md.exists()||md.data().active===false){
    authErr('Su usuario está inactivo en esta empresa.'); authBusy(false); await FB.signOut(FB.auth); return;
   }
-  ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:'',logoUrl:td.exists()?(td.data().logoUrl||''):''});
+  ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:'',logoUrl:td.exists()?(td.data().logoUrl||''):'',settings:td.exists()?(td.data().settings||{}):{}});
   await fsLoad();
   escucharCambios();
   setUserChip();
@@ -1797,10 +1856,438 @@ function startAuth(){
   else {
    if(unsubOrders){ unsubOrders(); unsubOrders=null }
    if(unsubMovs){ unsubMovs(); unsubMovs=null }
+   if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
    TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false);
   }
  });
 }
+/* ================= COTIZACIONES ================= */
+//  La oficina arma la propuesta, la envía y el cliente la aprueba o la
+//  rechaza desde su portal. Aprobada queda congelada y de ella se genera
+//  la orden de trabajo.
+const COT_EST={borrador:'Borrador',enviada:'Enviada al cliente',aprobada:'Aprobada',rechazada:'Rechazada',vencida:'Vencida',anulada:'Anulada'};
+const COT_COLOR={borrador:'gray',enviada:'blue',aprobada:'green',rechazada:'red',vencida:'orange',anulada:'gray'};
+const COT_TIPOS={repuesto:'Repuesto',obra:'Mano de obra',otro:'Otro'};
+const cotBadge=s=>`<span class="status ${COT_COLOR[s]||'gray'}">${esc(COT_EST[s]||s)}</span>`;
+const cotVencida=q=>q.status==='enviada'&&q.validUntil&&q.validUntil<todayStr();
+const cotEditable=q=>q.status==='borrador'||q.status==='enviada';
+const cotSet=(k,def)=>{const s=(ME&&ME.settings)||{};return (s[k]===undefined||s[k]===null)?def:s[k]};
+const cotDe=id=>byId(db.quotes||[],id);
+let cotLineas=[], cotEdit=null, cotDesde=null;
+
+/* ---- Lista ---- */
+function renderQuotes(){
+ db.quotes=db.quotes||[];
+ const $f=$('qForm'); if($f){$f.hidden=true;$f.innerHTML=''}
+ $('qList').hidden=false;
+ const q=db.quotes.slice().sort((a,b)=>(b.seq||0)-(a.seq||0));
+ const cuenta=e=>q.filter(x=>x.status===e).length;
+ $('qCards').innerHTML=[
+  ['Esperando al cliente','⏳',cuenta('enviada'),'Enviadas sin decisión'],
+  ['Aprobadas','✅',cuenta('aprobada'),'Listas para generar la orden'],
+  ['Borradores','✎',cuenta('borrador'),'Sin enviar'],
+  ['Valor aprobado','💰',money(q.filter(x=>x.status==='aprobada').reduce((a,x)=>a+(x.total||0),0)),'Suma con IVA']
+ ].map(([t,i,v,s])=>`<div class="card"><div class="ci">${i}</div><h2>${esc(t)}</h2><div class="big">${typeof v==='number'?v:esc(v)}</div><span class="small">${esc(s)}</span></div>`).join('');
+
+ const bus=($('qSearch').value||'').toLowerCase(), fes=$('qStatusFilter').value;
+ const lista=q.filter(x=>{
+  if(fes&&x.status!==fes) return false;
+  if(!bus) return true;
+  return (x.id+' '+x.title+' '+(x.clientName||'')).toLowerCase().includes(bus);
+ });
+ $('quotesTable').innerHTML=lista.length?lista.map(x=>`<tr data-id="${esc(x.id)}" onclick="verCotizacion(this.dataset.id)">
+  <td><b>${esc(x.id)}</b></td><td>${fmtDate(x.date)}</td>
+  <td>${esc(x.clientName||(client(x.clientId)||{}).name||'—')}<span class="small" style="display:block">${esc(x.siteName||'')}</span></td>
+  <td>${esc(x.title)}</td>
+  <td style="text-align:right">${money(x.total)}</td>
+  <td>${fmtDate(x.validUntil)}</td>
+  <td>${cotBadge(x.status)}${cotVencida(x)?' '+badge('Vencida'):''}${x.resultOrderId?' <span class="small">→ '+esc(x.resultOrderId)+'</span>':''}</td></tr>`).join('')
+  :emptyRow(7,'No hay cotizaciones todavía. Cree la primera con “＋ Nueva cotización”.');
+
+ const esAdmin=(ME&&ME.role)==='admin';
+ $('qAjustes').innerHTML=`<h2>Valores por defecto</h2>
+  <div class="formgrid">
+   <label>IVA (%)<input id="setIva" type="number" min="0" max="100" step="1" value="${cotSet('ivaPct',19)}" ${esAdmin?'':'disabled'}></label>
+   <label>Validez de la cotización (días)<input id="setDias" type="number" min="1" max="365" step="1" value="${cotSet('validezDias',15)}" ${esAdmin?'':'disabled'}></label>
+   <label>Mano de obra por hora<input id="setTarifa" type="number" min="0" step="1000" value="${cotSet('tarifaHora',0)}" ${esAdmin?'':'disabled'}></label>
+  </div>
+  <p class="small">La tarifa por hora se usa para calcular el costo y el margen de cada orden con las horas del reporte del técnico.</p>
+  ${esAdmin?'<div class="actions"><button class="btn secondary" onclick="guardarAjustes()">Guardar valores</button></div>'
+           :'<p class="small">Solo el administrador puede cambiar estos valores.</p>'}`;
+}
+async function guardarAjustes(){
+ const s={ivaPct:Number($('setIva').value)||0, validezDias:Number($('setDias').value)||15, tarifaHora:Number($('setTarifa').value)||0};
+ if(s.ivaPct<0||s.ivaPct>100){alert('El IVA debe estar entre 0 y 100.');return}
+ try{
+  await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),{settings:s,updatedAt:sv(),updatedBy:uid()});
+  ME.settings=s; toast('Valores guardados.');
+ }catch(e){ console.error(e); alert('No se pudo guardar: '+errMsg(e)) }
+}
+
+/* ---- Formulario ---- */
+function quoteForm(id,prefill){
+ db.quotes=db.quotes||[];
+ const q=id?cotDe(id):null;
+ if(id&&!q) return;
+ if(q&&!cotEditable(q)){ toast('Esta cotización ya no se puede editar.'); return }
+ cotEdit=id||null;
+ const p=prefill||{};
+ const v=q||{clientId:p.clientId||'',siteId:p.siteId||'',assetId:p.assetId||'',title:p.title||'',
+  date:todayStr(),validUntil:todayStr(cotSet('validezDias',15)),ivaPct:cotSet('ivaPct',19),notes:'',
+  orderId:p.orderId||'',orderNumber:p.orderNumber||''};
+ cotLineas=(q?q.items:(p.items||[])).map(l=>({kind:l.kind||'otro',desc:l.desc||'',qty:Number(l.qty)||1,unitPrice:Number(l.unitPrice)||0,partId:l.partId||''}));
+ if(!cotLineas.length) cotLineas=[{kind:'repuesto',desc:'',qty:1,unitPrice:0,partId:''}];
+ cotDesde={orderId:v.orderId||'',orderNumber:v.orderNumber||''};
+
+ $('qList').hidden=true;
+ const f=$('qForm'); f.hidden=false;
+ f.innerHTML=`<div class="panel">
+  <h2>${id?'Editar cotización '+esc(id):'Nueva cotización'}</h2>
+  ${cotDesde.orderId?`<p class="small">Nace de la orden <b>${esc(cotDesde.orderNumber||cotDesde.orderId)}</b>.</p>`:''}
+  <div class="formgrid">
+   <label>Cliente <span class="req">*</span><select id="qClient" onchange="cotCliente()"></select></label>
+   <label>Sede<select id="qSite" onchange="cotSede()"></select></label>
+   <label>Equipo<select id="qAsset"></select></label>
+   <label>Título / asunto <span class="req">*</span><input id="qTitle" maxlength="140" placeholder="Ej. Cambio de compresor unidad 204"></label>
+   <label>Fecha <span class="req">*</span><input id="qDate" type="date"></label>
+   <label>Válida hasta<input id="qValid" type="date"></label>
+   <label>IVA (%)<input id="qIva" type="number" min="0" max="100" step="1" oninput="cotLee()"></label>
+   <label style="grid-column:1/-1">Condiciones y notas<textarea id="qNotes" maxlength="3000" placeholder="Forma de pago, tiempo de ejecución, garantía..."></textarea></label>
+  </div>
+  <hr>
+  <h2 style="font-size:15px">Detalle de la propuesta</h2>
+  <div class="table-wrap"><table><thead><tr><th style="width:130px">Tipo</th><th>Descripción</th><th style="width:90px">Cant.</th><th style="width:130px">Precio unit.</th><th style="width:120px;text-align:right">Total</th><th style="width:44px"></th></tr></thead>
+   <tbody id="cotBody"></tbody></table></div>
+  <div class="actions" style="margin-top:10px">
+   <button class="btn secondary sm" onclick="cotPicker()">＋ Repuesto del catálogo</button>
+   <button class="btn secondary sm" onclick="cotAgregar('obra')">＋ Mano de obra</button>
+   <button class="btn secondary sm" onclick="cotAgregar('otro')">＋ Línea libre</button>
+  </div>
+  <div id="qResumen" style="margin-top:16px"></div>
+  <div id="qErrors" class="errors"></div>
+  <div class="actions">
+   <button class="btn primary" onclick="saveQuote('enviada')">Guardar y enviar al cliente</button>
+   <button class="btn secondary" onclick="saveQuote('borrador')">Guardar borrador</button>
+   <button class="btn secondary" onclick="renderQuotes()">Cancelar</button>
+  </div>
+ </div>`;
+ const activos=db.clients.filter(c=>c.status==='Activo'||c.id===v.clientId);
+ $('qClient').innerHTML=opts(activos.map(c=>({value:c.id,label:c.name})),v.clientId,'Seleccione cliente');
+ $('qTitle').value=v.title||''; $('qDate').value=v.date||todayStr();
+ $('qValid').value=v.validUntil||''; $('qIva').value=(v.ivaPct===undefined?cotSet('ivaPct',19):v.ivaPct);
+ $('qNotes').value=v.notes||'';
+ cotCliente(v.siteId,v.assetId);
+ cotPintar();
+}
+function cotCliente(siteId,assetId){
+ const cid=$('qClient').value, sedes=db.sites.filter(s=>s.clientId===cid);
+ if(!siteId&&sedes.length===1) siteId=sedes[0].id;
+ $('qSite').innerHTML=cid?opts(sedes.map(s=>({value:s.id,label:s.name})),siteId||'',sedes.length?'Sin sede':'Este cliente no tiene sedes')
+                         :opts([],'','Primero elija cliente');
+ cotSede(assetId);
+}
+function cotSede(assetId){
+ const sid=$('qSite').value;
+ const list=db.assets.filter(a=>a.siteId===sid).map(a=>({value:a.id,label:`${a.id} · ${a.type} ${a.brand}`}));
+ $('qAsset').innerHTML=sid?opts(list,assetId||'',list.length?'Sin equipo específico':'La sede no tiene equipos')
+                          :opts([],'','Primero elija sede');
+}
+function cotPintar(){
+ $('cotBody').innerHTML=cotLineas.map((l,i)=>`<tr>
+  <td><select class="cl-kind" data-i="${i}" onchange="cotLee()">${opts(Object.entries(COT_TIPOS).map(([va,lb])=>({value:va,label:lb})),l.kind)}</select></td>
+  <td><input class="cl-desc" data-i="${i}" maxlength="200" value="${esc(l.desc)}" oninput="cotLee()" placeholder="Descripción de lo que se cotiza"></td>
+  <td><input class="cl-qty" data-i="${i}" type="number" min="0" step="0.5" value="${l.qty}" oninput="cotLee()"></td>
+  <td><input class="cl-price" data-i="${i}" type="number" min="0" step="1000" value="${l.unitPrice}" oninput="cotLee()"></td>
+  <td style="text-align:right" id="clTot${i}">${money(l.qty*l.unitPrice)}</td>
+  <td><button class="btn danger sm" data-i="${i}" onclick="cotQuitar(+this.dataset.i)" title="Quitar">✕</button></td></tr>`).join('');
+ cotLee();
+}
+function cotLee(){
+ const leer=(cls,fn)=>document.querySelectorAll('#cotBody .'+cls).forEach(el=>fn(cotLineas[+el.dataset.i],el));
+ leer('cl-kind',(l,e)=>l.kind=e.value);
+ leer('cl-desc',(l,e)=>l.desc=e.value);
+ leer('cl-qty',(l,e)=>l.qty=Number(e.value)||0);
+ leer('cl-price',(l,e)=>l.unitPrice=Number(e.value)||0);
+ cotLineas.forEach((l,i)=>{const c=$('clTot'+i); if(c)c.textContent=money(l.qty*l.unitPrice)});
+ const t=cotCalcula();
+ $('qResumen').innerHTML=`<table style="margin-left:auto;font-size:14px">
+  <tr><td style="padding:3px 18px 3px 0">Subtotal</td><td style="text-align:right"><b>${money(t.sub)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0">IVA ${t.ivaPct}%</td><td style="text-align:right"><b>${money(t.iva)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0;font-size:16px">Total</td><td style="text-align:right;font-size:16px"><b>${money(t.total)}</b></td></tr></table>`;
+ return t;
+}
+function cotCalcula(){
+ const sub=cotLineas.reduce((a,l)=>a+(Number(l.qty)||0)*(Number(l.unitPrice)||0),0);
+ const ivaPct=Math.max(0,Math.min(100,Number(($('qIva')||{}).value)||0));
+ const iva=Math.round(sub*ivaPct/100);
+ return {sub:Math.round(sub),ivaPct,iva,total:Math.round(sub)+iva};
+}
+function cotAgregar(kind,extra){
+ cotLee();
+ const nueva=Object.assign({kind:kind||'otro',desc:'',qty:1,unitPrice:0,partId:''},extra||{});
+ // Si la última línea está en blanco, se reemplaza: así no queda una fila vacía colgando.
+ const u=cotLineas[cotLineas.length-1];
+ if(u&&!u.desc.trim()&&!u.unitPrice&&!u.partId) cotLineas[cotLineas.length-1]=nueva;
+ else cotLineas.push(nueva);
+ cotPintar();
+}
+function cotQuitar(i){
+ cotLee();
+ if(cotLineas.length<=1){ cotLineas=[{kind:'repuesto',desc:'',qty:1,unitPrice:0,partId:''}] }
+ else cotLineas.splice(i,1);
+ cotPintar();
+}
+function cotPicker(){
+ const list=(db.parts||[]).filter(p=>p.active);
+ openModal(`<div class="modal-head"><h2>Repuestos del catálogo</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <input class="search" id="cpBus" placeholder="Buscar por código o nombre..." oninput="cotPickerLista()">
+  <div id="cpLista" style="max-height:52vh;overflow:auto;margin-top:12px"></div>
+  ${list.length?'':'<p class="small">Todavía no hay repuestos en el catálogo. Créelos en Inventario → Repuestos.</p>'}`);
+ cotPickerLista();
+}
+function cotPickerLista(){
+ const b=(($('cpBus')||{}).value||'').toLowerCase();
+ const list=(db.parts||[]).filter(p=>p.active&&(p.code+' '+p.name).toLowerCase().includes(b)).slice(0,60);
+ $('cpLista').innerHTML=list.length?`<div class="table-wrap"><table><thead><tr><th>Código</th><th>Repuesto</th><th style="text-align:right">Precio</th><th>Existencia</th><th></th></tr></thead><tbody>
+  ${list.map(p=>`<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td style="text-align:right">${money(p.price)}</td>
+   <td>${stockTotal(p.id)} ${esc(p.unit)}</td>
+   <td><button class="btn secondary sm" data-p="${esc(p.id)}" onclick="cotTomarParte(this.dataset.p)">Agregar</button></td></tr>`).join('')}
+  </tbody></table></div>`:'<p class="small">Sin resultados.</p>';
+}
+function cotTomarParte(pid){
+ const p=part(pid); if(!p) return;
+ cotAgregar('repuesto',{desc:p.name+(p.code?' ('+p.code+')':''),qty:1,unitPrice:p.price||0,partId:p.id});
+ closeModal(); toast(p.name+' agregado.');
+}
+
+function saveQuote(estado){
+ const t=cotLee();
+ const errs=[];
+ const cid=$('qClient').value; if(!cid) errs.push('Elija el cliente.');
+ const tit=$('qTitle').value.trim(); if(tit.length<3) errs.push('Escriba un título de al menos 3 letras.');
+ const fecha=$('qDate').value; if(!fecha) errs.push('Ponga la fecha de la cotización.');
+ const vivas=cotLineas.filter(l=>l.desc.trim()&&(Number(l.qty)||0)>0);
+ if(!vivas.length) errs.push('Agregue al menos una línea con descripción y cantidad.');
+ if(vivas.length>60) errs.push('Máximo 60 líneas por cotización.');
+ if(errs.length){ $('qErrors').innerHTML=errs.map(e=>'• '+esc(e)).join('<br>'); return }
+ $('qErrors').innerHTML='';
+
+ const c=client(cid), st=site($('qSite').value), q=cotEdit?cotDe(cotEdit):null;
+ const datos={
+  clientId:cid, clientName:(c&&c.name)||'', siteId:$('qSite').value||'', siteName:(st&&st.name)||'',
+  assetId:$('qAsset').value||'', title:tit, date:fecha, validUntil:$('qValid').value||'',
+  items:vivas.map(l=>({kind:l.kind,desc:l.desc.trim(),qty:Number(l.qty)||0,unitPrice:Number(l.unitPrice)||0,partId:l.partId||''})),
+  notes:$('qNotes').value.trim(), subtotal:t.sub, ivaPct:t.ivaPct, ivaValue:t.iva, total:t.total,
+  status:estado, orderId:(cotDesde&&cotDesde.orderId)||'', orderNumber:(cotDesde&&cotDesde.orderNumber)||''
+ };
+ if(q){ Object.assign(q,datos) }
+ else{
+  const seq=Math.max(0,...db.quotes.map(x=>x.seq||0))+1;
+  db.quotes.push(Object.assign({id:nextId('COT-',db.quotes,4),seq,clientNote:'',decidedBy:'',decidedAt:'',resultOrderId:''},datos));
+ }
+ save();
+ cotEdit=null; cotDesde=null;
+ renderQuotes();
+ toast(estado==='enviada'?'Cotización enviada. El cliente la verá en su portal.':'Borrador guardado.');
+}
+
+/* ---- Detalle ---- */
+function verCotizacion(id){
+ const q=cotDe(id); if(!q) return;
+ const c=client(q.clientId);
+ const dec=q.decidedAt?fmtDateTime(q.decidedAt):'';
+ openModal(`<div class="modal-head"><div><h2>${esc(q.id)}</h2>
+   <div style="margin-top:6px">${cotBadge(q.status)}${cotVencida(q)?' '+badge('Vencida'):''}</div></div>
+  <button class="x" onclick="closeModal()">✕</button></div>
+ <div class="dl">
+  <div><span class="small">Cliente</span><b>${esc(q.clientName||(c&&c.name)||'—')}</b><span class="small">${esc(q.siteName||'')}</span></div>
+  <div><span class="small">Asunto</span><b>${esc(q.title)}</b></div>
+  <div><span class="small">Fecha</span><b>${fmtDate(q.date)}</b><span class="small">Válida hasta ${fmtDate(q.validUntil)}</span></div>
+  <div><span class="small">Total</span><b>${money(q.total)}</b><span class="small">IVA ${q.ivaPct}% incluido</span></div>
+  ${q.orderNumber?`<div><span class="small">Nace de la orden</span><b>${esc(q.orderNumber)}</b></div>`:''}
+  ${q.resultOrderId?`<div><span class="small">Orden generada</span><b>${esc(q.resultOrderId)}</b></div>`:''}
+ </div>
+ <div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Tipo</th><th>Descripción</th><th style="width:70px">Cant.</th><th style="width:110px;text-align:right">Unit.</th><th style="width:120px;text-align:right">Total</th></tr></thead><tbody>
+  ${q.items.map(l=>`<tr><td>${esc(COT_TIPOS[l.kind]||l.kind)}</td><td>${esc(l.desc)}</td><td>${l.qty}</td>
+   <td style="text-align:right">${money(l.unitPrice)}</td><td style="text-align:right">${money(l.qty*l.unitPrice)}</td></tr>`).join('')}
+  </tbody></table></div>
+ ${q.notes?`<span class="small" style="display:block;margin-top:12px">Condiciones</span><p style="color:var(--text);white-space:pre-wrap;margin-top:4px">${esc(q.notes)}</p>`:''}
+ ${q.clientNote?`<div class="panel" style="margin-top:12px;padding:12px"><span class="small">Comentario del cliente${dec?' · '+esc(dec):''}</span><p style="margin:4px 0 0;white-space:pre-wrap">${esc(q.clientNote)}</p></div>`
+  :(dec?`<p class="small" style="margin-top:10px">Decidida por el cliente el ${esc(dec)}.</p>`:'')}
+ <hr><div class="actions">
+  ${cotEditable(q)?`<button class="btn secondary" data-id="${esc(q.id)}" onclick="closeModal();quoteForm(this.dataset.id)">Editar</button>`:''}
+  ${q.status==='borrador'?`<button class="btn primary" data-id="${esc(q.id)}" onclick="enviarCot(this.dataset.id)">Enviar al cliente</button>`:''}
+  ${q.status==='aprobada'&&!q.resultOrderId?`<button class="btn primary" data-id="${esc(q.id)}" onclick="ordenDesdeCot(this.dataset.id)">Generar orden de trabajo</button>`:''}
+  <button class="btn secondary" data-id="${esc(q.id)}" onclick="imprimirCotizacion(this.dataset.id)">Imprimir / PDF</button>
+  <button class="btn secondary" data-id="${esc(q.id)}" onclick="duplicarCot(this.dataset.id)">Duplicar</button>
+  ${cotEditable(q)?`<button class="btn danger" data-id="${esc(q.id)}" onclick="anularCot(this.dataset.id)">Anular</button>`:''}
+ </div>`);
+}
+function enviarCot(id){
+ const q=cotDe(id); if(!q||q.status!=='borrador') return;
+ q.status='enviada';
+ if(!q.validUntil) q.validUntil=todayStr(cotSet('validezDias',15));
+ save(); closeModal(); renderQuotes();
+ toast('Enviada. El cliente la verá en su portal.');
+}
+function anularCot(id){
+ const q=cotDe(id); if(!q||!cotEditable(q)) return;
+ if(!confirm('¿Anular la cotización '+id+'? El cliente ya no podrá aprobarla.')) return;
+ q.status='anulada'; save(); closeModal(); renderQuotes(); toast(id+' anulada.');
+}
+function duplicarCot(id){
+ const q=cotDe(id); if(!q) return;
+ closeModal();
+ show('quotes');
+ quoteForm('',{clientId:q.clientId,siteId:q.siteId,assetId:q.assetId,title:q.title,items:q.items});
+ toast('Copia lista. Revise y guarde.');
+}
+
+/* ---- De la orden a la cotización y al contrario ---- */
+async function cotDesdeOrden(id){
+ const o=byId(db.orders,id); if(!o) return;
+ let items=[];
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+  if(d.exists()){
+   const R=d.data();
+   items=(R.materiales||[]).filter(m=>m&&(m.descripcion||'').trim()).map(m=>{
+    const p=m.partId?part(m.partId):null;
+    return {kind:'repuesto',desc:m.descripcion,qty:Number(m.cantidad)||1,unitPrice:(p&&p.price)||0,partId:m.partId||''};
+   });
+  }
+ }catch(e){ console.error(e) }
+ closeModal(); show('quotes');
+ quoteForm('',{clientId:o.clientId,siteId:o.siteId,assetId:o.assetId,
+  title:(o.type==='Correctivo'?'Reparación ':'Servicio ')+(asset(o.assetId)?asset(o.assetId).id:(site(o.siteId)||{}).name||''),
+  items, orderId:o.id, orderNumber:o.id});
+ toast(items.length?'Se trajeron los repuestos del reporte.':'Cotización nueva a partir de la orden '+o.id+'.');
+}
+function ordenDesdeCot(id){
+ const q=cotDe(id); if(!q||q.status!=='aprobada') return;
+ if(q.resultOrderId){ toast('Ya se generó la orden '+q.resultOrderId); return }
+ if(!q.siteId){ alert('La cotización no tiene sede. Edítela o cree la orden a mano.'); return }
+ openModal(`<div class="modal-head"><h2>Generar orden desde ${esc(q.id)}</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="formgrid">
+   <label>Tipo de servicio<select id="ocType">${opts(TYPES,'Correctivo')}</select></label>
+   <label>Equipo<select id="ocAsset">${opts(db.assets.filter(a=>a.siteId===q.siteId).map(a=>({value:a.id,label:a.id+' · '+a.type+' '+a.brand})),q.assetId||'','— Sin equipo (solo instalaciones) —')}</select></label>
+   <label>Prioridad<select id="ocPrio">${opts(PRIORITIES,'Normal')}</select></label>
+   <label>Técnico<select id="ocTech">${opts(db.techs.filter(t=>t.active).map(t=>({value:t.id,label:t.name})),'','Sin asignar')}</select></label>
+   <label>Fecha programada<input id="ocDate" type="date" value="${todayStr(1)}"></label>
+   <label>Hora<input id="ocTime" type="time"></label>
+  </div>
+  <p class="small">La orden nace con la descripción de la cotización y con el valor aprobado.</p>
+  <div id="ocErr" class="errors"></div>
+  <div class="actions"><button class="btn primary" data-id="${esc(q.id)}" onclick="crearOrdenCot(this.dataset.id)">Crear orden</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+function crearOrdenCot(id){
+ const q=cotDe(id); if(!q) return;
+ const tipo=$('ocType').value, prio=$('ocPrio').value, tid=$('ocTech').value, fecha=$('ocDate').value, hora=$('ocTime').value;
+ const aid=($('ocAsset')||{}).value||'';
+ if(!fecha){ $('ocErr').textContent='Ponga la fecha programada.'; return }
+ if(tipo!=='Instalación'&&!aid){
+  // Igual que en el formulario de órdenes: solo una instalación va sin equipo.
+  $('ocErr').innerHTML='Elija el equipo, o ponga el tipo «Instalación» si el equipo todavía no existe.'; return;
+ }
+ const desc='Cotización '+q.id+' aprobada por el cliente.\n'+q.items.map(l=>'• '+l.desc+' ('+l.qty+')').join('\n')
+   +'\nValor aprobado: '+money(q.total);
+ const oid=nextId('OT-',db.orders,4);
+ const st=tid?'Programada':'Pendiente';
+ db.orders.unshift({id:oid,clientId:q.clientId,siteId:q.siteId,assetId:aid,type:tipo,priority:prio,
+  techId:tid,date:fecha,time:hora,desc:desc.slice(0,2000),status:st,createdAt:nowIso(),
+  history:[{at:nowIso(),status:st,note:'Generada desde la cotización '+q.id}]});
+ q.resultOrderId=oid;
+ save(); closeModal(); renderQuotes();
+ toast('Orden '+oid+' creada desde '+q.id+'.');
+}
+
+/* ---- Hoja para imprimir ---- */
+function imprimirCotizacion(id){
+ const q=cotDe(id); if(!q) return;
+ closeModal();
+ $('rvBody').innerHTML=hojaCotizacion(q);
+ $('rvSheet').hidden=false;
+ document.body.classList.add('viendo-reporte');
+}
+function hojaCotizacion(q){
+ const logo=(ME&&ME.logoUrl)||'', c=client(q.clientId)||{}, st=site(q.siteId)||{};
+ const emp=(ME&&ME.company)||'HVAC 360°';
+ return `
+ <div class="phead">
+  <div class="pco">${logo?`<img src="${logo}" class="plogo">`:esc(emp)}</div>
+  <div class="pti">COTIZACIÓN DE SERVICIO</div>
+  <div class="pnum"><div class="sm">NÚMERO</div><b>${esc(q.id)}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(q.clientName||c.name||'')}</td><td class="lb">Fecha</td><td>${fmtDate(q.date)}</td></tr>
+  <tr><td class="lb">NIT</td><td>${esc(c.nit||'')}</td><td class="lb">Válida hasta</td><td>${fmtDate(q.validUntil)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(q.siteName||st.name||'')}</td><td class="lb">Contacto</td><td>${esc(c.contact||'')} ${esc(c.phone||'')}</td></tr>
+  <tr><td class="lb">Asunto</td><td colspan="3">${esc(q.title)}</td></tr>
+  ${q.assetId?`<tr><td class="lb">Equipo</td><td colspan="3">${esc(q.assetId)}</td></tr>`:''}
+ </table>
+ <table class="pt">
+  <tr><th style="width:80px">Tipo</th><th>Descripción</th><th style="width:50px">Cant.</th><th style="width:80px">Vr. unit.</th><th style="width:90px">Vr. total</th></tr>
+  ${q.items.map(l=>`<tr><td>${esc(COT_TIPOS[l.kind]||'')}</td><td>${esc(l.desc)}</td><td style="text-align:center">${l.qty}</td>
+   <td style="text-align:right">${money(l.unitPrice)}</td><td style="text-align:right">${money(l.qty*l.unitPrice)}</td></tr>`).join('')}
+  <tr><td colspan="4" style="text-align:right"><b>Subtotal</b></td><td style="text-align:right"><b>${money(q.subtotal)}</b></td></tr>
+  <tr><td colspan="4" style="text-align:right"><b>IVA ${q.ivaPct}%</b></td><td style="text-align:right"><b>${money(q.ivaValue)}</b></td></tr>
+  <tr><td colspan="4" style="text-align:right"><b>TOTAL</b></td><td style="text-align:right"><b>${money(q.total)}</b></td></tr>
+ </table>
+ ${q.notes?`<table class="pt"><tr><th>Condiciones</th></tr><tr><td style="white-space:pre-wrap">${esc(q.notes)}</td></tr></table>`:''}
+ <div class="pfirmas">
+  <div><div class="fbox"></div><div class="fl">ACEPTACIÓN DEL CLIENTE</div><div class="sm">${esc(c.contact||'')}</div></div>
+  <div><div class="fbox"></div><div class="fl">POR ${esc(emp).toUpperCase()}</div><div class="sm">${esc((ME&&ME.name)||'')}</div></div>
+ </div>
+ <p class="pconv" style="margin-top:8px">Estado: ${esc(COT_EST[q.status]||q.status)}${q.decidedAt?' · decidida el '+esc(fmtDateTime(q.decidedAt)):''}</p>`;
+}
+
+/* ================= COSTO Y MARGEN POR ORDEN ================= */
+function repuestosOrden(id){
+ const movs=(db.movements||[]).filter(m=>m.orderId===id&&m.type==='salida'&&m.status==='aprobado');
+ let costo=0, venta=0;
+ const det=movs.map(m=>{
+  const p=part(m.partId)||{}, cant=Math.abs(m.qty||0);
+  const cu=(m.unitCost===null||m.unitCost===undefined)?(p.cost||0):m.unitCost;
+  costo+=cant*cu; venta+=cant*(p.price||0);
+  return {nombre:m.partName||p.name||m.partId,cant,costo:cant*cu,venta:cant*(p.price||0)};
+ });
+ return {costo:Math.round(costo),venta:Math.round(venta),det};
+}
+const horasEntre=(e,s)=>{
+ if(!e||!s) return 0;
+ const [h1,m1]=e.split(':').map(Number), [h2,m2]=s.split(':').map(Number);
+ let min=(h2*60+m2)-(h1*60+m1); if(min<0) min+=24*60;
+ return Math.round(min/60*100)/100;
+};
+async function pintarCosto(id){
+ const caja=$('odCosto'); if(!caja) return;
+ const o=byId(db.orders,id); if(!o) return;
+ const rep=repuestosOrden(id);
+ let horas=0;
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+  if(d.exists()) horas=horasEntre(d.data().horaEntrada,d.data().horaSalida);
+ }catch(e){}
+ if(!$('odCosto')) return;   // el usuario ya cerró la ventana
+ const tarifa=Number(cotSet('tarifaHora',0))||0;
+ const obra=Math.round(horas*tarifa);
+ const cot=(db.quotes||[]).find(q=>q.resultOrderId===id&&q.status==='aprobada');
+ const costo=rep.costo+obra;
+ const venta=cot?cot.subtotal:(rep.venta+obra);
+ const margen=venta-costo, pctm=venta?Math.round(margen*100/venta):0;
+ caja.innerHTML=`<h2 style="font-size:15px">Costo y margen</h2>
+  <div class="table-wrap"><table><tbody>
+   <tr><td>Repuestos aprobados${rep.det.length?' ('+rep.det.length+')':''}</td><td style="text-align:right">${money(rep.costo)}</td><td class="small">venta ${money(rep.venta)}</td></tr>
+   <tr><td>Mano de obra${horas?' · '+horas+' h':''}</td><td style="text-align:right">${money(obra)}</td><td class="small">${tarifa?money(tarifa)+'/h':'sin tarifa configurada'}</td></tr>
+   <tr><td><b>Costo del servicio</b></td><td style="text-align:right"><b>${money(costo)}</b></td><td></td></tr>
+   <tr><td>Valor al cliente${cot?' · cotización '+esc(cot.id):''}</td><td style="text-align:right">${money(venta)}</td><td class="small">${cot?'sin IVA':'precio de lista + obra'}</td></tr>
+   <tr><td><b>Margen</b></td><td style="text-align:right"><b style="color:${margen>=0?'var(--ok,#2e9e5b)':'var(--danger)'}">${money(margen)}</b></td><td class="small">${pctm}%</td></tr>
+  </tbody></table></div>
+  ${(!horas&&!rep.det.length)?'<p class="small">Sin repuestos aprobados ni horas en el reporte todavía.</p>':''}
+  ${(!tarifa&&horas)?'<p class="small">Configure la tarifa por hora en Cotizaciones → Valores por defecto para contar la mano de obra.</p>':''}`;
+}
+
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);
 
 </script>

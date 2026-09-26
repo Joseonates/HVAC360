@@ -208,7 +208,7 @@ try {
 <section id="clients" class="page">
  <div class="topline"><div><h1>Clientes</h1><p>CRM básico de Fase 1.</p></div><button class="btn primary" onclick="clientForm()">＋ Nuevo cliente</button></div>
  <div class="toolbar"><input class="search" id="clientSearch" placeholder="Buscar cliente o contacto..." oninput="renderClients()"></div>
- <div class="panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>NIT</th><th>Contacto</th><th>Teléfono</th><th>Sedes</th><th>Equipos</th><th>OT abiertas</th><th>Estado</th></tr></thead><tbody id="clientsTable" class="clickable"></tbody></table></div></div>
+ <div class="panel"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>NIT</th><th>Contacto</th><th>Teléfono</th><th>Sedes</th><th>Equipos</th><th>OT abiertas</th><th>Portal</th><th>Estado</th></tr></thead><tbody id="clientsTable" class="clickable"></tbody></table></div></div>
 </section>
 
 <!-- SEDES -->
@@ -700,10 +700,10 @@ function renderCalendar(){
 function renderClients(){
  const q=$('clientSearch').value.toLowerCase().trim();
  const rows=db.clients.filter(c=>!q||[c.name,c.contact,c.nit,c.phone].join(' ').toLowerCase().includes(q));
- $('clientsTable').innerHTML=rows.map(c=>`<tr data-id="${esc(c.id)}" onclick="clientForm(this.dataset.id)"><td><b>${esc(c.name)}</b></td><td>${esc(c.nit||'—')}</td><td>${esc(c.contact||'—')}</td><td>${esc(c.phone||'—')}</td><td>${db.sites.filter(s=>s.clientId===c.id).length}</td><td>${db.assets.filter(a=>a.clientId===c.id).length}</td><td>${db.orders.filter(o=>o.clientId===c.id&&isOpen(o)).length}</td><td>${badge(c.status)}</td></tr>`).join('')||emptyRow(8,'No hay clientes.');
+ $('clientsTable').innerHTML=rows.map(c=>`<tr data-id="${esc(c.id)}" onclick="clientForm(this.dataset.id)"><td><b>${esc(c.name)}</b></td><td>${esc(c.nit||'—')}</td><td>${esc(c.contact||'—')}</td><td>${esc(c.phone||'—')}</td><td>${db.sites.filter(s=>s.clientId===c.id).length}</td><td>${db.assets.filter(a=>a.clientId===c.id).length}</td><td>${db.orders.filter(o=>o.clientId===c.id&&isOpen(o)).length}</td><td>${c.portalUid?'<span class="status green">Sí</span>':'<span class="small">—</span>'}</td><td>${badge(c.status)}</td></tr>`).join('')||emptyRow(9,'No hay clientes.');
 }
 function clientForm(id){
- const c=id?client(id):{name:'',nit:'',contact:'',phone:'',email:'',status:'Activo'};
+ const c=id?client(id):{name:'',nit:'',contact:'',phone:'',email:'',status:'Activo',portalUid:'',portalEmail:''};
  openModal(`<div class="modal-head"><h2>${id?'Editar cliente':'Nuevo cliente'}</h2><button class="x" onclick="closeModal()">✕</button></div>
  <div class="formgrid">
   <label>Nombre / Razón social <span class="req">*</span><input id="cName" value="${esc(c.name)}"></label>
@@ -712,7 +712,19 @@ function clientForm(id){
   <label>Teléfono<input id="cPhone" type="tel" value="${esc(c.phone)}"></label>
   <label>Correo<input id="cEmail" type="email" value="${esc(c.email)}"></label>
   <label>Estado<select id="cStatus">${opts(['Activo','Inactivo'],c.status)}</select></label>
- </div><div id="cErr" class="errors"></div>
+ </div>
+ <hr><h2 style="font-size:14px">Portal del cliente</h2>
+ ${c.portalUid
+  ? `<p class="small">Ya tiene acceso: <b>${esc(c.portalEmail||'—')}</b>. Entra en la página del portal con esa clave.</p>`
+  : (id
+    ? `<div class="formgrid">
+        <label>Correo del cliente<input id="cPortEmail" type="email" placeholder="contacto@cliente.com"></label>
+        <label>Clave temporal<input id="cPortPass" type="text" placeholder="Mínimo 6 caracteres"></label>
+       </div>
+       <p class="small">Con esto el cliente ve sus servicios, sus equipos y sus reportes firmados. No puede modificar nada.</p>
+       <button class="btn secondary" onclick="crearAccesoCliente('${id}')">Crear acceso al portal</button>`
+    : `<p class="small">Guarde primero el cliente y vuelva a abrirlo para darle acceso al portal.</p>`)}
+ <div id="cErr" class="errors" style="margin-top:12px"></div>
  <div class="actions"><button class="btn primary" onclick="saveClient('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button>
  ${id?`<button class="btn secondary" onclick="closeModal();$('siteClientFilter').value='${id}';show('sites')">Ver sedes</button><button class="btn danger" onclick="deleteClient('${id}')" style="margin-left:auto">Eliminar</button>`:''}</div>`);
  $('cName').focus();
@@ -883,6 +895,41 @@ function saveTech(id){
  if(id&&!v.active&&db.orders.some(o=>o.techId===id&&isOpen(o))){$('tErr').textContent='No se puede inactivar: tiene órdenes abiertas. Reasígnelas primero.';return}
  if(id)Object.assign(tech(id),v);else db.techs.push({id:nextId('T-',db.techs,3),...v,uid:'',email:''});
  save();closeModal();refresh();toast('Técnico guardado.');
+}
+
+/* ---- Acceso al portal para un cliente ---- */
+async function crearAccesoCliente(id){
+ const c=client(id); if(!c) return;
+ const em=$('cPortEmail').value.trim(), pw=$('cPortPass').value;
+ const err=$('cErr');
+ if(!em||pw.length<6){err.textContent='Escriba el correo y una clave de 6 caracteres o más.';return}
+ let paso='1 · crear la cuenta', sec=null;
+ err.textContent='Paso '+paso+'…';
+ try{
+  sec=FB.initializeApp(FB.cfg,'portal-'+Date.now());
+  const secAuth=FB.getAuth(sec);
+  let nu;
+  try{ nu=(await FB.createUserWithEmailAndPassword(secAuth,em,pw)).user.uid }
+  catch(e){
+   if((e.code||'').includes('email-already-in-use')) nu=(await FB.signInWithEmailAndPassword(secAuth,em,pw)).user.uid;
+   else throw e;
+  }
+  paso='2 · darle acceso a sus datos'; err.textContent='Paso '+paso+'…';
+  const b=FB.writeBatch(FB.fs);
+  b.set(FB.doc(FB.fs,'tenants',TENANT,'members',nu),{name:c.name,email:em,role:'cliente',active:true,clientId:id,
+   createdAt:FB.serverTimestamp(),createdBy:uid(),updatedAt:FB.serverTimestamp(),updatedBy:uid()});
+  b.set(FB.doc(FB.fs,'users',nu),{tenantId:TENANT,email:em,createdAt:FB.serverTimestamp()});
+  await b.commit();
+  await FB.signOut(secAuth);
+  paso='3 · guardar el vínculo'; err.textContent='Paso '+paso+'…';
+  c.portalUid=nu; c.portalEmail=em;
+  await fsSave();
+  closeModal(); refresh();
+  toast('Acceso al portal creado para '+c.name+'.');
+ }catch(e){
+  console.error('portal falló en el paso',paso,e);
+  err.textContent='Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':'');
+ }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
 }
 
 /* ---- Reescribe el identificador de cuenta en las órdenes del técnico ---- */
@@ -1155,7 +1202,7 @@ const stampUpd=()=>({updatedAt:sv(),updatedBy:uid()});
 const nn=v=>(v===''||v===undefined)?null:v;
 
 /* --- De la base hacia la app --- */
-const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',phone:d.phone||'',email:d.email||'',status:Mi.cliStatus[d.status]||'Activo'});
+const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',phone:d.phone||'',email:d.email||'',status:Mi.cliStatus[d.status]||'Activo',portalUid:d.portalUid||'',portalEmail:d.portalEmail||''});
 const dnSite=(id,d)=>({id,clientId:d.clientId||'',name:d.name||'',city:d.city||'',address:d.address||''});
 const dnAsset=(id,d)=>({id,clientId:d.clientId||'',siteId:d.siteId||'',type:d.type||'Otro',brand:d.brand||'',model:d.model||'',serial:d.serial||'',btu:d.btu||0,refrigerant:d.refrigerant||'',installDate:d.installDate||'',location:d.location||'',status:Mi.astStatus[d.status]||'Operativo'});
 const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false,uid:d.uid||'',email:d.email||''});
@@ -1164,7 +1211,7 @@ const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName
 const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',contractId:d.contractId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
 
 /* --- De la app hacia la base --- */
-const upClient=c=>({name:c.name,nit:nn(c.nit),contact:nn(c.contact),phone:nn(c.phone),email:nn(c.email),status:M.cliStatus[c.status]||'activo'});
+const upClient=c=>({name:c.name,nit:nn(c.nit),contact:nn(c.contact),phone:nn(c.phone),email:nn(c.email),status:M.cliStatus[c.status]||'activo',portalUid:nn(c.portalUid),portalEmail:nn(c.portalEmail)});
 const upSite=s=>({clientId:s.clientId,name:s.name,city:nn(s.city),address:nn(s.address),active:true});
 const upAsset=a=>({code:a.id,clientId:a.clientId,siteId:a.siteId,type:a.type,brand:a.brand||'—',model:nn(a.model),serial:nn(a.serial),btu:a.btu?parseInt(a.btu,10):null,refrigerant:nn(a.refrigerant),installDate:nn(a.installDate),location:nn(a.location),status:M.astStatus[a.status]||'operativo'});
 const upTech=t=>({name:t.name,phone:nn(t.phone),email:nn(t.email),specialties:t.specialty?t.specialty.split('·').map(s=>s.trim()).filter(Boolean):[],active:t.active!==false,uid:nn(t.uid)});

@@ -242,8 +242,9 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.09.26-1';
+const VERSION='v2026.09.26-2';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
+let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
 function view(v){['vLogin','vList','vDet','vRep','vPrint','vFirma'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
@@ -282,10 +283,73 @@ async function alEntrar(u){
   ME=md.data();
   $('hName').textContent=ME.name||'Técnico';
   $('hCo').textContent=(ME.role==='tecnico')?'Sus órdenes de trabajo':'Vista de técnico · rol '+ME.role;
+  cargarInventario();
   escuchar(u.uid);
   view('vList');
  }catch(e){ msg('lmsg',errMsg(e),'err'); $('inBtn').disabled=false }
 }
+async function cargarInventario(){
+ try{
+  const [wh,pa]=await Promise.all([
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'warehouses')),
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'parts'))]);
+  BODEGAS=[]; wh.forEach(d=>{const x=d.data(); if(x.active!==false) BODEGAS.push({id:d.id,name:x.name||''})});
+  REPUESTOS=[]; pa.forEach(d=>{const x=d.data(); if(x.active!==false) REPUESTOS.push({id:d.id,code:x.code||'',name:x.name||'',unit:x.unit||'Und'})});
+  REPUESTOS.sort((a,b)=>a.name.localeCompare(b.name));
+  EXIST={};
+  await Promise.all(BODEGAS.map(async w=>{
+   try{ const st=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'warehouses',w.id,'stock'));
+        EXIST[w.id]={}; st.forEach(d=>{EXIST[w.id][d.id]=d.data().qty||0}) }catch(e){ EXIST[w.id]={} }
+  }));
+ }catch(e){ console.error('inventario',e) }
+}
+const hayStock=(wid,pid)=>((EXIST[wid]||{})[pid])||0;
+
+function bloqueInventario(){
+ if(!BODEGAS.length||!REPUESTOS.length) return '';
+ return `<div class="card" style="padding:11px">
+  <div style="font-weight:700;font-size:13px;margin-bottom:8px">Pedir del inventario</div>
+  <label>Bodega<select id="invWh" onchange="pintarRepuestos()">${BODEGAS.map(w=>`<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('')}</select></label>
+  <label>Repuesto<select id="invPart"></select></label>
+  <label>Cantidad<input id="invQty" type="number" min="1" step="1" value="1" inputmode="numeric"></label>
+  <button class="btn sec" onclick="pedirRepuesto()">Agregar al reporte</button>
+  <p class="sub" style="margin:9px 0 0">Queda como salida pendiente. La oficina la aprueba y ahí baja la existencia.</p>
+  <div id="invMsg" class="msg"></div>
+ </div>`;
+}
+function pintarRepuestos(){
+ const sel=$('invPart'), wid=$('invWh')?$('invWh').value:'';
+ if(!sel) return;
+ sel.innerHTML=REPUESTOS.map(p=>{const q=hayStock(wid,p.id);
+  return `<option value="${esc(p.id)}">${esc(p.code)} · ${esc(p.name)} (${q} disp.)</option>`}).join('');
+}
+async function pedirRepuesto(){
+ const m=$('invMsg'), wid=$('invWh').value, pid=$('invPart').value, q=parseFloat($('invQty').value||'0');
+ const p=REPUESTOS.find(x=>x.id===pid);
+ if(!p||!wid){ m.className='msg err'; m.textContent='Escoja bodega y repuesto.'; return }
+ if(!(q>0)){ m.className='msg err'; m.textContent='La cantidad debe ser mayor que cero.'; return }
+ const disp=hayStock(wid,pid);
+ if(q>disp && !confirm('En esa bodega solo hay '+disp+'.\n\n¿Pedirlo de todas formas? La oficina decidirá.')) return;
+ m.className='msg ok'; m.textContent='Pidiendo…';
+ try{
+  const ref=await FB.addDoc(FB.collection(FB.fs,'tenants',TENANT,'movements'),{
+   type:'salida',partId:pid,partName:p.name,warehouseId:wid,qty:q,unitCost:null,
+   orderId:REPORD._id,orderNumber:REPORD.number||REPORD._id,note:null,status:'pendiente',
+   requestedBy:FB.auth.currentUser.uid,requestedByName:(ME&&ME.name)||null,approvedBy:null,
+   createdAt:FB.serverTimestamp(),createdBy:FB.auth.currentUser.uid,
+   updatedAt:FB.serverTimestamp(),updatedBy:FB.auth.currentUser.uid});
+  recogerReporte();
+  REP.materiales=REP.materiales||[];
+  REP.materiales.push({descripcion:p.name,unidad:p.unit,cantidad:String(q),partId:pid,movId:ref.id});
+  marcarSucio();
+  pintarReporte();
+  m.className='msg ok'; m.textContent='Agregado. Queda pendiente de aprobación.';
+ }catch(e){
+  console.error(e); m.className='msg err';
+  m.textContent='No se pudo pedir: '+errMsg(e)+(e.code?' ['+e.code+']':'');
+ }
+}
+
 function escuchar(myUid){
  const q=FB.query(FB.collection(FB.fs,'tenants',TENANT,'workOrders'),FB.where('techUid','==',myUid));
  unsub=FB.onSnapshot(q,snap=>{
@@ -492,8 +556,9 @@ function pintarReporte(){
      return `<label class="ck"><input type="checkbox" data-ck="${id}"${REP.checks[id]?' checked':''}><span>${esc(it)}</span></label>`}).join('')}
    </div>`).join('')}`
  :`<div class="secTit">Materiales y repuestos</div>
+   ${bloqueInventario()}
    <div class="card" style="padding:11px"><div id="matList"></div>
-    <button class="btn sec" onclick="addMat()">+ Agregar material</button></div>
+    <button class="btn sec" onclick="addMat()">+ Agregar material suelto</button></div>
    <div class="secTit">Descripción de la actividad</div>
    <div class="card" style="padding:11px"><textarea id="rAct" placeholder="Describa el trabajo realizado…">${esc(REP.actividad||'')}</textarea></div>`}
 
@@ -537,7 +602,7 @@ function pintarReporte(){
  <button class="btn sec" onclick="verImpresion()">Ver / imprimir el reporte</button>
  <div style="height:30px"></div>`;
 
- if(REP.tipo!=='preventivo') pintarMats();
+ if(REP.tipo!=='preventivo'){ pintarMats(); pintarRepuestos() }
  $('repBody').querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{
   REP.evaluacion[b.dataset.ev]=parseInt(b.dataset.n,10);
   $('repBody').querySelectorAll(`[data-ev="${b.dataset.ev}"]`).forEach(x=>

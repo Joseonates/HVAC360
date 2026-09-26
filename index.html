@@ -166,6 +166,8 @@ try {
     <button data-page="assets" title="Equipos HVAC">❄ <span>Equipos HVAC</span></button>
     <button data-page="technicians" title="Técnicos">🔧 <span>Técnicos</span></button>
     <button data-page="contracts" title="Contratos">📄 <span>Contratos</span></button>
+    <div class="section">Inventario</div>
+    <button data-page="inventory" title="Inventario">📦 <span>Inventario</span></button>
     <div class="section">Servicio</div>
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
@@ -243,6 +245,12 @@ try {
  <div class="panel"><div class="table-wrap"><table><thead><tr><th>Contrato</th><th>Cliente</th><th>Frecuencia</th><th>Genera</th><th>Cobertura</th><th>Vigencia</th><th>Pendientes</th><th>Estado</th></tr></thead><tbody id="contractsTable" class="clickable"></tbody></table></div></div>
 </section>
 
+<section id="inventory" class="page">
+ <div class="topline"><div><h1>Inventario</h1><p>Repuestos, existencias por bodega y movimientos.</p></div></div>
+ <div id="invTabs" class="toolbar" style="margin-bottom:16px"></div>
+ <div id="invBody"></div>
+</section>
+
 <section id="neworder" class="page">
  <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
  <div class="panel">
@@ -306,7 +314,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.26-1';
+const VERSION='v2026.09.26-2';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -380,6 +388,261 @@ function seed(){
  }}
 function save(){ fsSave(); }
 function validDb(d){return d&&['clients','sites','assets','techs','orders'].every(k=>Array.isArray(d[k]))}
+/* ================= INVENTARIO ================= */
+const UNIDADES=['Und','Mt','Kg','Lb','Gl','Lt','Rollo','Juego','Par'];
+const MOV_LBL={entrada:'Entrada',salida:'Salida',ajuste:'Ajuste'};
+const MOV_EST={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
+let invTab='existencias';
+
+const part=id=>byId(db.parts,id);
+const bodega=id=>byId(db.warehouses,id);
+const stockDe=(wid,pid)=>((db.stock[wid]||{})[pid])||0;
+const stockTotal=pid=>db.warehouses.reduce((a,w)=>a+stockDe(w.id,pid),0);
+const money=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
+const pendientesInv=()=>db.movements.filter(m=>m.status==='pendiente');
+
+function setInvTab(t){ invTab=t; renderInventory() }
+
+function renderInventory(){
+ const pend=pendientesInv().length;
+ $('invTabs').innerHTML=[['existencias','Existencias'],['movimientos','Movimientos'+(pend?' ('+pend+')':'')],
+  ['repuestos','Repuestos'],['bodegas','Bodegas']]
+  .map(([k,l])=>`<button class="btn ${invTab===k?'primary':'secondary'} sm" onclick="setInvTab('${k}')">${esc(l)}</button>`).join(' ');
+ if(invTab==='existencias') renderExistencias();
+ else if(invTab==='movimientos') renderMovimientos();
+ else if(invTab==='repuestos') renderRepuestos();
+ else renderBodegas();
+}
+
+/* ---- Existencias ---- */
+function renderExistencias(){
+ if(!db.warehouses.length){ $('invBody').innerHTML='<div class="panel"><p class="small" style="margin:0">Cree primero una bodega.</p></div>'; return }
+ const bajos=db.parts.filter(p=>p.active&&stockTotal(p.id)<p.minStock);
+ $('invBody').innerHTML=`
+ ${bajos.length?`<div class="panel" style="border-left:4px solid var(--danger);margin-bottom:16px">
+   <h2 style="margin:0 0 6px">${bajos.length} repuesto(s) bajo el mínimo</h2>
+   <p class="small" style="margin:0">${bajos.map(p=>esc(p.name)+' ('+stockTotal(p.id)+' de '+p.minStock+')').join(' · ')}</p></div>`:''}
+ <div class="panel"><div class="toolbar" style="margin-bottom:10px">
+   <input class="search" id="stkSearch" placeholder="Buscar repuesto..." oninput="renderExistencias()">
+   <button class="btn secondary sm" onclick="entradaForm()">＋ Registrar entrada</button>
+   <button class="btn secondary sm" onclick="ajusteForm()">Ajustar existencia</button>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>Código</th><th>Repuesto</th>
+   ${db.warehouses.map(w=>`<th>${esc(w.name)}</th>`).join('')}
+   <th>Total</th><th>Mínimo</th><th>Costo</th><th>Valor</th></tr></thead><tbody>
+   ${(()=>{const q=($('stkSearch')?$('stkSearch').value:'').toLowerCase();
+     const l=db.parts.filter(p=>p.active&&(!q||(p.name+p.code).toLowerCase().includes(q)));
+     return l.map(p=>{const tot=stockTotal(p.id);
+      return `<tr><td>${esc(p.code)}</td><td><b>${esc(p.name)}</b></td>
+       ${db.warehouses.map(w=>`<td>${stockDe(w.id,p.id)}</td>`).join('')}
+       <td><b>${tot}</b></td><td>${p.minStock}</td><td>${money(p.cost)}</td><td>${money(tot*p.cost)}</td></tr>`}).join('')
+      ||emptyRow(5+db.warehouses.length,'No hay repuestos.')})()}
+  </tbody></table></div>
+  <p class="small" style="margin-top:12px">Valor total del inventario: <b>${money(db.parts.reduce((a,p)=>a+stockTotal(p.id)*p.cost,0))}</b></p>
+ </div>`;
+}
+
+/* ---- Movimientos ---- */
+function renderMovimientos(){
+ const l=[...db.movements].sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+ $('invBody').innerHTML=`<div class="panel"><div class="table-wrap"><table>
+  <thead><tr><th>Fecha</th><th>Tipo</th><th>Repuesto</th><th>Bodega</th><th>Cant.</th><th>Orden</th><th>Solicitó</th><th>Estado</th><th></th></tr></thead><tbody>
+  ${l.map(m=>`<tr>
+    <td>${esc((m.at||'').slice(0,10).split('-').reverse().join('/'))}</td>
+    <td>${esc(MOV_LBL[m.type]||m.type)}</td>
+    <td>${esc(m.partName||(part(m.partId)||{}).name||m.partId)}</td>
+    <td>${esc((bodega(m.warehouseId)||{}).name||'—')}</td>
+    <td>${m.type==='salida'?'-':''}${m.qty}</td>
+    <td>${esc(m.orderNumber||'—')}</td>
+    <td>${esc(m.requestedByName||'—')}</td>
+    <td>${m.status==='pendiente'?'<span class="status orange">Pendiente</span>'
+        :m.status==='aprobado'?'<span class="status green">Aprobado</span>'
+        :'<span class="status gray">Rechazado</span>'}</td>
+    <td>${m.status==='pendiente'?`<button class="btn primary sm" data-id="${esc(m.id)}" onclick="aprobarMov(this.dataset.id)">Aprobar</button>
+      <button class="btn secondary sm" data-id="${esc(m.id)}" onclick="rechazarMov(this.dataset.id)">Rechazar</button>`:''}</td>
+   </tr>`).join('')||emptyRow(9,'Sin movimientos todavía.')}
+ </tbody></table></div></div>`;
+}
+
+async function aprobarMov(id){
+ const m=byId(db.movements,id); if(!m||m.status!=='pendiente') return;
+ const hay=stockDe(m.warehouseId,m.partId);
+ if(m.type==='salida'&&hay<m.qty){
+  if(!confirm(`En esa bodega solo hay ${hay} y la salida es de ${m.qty}.\n\nSi aprueba, la existencia queda en cero y la diferencia queda sin respaldo. ¿Continuar?`)) return;
+ }
+ const nuevo=m.type==='salida'?Math.max(0,hay-m.qty):hay+m.qty;
+ try{
+  await FB.updateDoc(P('movements',id),{status:'aprobado',approvedBy:uid(),updatedAt:sv(),updatedBy:uid()});
+  await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'warehouses',m.warehouseId,'stock',m.partId),
+    {qty:nuevo,updatedAt:sv(),updatedBy:uid()});
+  m.status='aprobado';
+  db.stock[m.warehouseId]=db.stock[m.warehouseId]||{}; db.stock[m.warehouseId][m.partId]=nuevo;
+  remote.movements[id]=JSON.stringify(m);
+  refresh(); toast('Salida aprobada. Existencia actualizada.');
+ }catch(e){ console.error(e); toast('No se pudo aprobar: '+errMsg(e)) }
+}
+async function rechazarMov(id){
+ const m=byId(db.movements,id); if(!m||m.status!=='pendiente') return;
+ if(!confirm('¿Rechazar este movimiento? La existencia no se toca.')) return;
+ try{
+  await FB.updateDoc(P('movements',id),{status:'rechazado',approvedBy:uid(),updatedAt:sv(),updatedBy:uid()});
+  m.status='rechazado'; remote.movements[id]=JSON.stringify(m);
+  refresh(); toast('Movimiento rechazado.');
+ }catch(e){ console.error(e); toast('No se pudo rechazar: '+errMsg(e)) }
+}
+
+/* ---- Entradas y ajustes ---- */
+function entradaForm(){
+ openModal(`<div class="modal-head"><h2>Registrar entrada</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Repuesto <span class="req">*</span><select id="enPart">${opts(db.parts.filter(p=>p.active).map(p=>({value:p.id,label:p.code+' · '+p.name})),'','Seleccione')}</select></label>
+  <label>Bodega <span class="req">*</span><select id="enWh">${opts(db.warehouses.filter(w=>w.active).map(w=>({value:w.id,label:w.name})),'','Seleccione')}</select></label>
+  <label>Cantidad <span class="req">*</span><input id="enQty" type="number" min="1" step="1" value="1"></label>
+  <label>Costo unitario<input id="enCost" type="number" min="0" step="any" placeholder="Actualiza el costo del repuesto"></label>
+  <label style="grid-column:1/-1">Nota (factura, proveedor…)<input id="enNote" placeholder="Ej. Factura 4521 · Refrigerantes del Caribe"></label>
+ </div><div id="enErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="guardarEntrada()">Registrar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+async function guardarEntrada(){
+ const pid=$('enPart').value, wid=$('enWh').value, q=parseFloat($('enQty').value||'0');
+ const costo=$('enCost').value===''?null:parseFloat($('enCost').value);
+ const err=$('enErr');
+ if(!pid||!wid){err.textContent='Escoja el repuesto y la bodega.';return}
+ if(!(q>0)){err.textContent='La cantidad debe ser mayor que cero.';return}
+ err.textContent='Registrando…';
+ try{
+  const p=part(pid), nuevo=stockDe(wid,pid)+q;
+  const id=nextId('MV-',db.movements,5);
+  await FB.setDoc(P('movements',id),Object.assign({
+   type:'entrada',partId:pid,partName:p?p.name:null,warehouseId:wid,qty:q,
+   unitCost:costo,orderId:null,orderNumber:null,note:$('enNote').value.trim()||null,
+   status:'aprobado',requestedBy:uid(),requestedByName:(ME&&ME.name)||null,approvedBy:uid()},stampNew()));
+  await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'warehouses',wid,'stock',pid),{qty:nuevo,updatedAt:sv(),updatedBy:uid()});
+  db.movements.push({id,type:'entrada',partId:pid,partName:p?p.name:'',warehouseId:wid,qty:q,unitCost:costo,
+   orderId:'',orderNumber:'',note:$('enNote').value.trim(),status:'aprobado',
+   requestedBy:uid(),requestedByName:(ME&&ME.name)||'',approvedBy:uid(),at:nowIso()});
+  remote.movements[id]=JSON.stringify(db.movements[db.movements.length-1]);
+  db.stock[wid]=db.stock[wid]||{}; db.stock[wid][pid]=nuevo;
+  if(costo!==null&&p){ p.cost=costo; await fsSave() }
+  closeModal(); refresh(); toast('Entrada registrada.');
+ }catch(e){ console.error(e); err.textContent='No se pudo registrar: '+errMsg(e) }
+}
+function ajusteForm(){
+ openModal(`<div class="modal-head"><h2>Ajustar existencia</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <p class="small">Úselo tras un conteo físico. Queda registrado como ajuste, con su nota.</p>
+ <div class="formgrid">
+  <label>Repuesto <span class="req">*</span><select id="ajPart" onchange="mostrarActual()">${opts(db.parts.filter(p=>p.active).map(p=>({value:p.id,label:p.code+' · '+p.name})),'','Seleccione')}</select></label>
+  <label>Bodega <span class="req">*</span><select id="ajWh" onchange="mostrarActual()">${opts(db.warehouses.filter(w=>w.active).map(w=>({value:w.id,label:w.name})),'','Seleccione')}</select></label>
+  <label>Existencia real contada <span class="req">*</span><input id="ajQty" type="number" min="0" step="1"></label>
+  <label>Motivo <span class="req">*</span><input id="ajNote" placeholder="Ej. conteo físico de septiembre"></label>
+ </div><p class="small" id="ajActual"></p><div id="ajErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="guardarAjuste()">Ajustar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+function mostrarActual(){
+ const pid=$('ajPart').value, wid=$('ajWh').value;
+ $('ajActual').textContent=(pid&&wid)?('El sistema tiene '+stockDe(wid,pid)+' en esa bodega.'):'';
+}
+async function guardarAjuste(){
+ const pid=$('ajPart').value, wid=$('ajWh').value, real=parseFloat($('ajQty').value);
+ const nota=$('ajNote').value.trim(), err=$('ajErr');
+ if(!pid||!wid){err.textContent='Escoja el repuesto y la bodega.';return}
+ if(isNaN(real)||real<0){err.textContent='Escriba la existencia contada.';return}
+ if(!nota){err.textContent='Escriba el motivo del ajuste.';return}
+ const actual=stockDe(wid,pid), dif=real-actual;
+ if(dif===0){err.textContent='La existencia ya coincide: no hay nada que ajustar.';return}
+ err.textContent='Ajustando…';
+ try{
+  const p=part(pid), id=nextId('MV-',db.movements,5);
+  await FB.setDoc(P('movements',id),Object.assign({
+   type:'ajuste',partId:pid,partName:p?p.name:null,warehouseId:wid,qty:dif,unitCost:null,
+   orderId:null,orderNumber:null,note:nota+' (de '+actual+' a '+real+')',
+   status:'aprobado',requestedBy:uid(),requestedByName:(ME&&ME.name)||null,approvedBy:uid()},stampNew()));
+  await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'warehouses',wid,'stock',pid),{qty:real,updatedAt:sv(),updatedBy:uid()});
+  db.movements.push({id,type:'ajuste',partId:pid,partName:p?p.name:'',warehouseId:wid,qty:dif,unitCost:null,
+   orderId:'',orderNumber:'',note:nota,status:'aprobado',requestedBy:uid(),requestedByName:(ME&&ME.name)||'',approvedBy:uid(),at:nowIso()});
+  remote.movements[id]=JSON.stringify(db.movements[db.movements.length-1]);
+  db.stock[wid]=db.stock[wid]||{}; db.stock[wid][pid]=real;
+  closeModal(); refresh(); toast('Existencia ajustada.');
+ }catch(e){ console.error(e); err.textContent='No se pudo ajustar: '+errMsg(e) }
+}
+
+/* ---- Repuestos ---- */
+function renderRepuestos(){
+ $('invBody').innerHTML=`<div class="panel">
+  <div class="toolbar" style="margin-bottom:10px">
+   <input class="search" id="rpSearch" placeholder="Buscar..." oninput="renderRepuestos()">
+   <button class="btn secondary sm" onclick="partForm('')">＋ Nuevo repuesto</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Código</th><th>Repuesto</th><th>Unidad</th><th>Categoría</th><th>Costo</th><th>Precio</th><th>Margen</th><th>Mínimo</th><th>Estado</th></tr></thead><tbody>
+  ${(()=>{const q=($('rpSearch')?$('rpSearch').value:'').toLowerCase();
+   return db.parts.filter(p=>!q||(p.name+p.code+(p.category||'')).toLowerCase().includes(q)).map(p=>{
+    const mg=p.price>0?Math.round((p.price-p.cost)*100/p.price):0;
+    return `<tr data-id="${esc(p.id)}" onclick="partForm(this.dataset.id)">
+     <td>${esc(p.code)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.unit)}</td><td>${esc(p.category||'—')}</td>
+     <td>${money(p.cost)}</td><td>${money(p.price)}</td><td>${mg}%</td><td>${p.minStock}</td>
+     <td>${badge(p.active?'Activo':'Inactivo')}</td></tr>`}).join('')||emptyRow(9,'No hay repuestos.')})()}
+ </tbody></table></div></div>`;
+}
+function partForm(id){
+ const p=id?part(id):{code:'',name:'',unit:'Und',category:'',cost:0,price:0,minStock:0,active:true};
+ openModal(`<div class="modal-head"><h2>${id?'Editar repuesto':'Nuevo repuesto'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Código <span class="req">*</span><input id="pCode" value="${esc(p.code)}" placeholder="Ej. CAP-45"></label>
+  <label>Nombre <span class="req">*</span><input id="pName" value="${esc(p.name)}"></label>
+  <label>Unidad<select id="pUnit">${opts(UNIDADES,p.unit)}</select></label>
+  <label>Categoría<input id="pCat" value="${esc(p.category||'')}" placeholder="Ej. Eléctrico, Refrigeración"></label>
+  <label>Costo<input id="pCost" type="number" min="0" step="any" value="${p.cost||0}"></label>
+  <label>Precio de venta<input id="pPrice" type="number" min="0" step="any" value="${p.price||0}"></label>
+  <label>Existencia mínima<input id="pMin" type="number" min="0" step="1" value="${p.minStock||0}"></label>
+  <label>Estado<select id="pActive">${opts([{value:'1',label:'Activo'},{value:'0',label:'Inactivo'}],p.active?'1':'0')}</select></label>
+ </div>
+ ${id?`<p class="small">Existencia actual: ${db.warehouses.map(w=>esc(w.name)+': '+stockDe(w.id,id)).join(' · ')||'sin bodegas'}</p>`:''}
+ <div id="pErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="savePart('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ $('pCode').focus();
+}
+function savePart(id){
+ const v={code:$('pCode').value.trim(),name:$('pName').value.trim(),unit:$('pUnit').value,
+  category:$('pCat').value.trim(),cost:parseFloat($('pCost').value||'0'),price:parseFloat($('pPrice').value||'0'),
+  minStock:parseFloat($('pMin').value||'0'),active:$('pActive').value==='1'};
+ const err=$('pErr');
+ if(!v.code){err.textContent='El código es obligatorio.';return}
+ if(v.name.length<2){err.textContent='Escriba el nombre del repuesto.';return}
+ if(db.parts.some(p=>p.id!==id&&p.code.toLowerCase()===v.code.toLowerCase())){err.textContent='Ya existe un repuesto con ese código.';return}
+ if(v.cost<0||v.price<0){err.textContent='Los valores no pueden ser negativos.';return}
+ if(id)Object.assign(part(id),v);else db.parts.push({id:nextId('RP-',db.parts,4),...v});
+ save();closeModal();refresh();toast('Repuesto guardado.');
+}
+
+/* ---- Bodegas ---- */
+function renderBodegas(){
+ $('invBody').innerHTML=`<div class="panel">
+  <div class="toolbar" style="margin-bottom:10px"><button class="btn secondary sm" onclick="whForm('')">＋ Nueva bodega</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Bodega</th><th>Ciudad</th><th>Repuestos con existencia</th><th>Valor</th><th>Estado</th></tr></thead><tbody>
+  ${db.warehouses.map(w=>{const items=Object.entries(db.stock[w.id]||{}).filter(([,q])=>q>0);
+   const val=items.reduce((a,[pid,q])=>a+q*((part(pid)||{}).cost||0),0);
+   return `<tr data-id="${esc(w.id)}" onclick="whForm(this.dataset.id)"><td><b>${esc(w.name)}</b></td><td>${esc(w.city||'—')}</td>
+    <td>${items.length}</td><td>${money(val)}</td><td>${badge(w.active?'Activo':'Inactivo')}</td></tr>`}).join('')
+   ||emptyRow(5,'No hay bodegas. Cree una por cada sucursal.')}
+ </tbody></table></div></div>`;
+}
+function whForm(id){
+ const w=id?bodega(id):{name:'',city:'',active:true};
+ openModal(`<div class="modal-head"><h2>${id?'Editar bodega':'Nueva bodega'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+ <div class="formgrid">
+  <label>Nombre <span class="req">*</span><input id="wName" value="${esc(w.name)}" placeholder="Ej. Bodega Barranquilla"></label>
+  <label>Ciudad<input id="wCity" value="${esc(w.city||'')}"></label>
+  <label>Estado<select id="wActive">${opts([{value:'1',label:'Activo'},{value:'0',label:'Inactivo'}],w.active?'1':'0')}</select></label>
+ </div><div id="wErr" class="errors"></div>
+ <div class="actions"><button class="btn primary" onclick="saveWh('${id||''}')">Guardar</button><button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ $('wName').focus();
+}
+function saveWh(id){
+ const v={name:$('wName').value.trim(),city:$('wCity').value.trim(),active:$('wActive').value==='1'};
+ if(v.name.length<2){$('wErr').textContent='Escriba el nombre de la bodega.';return}
+ if(id)Object.assign(bodega(id),v);else db.warehouses.push({id:nextId('BD-',db.warehouses,3),...v});
+ save();closeModal();refresh();toast('Bodega guardada.');
+}
+
 /* ================= CONTRATOS DE MANTENIMIENTO ================= */
 const FREQS=[['mensual','Mensual',1],['bimestral','Bimestral',2],['trimestral','Trimestral',3],
              ['semestral','Semestral',6],['anual','Anual',12]];
@@ -547,7 +810,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -1233,6 +1496,16 @@ const dnClient=(id,d)=>({id,name:d.name||'',nit:d.nit||'',contact:d.contact||'',
 const dnSite=(id,d)=>({id,clientId:d.clientId||'',name:d.name||'',city:d.city||'',address:d.address||''});
 const dnAsset=(id,d)=>({id,clientId:d.clientId||'',siteId:d.siteId||'',type:d.type||'Otro',brand:d.brand||'',model:d.model||'',serial:d.serial||'',btu:d.btu||0,refrigerant:d.refrigerant||'',installDate:d.installDate||'',location:d.location||'',status:Mi.astStatus[d.status]||'Operativo'});
 const dnTech=(id,d)=>({id,name:d.name||'',specialty:(d.specialties||[]).join(' · '),phone:d.phone||'',active:d.active!==false,uid:d.uid||'',email:d.email||''});
+const dnWarehouse=(id,d)=>({id,name:d.name||'',city:d.city||'',active:d.active!==false});
+const upWarehouse=w=>({name:w.name,city:nn(w.city),active:w.active!==false});
+const dnPart=(id,d)=>({id,code:d.code||'',name:d.name||'',unit:d.unit||'Und',category:d.category||'',
+ cost:d.cost||0,price:d.price||0,minStock:d.minStock||0,active:d.active!==false});
+const upPart=p=>({code:p.code,name:p.name,unit:p.unit,category:nn(p.category),
+ cost:Number(p.cost)||0,price:Number(p.price)||0,minStock:Number(p.minStock)||0,active:p.active!==false});
+const dnMov=(id,d)=>({id,type:d.type||'salida',partId:d.partId||'',partName:d.partName||'',
+ warehouseId:d.warehouseId||'',qty:d.qty||0,unitCost:d.unitCost,orderId:d.orderId||'',orderNumber:d.orderNumber||'',
+ note:d.note||'',status:d.status||'pendiente',requestedBy:d.requestedBy||'',requestedByName:d.requestedByName||'',
+ approvedBy:d.approvedBy||'',at:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():''});
 const dnContract=(id,d)=>({id,name:d.name||'',clientId:d.clientId||'',clientName:d.clientName||'',siteIds:d.siteIds||[],frequency:d.frequency||'trimestral',mode:d.mode||'equipo',overrides:d.overrides||{},startDate:d.startDate||'',endDate:d.endDate||'',techId:d.techId||'',status:d.status||'activo',notes:d.notes||'',lastRun:d.lastRun||''});
 const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName),siteIds:c.siteIds||[],frequency:c.frequency,mode:c.mode,overrides:c.overrides||{},startDate:c.startDate,endDate:nn(c.endDate),techId:nn(c.techId),status:c.status,notes:nn(c.notes),lastRun:nn(c.lastRun)});
 const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',contractId:d.contractId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
@@ -1257,13 +1530,14 @@ function upOrder(o){
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,ct,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,wh,pa,mv,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
   FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
+  FB.getDocs(C('warehouses')),FB.getDocs(C('parts')),FB.getDocs(C('movements')),
   FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[]};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],stock:{}};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
@@ -1271,6 +1545,15 @@ async function fsLoad(){
  take(te,db.techs,'techs',dnTech);
  take(or,db.orders,'orders',dnOrder);
  take(ct,db.contracts,'contracts',dnContract);
+ take(wh,db.warehouses,'warehouses',dnWarehouse);
+ take(pa,db.parts,'parts',dnPart);
+ take(mv,db.movements,'movements',dnMov);
+ // La existencia vive dentro de cada bodega
+ await Promise.all(db.warehouses.map(async w=>{
+  try{ const st=await FB.getDocs(C('warehouses',w.id,'stock'));
+       db.stock[w.id]={}; st.forEach(d=>{db.stock[w.id][d.id]=d.data().qty||0}) }
+  catch(e){ db.stock[w.id]={} }
+ }));
  db.orders.sort((a,b)=>(b.seq||0)-(a.seq||0));
  await Promise.all(db.orders.slice(0,60).map(async o=>{
   try{const ev=await FB.getDocs(C('workOrders',o.id,'events'));
@@ -1327,6 +1610,8 @@ async function fsSave(){
   await syncColl('assets','assets',upAsset);
   await syncColl('techs','technicians',upTech);
   await syncColl('contracts','contracts',upContract);
+  await syncColl('warehouses','warehouses',upWarehouse);
+  await syncColl('parts','parts',upPart);
   await syncOrders();
   storageOk=true;
  }catch(e){

@@ -170,6 +170,7 @@ try {
     <button data-page="inventory" title="Inventario">📦 <span>Inventario</span></button>
     <div class="section">Servicio</div>
     <button data-page="quotes" title="Cotizaciones">🧮 <span>Cotizaciones</span></button>
+    <button data-page="invoicing" title="Facturación">🧾 <span>Facturación</span></button>
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
     <div class="section">Sistema</div>
@@ -268,6 +269,25 @@ try {
  <div id="qForm" hidden></div>
 </section>
 
+<!-- FACTURACIÓN -->
+<section id="invoicing" class="page">
+ <div class="topline"><div><h1>Facturación</h1><p>Prepara lo que hay que cobrar y lo deja listo para Siigo. La factura electrónica la sigue emitiendo Siigo.</p></div>
+  <div class="daynav"><button class="btn secondary sm" onclick="moverPeriodo(-1)">‹</button>
+   <input type="month" id="facPeriodo" onchange="cambiarPeriodo(this.value)">
+   <button class="btn secondary sm" onclick="moverPeriodo(1)">›</button>
+   <button class="btn secondary sm" onclick="exportarMes()">Descargar el mes para Siigo</button></div>
+ </div>
+ <div id="facList">
+  <div class="grid cards" id="facCards"></div>
+  <h2 style="font-size:16px;margin:22px 0 12px">Por cobrar</h2>
+  <div id="facPend"></div>
+  <h2 style="font-size:16px;margin:22px 0 12px">Documentos del mes</h2>
+  <div class="panel"><div class="table-wrap"><table><thead><tr><th>Documento</th><th>Tipo</th><th>Cliente</th><th>Órdenes</th><th style="text-align:right">Total</th><th>Estado</th><th>Factura</th></tr></thead><tbody id="facTable" class="clickable"></tbody></table></div></div>
+  <div class="panel" id="facSiigo" style="margin-top:18px"></div>
+ </div>
+ <div id="facForm" hidden></div>
+</section>
+
 <section id="neworder" class="page">
  <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
  <div class="panel">
@@ -331,7 +351,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.27-2';
+const VERSION='v2026.09.28-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -727,7 +747,7 @@ function renderContracts(){
 
 function contractForm(id){
  const c=id?contract(id):{name:'',clientId:'',siteIds:[],frequency:'trimestral',mode:'equipo',
-                          overrides:{},startDate:todayStr(),endDate:'',techId:'',status:'activo',notes:''};
+                          overrides:{},startDate:todayStr(),endDate:'',techId:'',status:'activo',notes:'',valorMensual:0};
  const sedes=c.clientId?db.sites.filter(s=>s.clientId===c.clientId):[];
  openModal(`<div class="modal-head"><h2>${id?'Editar contrato':'Nuevo contrato'}</h2><button class="x" onclick="closeModal()">✕</button></div>
  <div class="formgrid">
@@ -739,6 +759,7 @@ function contractForm(id){
   <label>Fin (opcional)<input id="ctEnd" type="date" value="${esc(c.endDate||'')}"></label>
   <label>Técnico preferente<select id="ctTech">${opts(db.techs.filter(t=>t.active).map(t=>({value:t.id,label:t.name})),c.techId,'Sin asignar')}</select></label>
   <label>Estado<select id="ctStatus">${opts(CT_STATUS.map(x=>({value:x[0],label:x[1]})),c.status)}</select></label>
+  <label>Cuota mensual pactada<input id="ctValor" type="number" min="0" step="10000" value="${c.valorMensual||0}" placeholder="0 si se cobra por visita"><span class="small">Si es mayor que cero, cada mes aparece sola en Facturación.</span></label>
   <label style="grid-column:1/-1">Notas<textarea id="ctNotes">${esc(c.notes||'')}</textarea></label>
  </div>
  <hr><h2 style="font-size:14px">Sedes cubiertas</h2>
@@ -775,7 +796,7 @@ function saveContract(id){
  const v={name:$('ctName').value.trim(),clientId:$('ctClient').value,frequency:$('ctFreq').value,
   mode:$('ctMode').value,startDate:$('ctStart').value,endDate:$('ctEnd').value||'',
   techId:$('ctTech').value,status:$('ctStatus').value,notes:$('ctNotes').value.trim(),
-  siteIds:sedesMarcadas(),overrides:leerExcepciones()};
+  siteIds:sedesMarcadas(),overrides:leerExcepciones(),valorMensual:Number($('ctValor').value)||0};
  if(v.name.length<2){err.textContent='Escriba el nombre del contrato.';return}
  if(!v.clientId){err.textContent='Escoja el cliente.';return}
  if(!v.startDate){err.textContent='Ponga la fecha de inicio.';return}
@@ -827,7 +848,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -1526,6 +1547,17 @@ const dnMov=(id,d)=>({id,type:d.type||'salida',partId:d.partId||'',partName:d.pa
  warehouseId:d.warehouseId||'',qty:d.qty||0,unitCost:d.unitCost,orderId:d.orderId||'',orderNumber:d.orderNumber||'',
  note:d.note||'',status:d.status||'pendiente',requestedBy:d.requestedBy||'',requestedByName:d.requestedByName||'',
  approvedBy:d.approvedBy||'',at:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():''});
+const dnInvoice=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',clientName:d.clientName||'',clientNit:d.clientNit||'',
+ period:d.period||'',date:d.date||'',dueDate:d.dueDate||'',kind:d.kind||'orden',
+ orderIds:d.orderIds||[],contractId:d.contractId||'',consecutivo:d.consecutivo||'',
+ items:(d.items||[]).map(l=>({desc:l.desc||'',qty:Number(l.qty)||0,unitPrice:Number(l.unitPrice)||0,clase:l.clase||'servicio',orderId:l.orderId||''})),
+ notes:d.notes||'',subtotal:d.subtotal||0,ivaPct:(d.ivaPct===undefined||d.ivaPct===null)?0:d.ivaPct,
+ ivaValue:d.ivaValue||0,total:d.total||0,status:d.status||'borrador',siigoNumero:d.siigoNumero||''});
+const upInvoice=f=>({seq:f.seq,number:f.id,clientId:f.clientId,clientName:nn(f.clientName),clientNit:nn(f.clientNit),
+ period:f.period,date:f.date,dueDate:nn(f.dueDate),kind:f.kind,orderIds:f.orderIds||[],
+ contractId:nn(f.contractId),consecutivo:nn(f.consecutivo),items:f.items,notes:nn(f.notes),
+ subtotal:f.subtotal,ivaPct:f.ivaPct,ivaValue:f.ivaValue,total:f.total,
+ status:f.status,siigoNumero:nn(f.siigoNumero)});
 const dnQuote=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',clientName:d.clientName||'',
  siteId:d.siteId||'',siteName:d.siteName||'',orderId:d.orderId||'',orderNumber:d.orderNumber||'',
  assetId:d.assetId||'',title:d.title||'',date:d.date||'',validUntil:d.validUntil||'',
@@ -1542,8 +1574,8 @@ const upQuote=q=>({seq:q.seq,number:q.id,clientId:q.clientId,clientName:nn(q.cli
  assetId:nn(q.assetId),title:q.title,date:q.date,validUntil:nn(q.validUntil),
  items:q.items,notes:nn(q.notes),subtotal:q.subtotal,ivaPct:q.ivaPct,ivaValue:q.ivaValue,total:q.total,
  status:q.status,resultOrderId:nn(q.resultOrderId)});
-const dnContract=(id,d)=>({id,name:d.name||'',clientId:d.clientId||'',clientName:d.clientName||'',siteIds:d.siteIds||[],frequency:d.frequency||'trimestral',mode:d.mode||'equipo',overrides:d.overrides||{},startDate:d.startDate||'',endDate:d.endDate||'',techId:d.techId||'',status:d.status||'activo',notes:d.notes||'',lastRun:d.lastRun||''});
-const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName),siteIds:c.siteIds||[],frequency:c.frequency,mode:c.mode,overrides:c.overrides||{},startDate:c.startDate,endDate:nn(c.endDate),techId:nn(c.techId),status:c.status,notes:nn(c.notes),lastRun:nn(c.lastRun)});
+const dnContract=(id,d)=>({id,name:d.name||'',clientId:d.clientId||'',clientName:d.clientName||'',siteIds:d.siteIds||[],frequency:d.frequency||'trimestral',mode:d.mode||'equipo',overrides:d.overrides||{},startDate:d.startDate||'',endDate:d.endDate||'',techId:d.techId||'',status:d.status||'activo',notes:d.notes||'',lastRun:d.lastRun||'',valorMensual:Number(d.valorMensual)||0});
+const upContract=c=>({name:c.name,clientId:c.clientId,clientName:nn(c.clientName),siteIds:c.siteIds||[],frequency:c.frequency,mode:c.mode,overrides:c.overrides||{},startDate:c.startDate,endDate:nn(c.endDate),techId:nn(c.techId),status:c.status,notes:nn(c.notes),lastRun:nn(c.lastRun),valorMensual:Number(c.valorMensual)||0});
 const dnOrder=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',siteId:d.siteId||'',assetId:d.assetId||'',contractId:d.contractId||'',type:Mi.ordType[d.type]||'Preventivo',priority:Mi.prio[d.priority]||'Normal',techId:d.techId||'',date:d.scheduledDate||'',time:d.scheduledTime||'',desc:d.description||'',status:Mi.ordStatus[d.status]||'Pendiente',createdAt:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():'',history:[]});
 
 /* --- De la app hacia la base --- */
@@ -1568,7 +1600,7 @@ function upOrder(o){
 //  La oficina ve los cambios del técnico sin refrescar. Dos candados:
 //  nunca se pisa una orden que usted tenga editada sin subir, y no se
 //  repinta la pantalla mientras usted está escribiendo en un campo.
-let unsubOrders=null, unsubMovs=null, unsubQuotes=null, refrescoPend=null;
+let unsubOrders=null, unsubMovs=null, unsubQuotes=null, unsubFacs=null, refrescoPend=null;
 const escribiendo=()=>{
  const a=document.activeElement;
  return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
@@ -1585,6 +1617,7 @@ function escucharCambios(){
  if(unsubOrders){ unsubOrders(); unsubOrders=null }
  if(unsubMovs){ unsubMovs(); unsubMovs=null }
  if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
+ if(unsubFacs){ unsubFacs(); unsubFacs=null }
  if(!TENANT) return;
 
  unsubOrders=FB.onSnapshot(C('workOrders'), snap=>{
@@ -1637,19 +1670,37 @@ function escucharCambios(){
   });
   if(cambios){ refrescarSuave(); if(avisos.length) toast(avisos.slice(0,2).join(' · ')) }
  }, err=>console.error('escucha de cotizaciones', err));
+
+ // Dos personas en la oficina ven los mismos documentos de cobro.
+ unsubFacs=FB.onSnapshot(C('invoices'), snap=>{
+  let cambios=0;
+  db.invoices=db.invoices||[];
+  snap.docChanges().forEach(ch=>{
+   if(ch.type==='removed') return;
+   const nuevo=dnInvoice(ch.doc.id, ch.doc.data());
+   const i=db.invoices.findIndex(x=>x.id===nuevo.id);
+   if(i<0){ db.invoices.push(nuevo); remote.invoices[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
+   const local=db.invoices[i];
+   if(remote.invoices[local.id]!==JSON.stringify(local)) return;
+   if(JSON.stringify(local)===JSON.stringify(nuevo)) return;
+   db.invoices[i]=nuevo; remote.invoices[nuevo.id]=JSON.stringify(nuevo); cambios++;
+  });
+  if(cambios) refrescarSuave();
+ }, err=>console.error('escucha de facturas', err));
 }
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,ct,wh,pa,mv,co,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,wh,pa,mv,co,fa,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
   FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
   FB.getDocs(C('warehouses')),FB.getDocs(C('parts')),FB.getDocs(C('movements')),
   FB.getDocs(C('quotes')).catch(()=>null),
+  FB.getDocs(C('invoices')).catch(()=>null),
   FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],stock:{}};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],invoices:[],stock:{}};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},invoices:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
@@ -1661,6 +1712,7 @@ async function fsLoad(){
  take(pa,db.parts,'parts',dnPart);
  take(mv,db.movements,'movements',dnMov);
  if(co) take(co,db.quotes,'quotes',dnQuote);
+ if(fa) take(fa,db.invoices,'invoices',dnInvoice);
  // La existencia vive dentro de cada bodega
  await Promise.all(db.warehouses.map(async w=>{
   try{ const st=await FB.getDocs(C('warehouses',w.id,'stock'));
@@ -1726,6 +1778,7 @@ async function fsSave(){
   await syncColl('warehouses','warehouses',upWarehouse);
   await syncColl('parts','parts',upPart);
   await syncColl('quotes','quotes',upQuote);
+  await syncColl('invoices','invoices',upInvoice);
   await syncOrders();
   storageOk=true;
  }catch(e){
@@ -1857,6 +1910,7 @@ function startAuth(){
    if(unsubOrders){ unsubOrders(); unsubOrders=null }
    if(unsubMovs){ unsubMovs(); unsubMovs=null }
    if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
+   if(unsubFacs){ unsubFacs(); unsubFacs=null }
    TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false);
   }
  });
@@ -1916,7 +1970,7 @@ function renderQuotes(){
            :'<p class="small">Solo el administrador puede cambiar estos valores.</p>'}`;
 }
 async function guardarAjustes(){
- const s={ivaPct:Number($('setIva').value)||0, validezDias:Number($('setDias').value)||15, tarifaHora:Number($('setTarifa').value)||0};
+ const s=Object.assign({},(ME&&ME.settings)||{},{ivaPct:Number($('setIva').value)||0, validezDias:Number($('setDias').value)||15, tarifaHora:Number($('setTarifa').value)||0});
  if(s.ivaPct<0||s.ivaPct>100){alert('El IVA debe estar entre 0 y 100.');return}
  try{
   await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),{settings:s,updatedAt:sv(),updatedBy:uid()});
@@ -2300,6 +2354,447 @@ async function pintarCosto(id){
   </tbody></table></div>
   ${(!horas&&!rep.det.length)?'<p class="small">Sin repuestos aprobados ni horas en el reporte todavía.</p>':''}
   ${(!tarifa&&horas)?'<p class="small">Configure la tarifa por hora en Cotizaciones → Valores por defecto para contar la mano de obra.</p>':''}`;
+}
+
+/* ================= PREPARACIÓN DE LA FACTURA =================
+   HVAC 360 no emite factura electrónica (eso necesita un proveedor
+   autorizado por la DIAN). Lo que hace es armar el borrador con lo que
+   hay que cobrar, exportarlo a Siigo y guardar el número real de la
+   factura para que quede la trazabilidad con las órdenes.            */
+const FAC_EST={borrador:'Borrador',lista:'Lista para facturar',facturada:'Facturada',anulada:'Anulada'};
+const FAC_COLOR={borrador:'gray',lista:'blue',facturada:'green',anulada:'gray'};
+const FAC_TIPO={orden:'Por orden',consolidado:'Consolidado',contrato:'Cuota de contrato'};
+const facBadge=s=>`<span class="status ${FAC_COLOR[s]||'gray'}">${esc(FAC_EST[s]||s)}</span>`;
+const facDe=id=>byId(db.invoices||[],id);
+const periodoHoy=()=>todayStr().slice(0,7);
+const mesLargo=p=>{const [y,m]=p.split('-');
+ return ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'][+m-1]+' de '+y};
+const finDeMes=p=>{const [y,m]=p.split('-').map(Number);const d=new Date(y,m,0);
+ return p+'-'+String(d.getDate()).padStart(2,'0')};
+const sumaDias=(f,n)=>{const d=new Date(f+'T00:00:00');d.setDate(d.getDate()+n);
+ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+let facPeriodo=periodoHoy(), facLineas=[], facEdit=null;
+
+/* ---- Qué falta por cobrar ---- */
+function yaFacturada(orderId){
+ return (db.invoices||[]).some(f=>f.status!=='anulada'&&(f.orderIds||[]).includes(orderId));
+}
+function cuotaYaCobrada(contractId,periodo){
+ return (db.invoices||[]).some(f=>f.status!=='anulada'&&f.contractId===contractId&&f.period===periodo);
+}
+const valorEstimado=o=>{
+ const cot=(db.quotes||[]).find(q=>q.resultOrderId===o.id&&q.status==='aprobada');
+ if(cot) return money(cot.subtotal)+' <span class="small">cotizado</span>';
+ const v=repuestosOrden(o.id).venta;
+ return v?money(v)+' <span class="small">+ mano de obra</span>'
+         :'<span class="small">se calcula al armar</span>';
+};
+function pendientesFacturar(periodo){
+ const ordenes=db.orders.filter(o=>o.status==='Completada'&&(o.date||'').slice(0,7)===periodo&&!yaFacturada(o.id));
+ const contratos=(db.contracts||[]).filter(c=>{
+  if(c.status!=='activo'||!(Number(c.valorMensual)||0)) return false;
+  const fin=periodo+'-31', ini=periodo+'-01';
+  if(c.startDate&&c.startDate>fin) return false;
+  if(c.endDate&&c.endDate<ini) return false;
+  return !cuotaYaCobrada(c.id,periodo);
+ });
+ return {ordenes,contratos};
+}
+
+/* ---- Las líneas que salen de una orden ---- */
+async function lineasDeOrden(o){
+ // 1) Si hubo cotización aprobada, ese es el precio que el cliente avaló.
+ const cot=(db.quotes||[]).find(q=>q.resultOrderId===o.id&&q.status==='aprobada');
+ if(cot) return cot.items.map(l=>({desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,
+  clase:l.kind==='obra'?'servicio':'repuesto',orderId:o.id}));
+ // 2) Si no, repuestos aprobados a precio de lista + horas del reporte.
+ const lineas=[];
+ const rep=repuestosOrden(o.id);
+ rep.det.forEach(r=>lineas.push({desc:r.nombre,qty:r.cant,unitPrice:r.cant?Math.round(r.venta/r.cant):0,
+  clase:'repuesto',orderId:o.id}));
+ let horas=0;
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',o.id,'report','ficha'));
+  if(d.exists()) horas=horasEntre(d.data().horaEntrada,d.data().horaSalida);
+ }catch(e){}
+ const tarifa=Number(cotSet('tarifaHora',0))||0;
+ if(horas&&tarifa) lineas.push({desc:'Mano de obra · '+o.type+' '+o.id,qty:horas,unitPrice:tarifa,clase:'servicio',orderId:o.id});
+ // 3) Si la orden no dejó nada medible, una línea para que usted le ponga el valor.
+ if(!lineas.length) lineas.push({desc:o.type+' · orden '+o.id,qty:1,unitPrice:0,clase:'servicio',orderId:o.id});
+ return lineas;
+}
+
+/* ---- Pantalla ---- */
+function renderInvoicing(){
+ db.invoices=db.invoices||[];
+ const f=$('facForm'); if(f){f.hidden=true;f.innerHTML=''}
+ $('facList').hidden=false;
+ $('facPeriodo').value=facPeriodo;
+
+ const {ordenes,contratos}=pendientesFacturar(facPeriodo);
+ const porCliente={};
+ ordenes.forEach(o=>{(porCliente[o.clientId]=porCliente[o.clientId]||{ordenes:[],contratos:[]}).ordenes.push(o)});
+ contratos.forEach(c=>{(porCliente[c.clientId]=porCliente[c.clientId]||{ordenes:[],contratos:[]}).contratos.push(c)});
+
+ const facs=db.invoices.filter(x=>x.period===facPeriodo).sort((a,b)=>(b.seq||0)-(a.seq||0));
+ const suma=e=>facs.filter(x=>x.status===e).reduce((a,x)=>a+(x.total||0),0);
+ $('facCards').innerHTML=[
+  ['Por cobrar del mes','🧾',ordenes.length+contratos.length,'órdenes y cuotas sin incluir'],
+  ['Listas para facturar','📤',money(suma('lista')),facs.filter(x=>x.status==='lista').length+' documento(s)'],
+  ['Ya facturado','✅',money(suma('facturada')),facs.filter(x=>x.status==='facturada').length+' factura(s)'],
+  ['Borradores','✎',facs.filter(x=>x.status==='borrador').length,'sin revisar']
+ ].map(([t,i,v,s])=>`<div class="card"><div class="ci">${i}</div><h2>${esc(t)}</h2><div class="big">${typeof v==='number'?v:esc(v)}</div><span class="small">${esc(s)}</span></div>`).join('');
+
+ const ids=Object.keys(porCliente);
+ $('facPend').innerHTML=ids.length?ids.map(cid=>{
+  const c=client(cid)||{name:cid}, g=porCliente[cid];
+  const filas=g.ordenes.map(o=>`<tr>
+    <td><input type="checkbox" class="fsel" data-t="o" data-c="${esc(cid)}" data-id="${esc(o.id)}" checked></td>
+    <td><b>${esc(o.id)}</b></td><td>${fmtDate(o.date)}</td><td>${esc(o.type)}</td>
+    <td>${esc((site(o.siteId)||{}).name||'')}</td><td>${esc(o.assetId||'—')}</td>
+    <td style="text-align:right">${valorEstimado(o)}</td></tr>`).join('')
+   +g.contratos.map(k=>`<tr>
+    <td><input type="checkbox" class="fsel" data-t="c" data-c="${esc(cid)}" data-id="${esc(k.id)}" checked></td>
+    <td><b>Contrato</b></td><td>${esc(mesLargo(facPeriodo))}</td><td>Cuota fija</td>
+    <td colspan="2">${esc(k.name)}</td>
+    <td style="text-align:right">${money(k.valorMensual)}</td></tr>`).join('');
+  return `<div class="panel" style="margin-bottom:14px">
+   <div class="topline" style="margin-bottom:10px"><div><h2>${esc(c.name)}</h2>
+     <p class="small">${g.ordenes.length} orden(es) · ${g.contratos.length} cuota(s) de contrato</p></div>
+    <div class="actions" style="margin:0">
+     <button class="btn primary sm" data-c="${esc(cid)}" onclick="armarFactura(this.dataset.c,'consolidado')">Una sola cuenta</button>
+     <button class="btn secondary sm" data-c="${esc(cid)}" onclick="armarFactura(this.dataset.c,'separado')">Una por orden</button>
+    </div></div>
+   <div class="table-wrap"><table><thead><tr><th style="width:36px"></th><th>Origen</th><th>Fecha</th><th>Tipo</th><th>Sede</th><th>Equipo</th><th style="text-align:right">Valor estimado</th></tr></thead><tbody>${filas}</tbody></table></div>
+  </div>`;
+ }).join(''):`<div class="panel"><p class="empty">No queda nada por cobrar en ${esc(mesLargo(facPeriodo))}.</p></div>`;
+
+ $('facTable').innerHTML=facs.length?facs.map(x=>`<tr data-id="${esc(x.id)}" onclick="verFactura(this.dataset.id)">
+  <td><b>${esc(x.id)}</b></td><td>${esc(FAC_TIPO[x.kind]||x.kind)}</td>
+  <td>${esc(x.clientName||(client(x.clientId)||{}).name||'—')}</td>
+  <td>${(x.orderIds||[]).length||(x.contractId?1:0)}</td>
+  <td style="text-align:right">${money(x.total)}</td>
+  <td>${facBadge(x.status)}</td><td>${esc(x.siigoNumero||'—')}</td></tr>`).join('')
+  :emptyRow(7,'Todavía no hay documentos en este mes.');
+
+ const esAdmin=(ME&&ME.role)==='admin';
+ $('facSiigo').innerHTML=`<h2>Códigos de Siigo</h2>
+  <p class="small">Estos códigos salen de su propio Siigo. Ábralo en Configuración → Tipos de comprobante, Impuestos, Formas de pago y Productos, y cópielos aquí. Si quedan en blanco, la columna sale vacía y usted la llena en Excel.</p>
+  <div class="formgrid">
+   <label>Tipo de comprobante<input id="sgTipo" value="${esc(cotSet('siigoTipo',''))}" placeholder="Ej. 1" ${esAdmin?'':'disabled'}></label>
+   <label>Código impuesto IVA<input id="sgIva" value="${esc(cotSet('siigoIva',''))}" placeholder="Ej. 1" ${esAdmin?'':'disabled'}></label>
+   <label>Código forma de pago<input id="sgPago" value="${esc(cotSet('siigoPago',''))}" placeholder="Ej. 1" ${esAdmin?'':'disabled'}></label>
+   <label>Código de bodega<input id="sgBodega" value="${esc(cotSet('siigoBodega',''))}" placeholder="Ej. 1" ${esAdmin?'':'disabled'}></label>
+   <label>Código producto · servicio<input id="sgServicio" value="${esc(cotSet('siigoServicio',''))}" placeholder="Ej. SERV001" ${esAdmin?'':'disabled'}></label>
+   <label>Código producto · repuesto<input id="sgRepuesto" value="${esc(cotSet('siigoRepuesto',''))}" placeholder="Ej. REP001" ${esAdmin?'':'disabled'}></label>
+   <label>Plazo de pago (días)<input id="sgPlazo" type="number" min="0" max="180" value="${cotSet('plazoDias',30)}" ${esAdmin?'':'disabled'}></label>
+  </div>
+  ${esAdmin?'<div class="actions"><button class="btn secondary" onclick="guardarSiigo()">Guardar códigos</button></div>'
+           :'<p class="small">Solo el administrador puede cambiar estos códigos.</p>'}`;
+}
+function cambiarPeriodo(v){ facPeriodo=v||periodoHoy(); renderInvoicing() }
+function moverPeriodo(n){
+ const [y,m]=facPeriodo.split('-').map(Number);
+ const d=new Date(y,m-1+n,1);
+ facPeriodo=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+ renderInvoicing();
+}
+async function guardarSiigo(){
+ const s=Object.assign({},(ME&&ME.settings)||{},{
+  siigoTipo:$('sgTipo').value.trim(), siigoIva:$('sgIva').value.trim(),
+  siigoPago:$('sgPago').value.trim(), siigoBodega:$('sgBodega').value.trim(),
+  siigoServicio:$('sgServicio').value.trim(), siigoRepuesto:$('sgRepuesto').value.trim(),
+  plazoDias:Number($('sgPlazo').value)||0});
+ try{
+  await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),{settings:s,updatedAt:sv(),updatedBy:uid()});
+  const td=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT));
+  ME.settings=(td.exists()&&td.data().settings)||s;
+  renderInvoicing(); toast('Códigos de Siigo guardados.');
+ }catch(e){ console.error(e); alert('No se pudo guardar: '+errMsg(e)) }
+}
+
+/* ---- Armar el borrador ---- */
+function seleccionDe(cid){
+ const sel={ordenes:[],contratos:[]};
+ document.querySelectorAll('.fsel').forEach(el=>{
+  if(el.dataset.c!==cid||!el.checked) return;
+  if(el.dataset.t==='o'){ const o=byId(db.orders,el.dataset.id); if(o)sel.ordenes.push(o) }
+  else { const c=byId(db.contracts,el.dataset.id); if(c)sel.contratos.push(c) }
+ });
+ return sel;
+}
+async function armarFactura(cid,modo){
+ const sel=seleccionDe(cid);
+ if(!sel.ordenes.length&&!sel.contratos.length){ alert('Marque al menos una orden o una cuota.'); return }
+ toast('Armando el documento…');
+ const c=client(cid)||{}, fecha=finDeMes(facPeriodo);
+ const ivaPct=Number(cotSet('ivaPct',19))||0;
+ const plazo=Number(cotSet('plazoDias',30))||0;
+ const nuevos=[];
+
+ const crear=(items,kind,orderIds,contractId)=>{
+  const sub=Math.round(items.reduce((a,l)=>a+l.qty*l.unitPrice,0));
+  const iva=Math.round(sub*ivaPct/100);
+  const seq=Math.max(0,...db.invoices.map(x=>x.seq||0),...nuevos.map(x=>x.seq))+1;
+  const id=nextId('PRE-',db.invoices.concat(nuevos),4);
+  const f={id,seq,clientId:cid,clientName:c.name||'',clientNit:c.nit||'',
+   period:facPeriodo,date:fecha,dueDate:plazo?sumaDias(fecha,plazo):'',
+   kind,orderIds:orderIds||[],contractId:contractId||'',consecutivo:'',
+   items,notes:'',subtotal:sub,ivaPct,ivaValue:iva,total:sub+iva,
+   status:'borrador',siigoNumero:''};
+  db.invoices.push(f); nuevos.push(f);
+  return f;
+ };
+
+ try{
+  if(modo==='separado'){
+   for(const o of sel.ordenes) crear(await lineasDeOrden(o),'orden',[o.id],'');
+   for(const k of sel.contratos)
+    crear([{desc:'Mantenimiento preventivo '+mesLargo(facPeriodo)+' · '+k.name,qty:1,unitPrice:Number(k.valorMensual)||0,clase:'servicio',orderId:''}],
+     'contrato',[],k.id);
+  }else{
+   let items=[], ids=[], ctId='';
+   for(const k of sel.contratos){
+    items.push({desc:'Mantenimiento preventivo '+mesLargo(facPeriodo)+' · '+k.name,qty:1,unitPrice:Number(k.valorMensual)||0,clase:'servicio',orderId:''});
+    ctId=ctId||k.id;
+   }
+   for(const o of sel.ordenes){ items=items.concat(await lineasDeOrden(o)); ids.push(o.id) }
+   crear(items,sel.contratos.length&&!sel.ordenes.length?'contrato':'consolidado',ids,ctId);
+  }
+ }catch(e){ console.error(e); alert('No se pudo armar: '+errMsg(e)); return }
+
+ save(); renderInvoicing();
+ toast(nuevos.length+' documento(s) creado(s). Revíselo y déjelo listo.');
+ if(nuevos.length===1) verFactura(nuevos[0].id);
+}
+
+/* ---- Detalle y edición ---- */
+function verFactura(id){
+ const f=facDe(id); if(!f) return;
+ const editable=f.status==='borrador'||f.status==='lista';
+ openModal(`<div class="modal-head"><div><h2>${esc(f.id)}</h2>
+   <div style="margin-top:6px">${facBadge(f.status)} <span class="small">${esc(FAC_TIPO[f.kind]||'')}</span></div></div>
+  <button class="x" onclick="closeModal()">✕</button></div>
+ <div class="dl">
+  <div><span class="small">Cliente</span><b>${esc(f.clientName||'—')}</b><span class="small">NIT ${esc(f.clientNit||'—')}</span></div>
+  <div><span class="small">Periodo</span><b>${esc(mesLargo(f.period))}</b><span class="small">Fecha ${fmtDate(f.date)}</span></div>
+  <div><span class="small">Vence</span><b>${fmtDate(f.dueDate)}</b></div>
+  <div><span class="small">Órdenes incluidas</span><b>${(f.orderIds||[]).join(', ')||'—'}</b></div>
+  ${f.siigoNumero?`<div><span class="small">Factura en Siigo</span><b>${esc(f.siigoNumero)}</b></div>`:''}
+ </div>
+ <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Descripción</th><th style="width:80px">Cant.</th><th style="width:120px;text-align:right">Unit.</th><th style="width:120px;text-align:right">Total</th></tr></thead><tbody>
+  ${f.items.map(l=>`<tr><td>${esc(l.desc)}${l.orderId?' <span class="small">('+esc(l.orderId)+')</span>':''}</td>
+   <td>${l.qty}</td><td style="text-align:right">${money(l.unitPrice)}</td><td style="text-align:right">${money(l.qty*l.unitPrice)}</td></tr>`).join('')}
+  </tbody></table></div>
+ <table style="margin-left:auto;margin-top:10px;font-size:14px">
+  <tr><td style="padding:3px 18px 3px 0">Subtotal</td><td style="text-align:right"><b>${money(f.subtotal)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0">IVA ${f.ivaPct}%</td><td style="text-align:right"><b>${money(f.ivaValue)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0;font-size:16px">Total</td><td style="text-align:right;font-size:16px"><b>${money(f.total)}</b></td></tr></table>
+ ${f.notes?`<span class="small" style="display:block;margin-top:10px">Nota</span><p style="white-space:pre-wrap;margin-top:4px">${esc(f.notes)}</p>`:''}
+ <hr><div class="actions">
+  ${editable?`<button class="btn secondary" data-id="${esc(f.id)}" onclick="closeModal();editarFactura(this.dataset.id)">Editar líneas</button>`:''}
+  ${f.status==='borrador'?`<button class="btn primary" data-id="${esc(f.id)}" onclick="marcarLista(this.dataset.id)">Dejar lista para facturar</button>`:''}
+  ${f.status==='lista'?`<button class="btn primary" data-id="${esc(f.id)}" onclick="anotarFactura(this.dataset.id)">Anotar número de factura</button>`:''}
+  <button class="btn secondary" data-id="${esc(f.id)}" onclick="exportarSiigo(this.dataset.id)">Descargar para Siigo</button>
+  <button class="btn secondary" data-id="${esc(f.id)}" onclick="imprimirCuenta(this.dataset.id)">Cuenta de cobro</button>
+  ${editable?`<button class="btn danger" data-id="${esc(f.id)}" onclick="anularFactura(this.dataset.id)">Anular</button>`:''}
+ </div>`);
+}
+function marcarLista(id){
+ const f=facDe(id); if(!f||f.status!=='borrador') return;
+ if(f.items.some(l=>!l.unitPrice)&&!confirm('Hay líneas en cero. ¿Dejarla lista de todas formas?')) return;
+ f.status='lista'; save(); closeModal(); renderInvoicing(); toast(id+' lista para facturar.');
+}
+function anularFactura(id){
+ const f=facDe(id); if(!f) return;
+ if(!confirm('¿Anular '+id+'? Las órdenes vuelven a quedar pendientes por cobrar.')) return;
+ f.status='anulada'; save(); closeModal(); renderInvoicing(); toast(id+' anulada.');
+}
+function anotarFactura(id){
+ const f=facDe(id); if(!f) return;
+ openModal(`<div class="modal-head"><h2>Factura emitida · ${esc(f.id)}</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <p class="small">Escriba el número que le asignó Siigo. Con eso la factura queda amarrada a las órdenes y ya no se puede cambiar.</p>
+  <label>Número de la factura<input id="fnNum" maxlength="40" placeholder="Ej. FV-1001"></label>
+  <label>Consecutivo usado en Siigo (opcional)<input id="fnCons" maxlength="20" value="${esc(f.consecutivo||'')}"></label>
+  <div id="fnErr" class="errors"></div>
+  <div class="actions"><button class="btn primary" data-id="${esc(f.id)}" onclick="guardarNumero(this.dataset.id)">Guardar</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+function guardarNumero(id){
+ const f=facDe(id); if(!f) return;
+ const n=$('fnNum').value.trim();
+ if(n.length<2){ $('fnErr').textContent='Escriba el número de la factura.'; return }
+ f.siigoNumero=n; f.consecutivo=$('fnCons').value.trim(); f.status='facturada';
+ save(); closeModal(); renderInvoicing(); toast(id+' → factura '+n);
+}
+function editarFactura(id){
+ const f=facDe(id); if(!f) return;
+ facEdit=id;
+ facLineas=f.items.map(l=>({desc:l.desc||'',qty:Number(l.qty)||0,unitPrice:Number(l.unitPrice)||0,clase:l.clase||'servicio',orderId:l.orderId||''}));
+ $('facList').hidden=true;
+ const c=$('facForm'); c.hidden=false;
+ c.innerHTML=`<div class="panel">
+  <h2>Editar ${esc(f.id)} · ${esc(f.clientName||'')}</h2>
+  <div class="formgrid">
+   <label>Fecha del documento<input id="fEdFecha" type="date" value="${esc(f.date)}"></label>
+   <label>Vence<input id="fEdVence" type="date" value="${esc(f.dueDate||'')}"></label>
+   <label>IVA (%)<input id="fEdIva" type="number" min="0" max="100" value="${f.ivaPct}" oninput="facLee()"></label>
+   <label>Consecutivo para Siigo<input id="fEdCons" maxlength="20" value="${esc(f.consecutivo||'')}" placeholder="Déjelo vacío si Siigo lo asigna"></label>
+   <label style="grid-column:1/-1">Nota interna<textarea id="fEdNota" maxlength="2000">${esc(f.notes||'')}</textarea></label>
+  </div>
+  <hr><h2 style="font-size:15px">Líneas a cobrar</h2>
+  <div class="table-wrap"><table><thead><tr><th style="width:120px">Clase</th><th>Descripción</th><th style="width:90px">Cant.</th><th style="width:130px">Valor unit.</th><th style="width:120px;text-align:right">Total</th><th style="width:44px"></th></tr></thead>
+   <tbody id="facBody"></tbody></table></div>
+  <div class="actions" style="margin-top:10px"><button class="btn secondary sm" onclick="facAgregar()">＋ Agregar línea</button></div>
+  <div id="facResumen" style="margin-top:16px"></div>
+  <div class="actions">
+   <button class="btn primary" data-id="${esc(f.id)}" onclick="guardarFactura(this.dataset.id)">Guardar cambios</button>
+   <button class="btn secondary" onclick="renderInvoicing()">Cancelar</button>
+  </div></div>`;
+ facPintar();
+}
+function facPintar(){
+ $('facBody').innerHTML=facLineas.map((l,i)=>`<tr>
+  <td><select class="fl-clase" data-i="${i}" onchange="facLee()">${opts([{value:'servicio',label:'Servicio'},{value:'repuesto',label:'Repuesto'}],l.clase)}</select></td>
+  <td><input class="fl-desc" data-i="${i}" maxlength="200" value="${esc(l.desc)}" oninput="facLee()"></td>
+  <td><input class="fl-qty" data-i="${i}" type="number" min="0" step="0.5" value="${l.qty}" oninput="facLee()"></td>
+  <td><input class="fl-price" data-i="${i}" type="number" min="0" step="1000" value="${l.unitPrice}" oninput="facLee()"></td>
+  <td style="text-align:right" id="flTot${i}">${money(l.qty*l.unitPrice)}</td>
+  <td><button class="btn danger sm" data-i="${i}" onclick="facQuitar(+this.dataset.i)">✕</button></td></tr>`).join('');
+ facLee();
+}
+function facLee(){
+ const leer=(cls,fn)=>document.querySelectorAll('#facBody .'+cls).forEach(el=>fn(facLineas[+el.dataset.i],el));
+ leer('fl-clase',(l,e)=>l.clase=e.value);
+ leer('fl-desc',(l,e)=>l.desc=e.value);
+ leer('fl-qty',(l,e)=>l.qty=Number(e.value)||0);
+ leer('fl-price',(l,e)=>l.unitPrice=Number(e.value)||0);
+ facLineas.forEach((l,i)=>{const c=$('flTot'+i); if(c)c.textContent=money(l.qty*l.unitPrice)});
+ const sub=Math.round(facLineas.reduce((a,l)=>a+l.qty*l.unitPrice,0));
+ const ivaPct=Math.max(0,Math.min(100,Number(($('fEdIva')||{}).value)||0));
+ const iva=Math.round(sub*ivaPct/100);
+ $('facResumen').innerHTML=`<table style="margin-left:auto;font-size:14px">
+  <tr><td style="padding:3px 18px 3px 0">Subtotal</td><td style="text-align:right"><b>${money(sub)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0">IVA ${ivaPct}%</td><td style="text-align:right"><b>${money(iva)}</b></td></tr>
+  <tr><td style="padding:3px 18px 3px 0;font-size:16px">Total</td><td style="text-align:right;font-size:16px"><b>${money(sub+iva)}</b></td></tr></table>`;
+ return {sub,ivaPct,iva,total:sub+iva};
+}
+function facAgregar(){ facLee(); facLineas.push({desc:'',qty:1,unitPrice:0,clase:'servicio',orderId:''}); facPintar() }
+function facQuitar(i){
+ facLee();
+ if(facLineas.length<=1) facLineas=[{desc:'',qty:1,unitPrice:0,clase:'servicio',orderId:''}];
+ else facLineas.splice(i,1);
+ facPintar();
+}
+function guardarFactura(id){
+ const f=facDe(id); if(!f) return;
+ const t=facLee();
+ const vivas=facLineas.filter(l=>l.desc.trim()&&l.qty>0);
+ if(!vivas.length){ alert('Deje al menos una línea con descripción y cantidad.'); return }
+ f.items=vivas.map(l=>({desc:l.desc.trim(),qty:l.qty,unitPrice:l.unitPrice,clase:l.clase,orderId:l.orderId||''}));
+ f.date=$('fEdFecha').value||f.date;
+ f.dueDate=$('fEdVence').value||'';
+ f.consecutivo=$('fEdCons').value.trim();
+ f.notes=$('fEdNota').value.trim();
+ f.subtotal=t.sub; f.ivaPct=t.ivaPct; f.ivaValue=t.iva; f.total=t.total;
+ save(); facEdit=null; renderInvoicing(); toast(id+' actualizada.');
+}
+
+/* ---- Exportación a Siigo ----
+   Plantilla "Subir desde Excel · Facturas de venta" de Siigo Nube:
+   31 columnas, de la A a la AE, en este orden exacto.                */
+const SIIGO_COLS=['Tipo de comprobante','Consecutivo','Identificación tercero','Sucursal',
+ 'Código centro/subcentro de costos','Fecha de elaboración','Sigla Moneda','Tasa de cambio',
+ 'Nombre contacto','Email Contacto','Orden de compra','Orden de entrega','Fecha orden de entrega',
+ 'Código producto','Descripción producto','Identificación vendedor','Código de Bodega',
+ 'Cantidad producto','Valor unitario','Valor Descuento','Base AIU','Identificación ingreso para terceros',
+ 'Código impuesto cargo','Código impuesto cargo dos','Código impuesto retención','Código ReteICA',
+ 'Código ReteIVA','Código forma de pago','Valor forma de pago','Fecha Vencimiento','Observaciones'];
+const fechaSiigo=f=>{ if(!f) return ''; const [y,m,d]=f.split('-'); return `${d}/${m}/${y}` };
+function filasSiigo(f){
+ const c=client(f.clientId)||{};
+ const nit=String(f.clientNit||c.nit||'').replace(/[.\s]/g,'').split('-')[0];
+ const obs=('HVAC 360 '+f.id+(f.orderIds&&f.orderIds.length?' · OT '+f.orderIds.join(' '):'')).slice(0,300);
+ return f.items.map((l,i)=>{
+  const r=new Array(31).fill('');
+  r[0]=cotSet('siigoTipo','');            r[1]=f.consecutivo||'';
+  r[2]=nit;                                r[5]=fechaSiigo(f.date);
+  r[6]='COP';                              r[8]=c.contact||'';
+  r[9]=c.email||'';
+  r[13]=l.clase==='repuesto'?cotSet('siigoRepuesto',''):cotSet('siigoServicio','');
+  r[14]=l.desc;                            r[16]=cotSet('siigoBodega','');
+  r[17]=l.qty;                             r[18]=l.unitPrice;
+  r[19]=0;
+  if(f.ivaPct>0) r[22]=cotSet('siigoIva','');
+  if(i===0){ r[27]=cotSet('siigoPago',''); r[28]=f.total }
+  r[29]=fechaSiigo(f.dueDate);             r[30]=obs;
+  return r;
+ });
+}
+const csvCampo=v=>{
+ const s=String(v===null||v===undefined?'':v);
+ return /[";\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+};
+function csvSiigo(lista){
+ const filas=[SIIGO_COLS].concat(lista.flatMap(filasSiigo));
+ return '﻿'+filas.map(f=>f.map(csvCampo).join(';')).join('\r\n')+'\r\n';
+}
+function bajarArchivo(nombre,texto,tipo){
+ const b=new Blob([texto],{type:(tipo||'text/csv')+';charset=utf-8'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(b); a.download=nombre;
+ document.body.appendChild(a); a.click();
+ setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+}
+function exportarSiigo(id){
+ const f=facDe(id); if(!f) return;
+ bajarArchivo('siigo-'+f.id+'.csv',csvSiigo([f]));
+ toast('Archivo descargado. Ábralo en Excel y páselo a la plantilla de Siigo.');
+}
+function exportarMes(){
+ const lista=(db.invoices||[]).filter(f=>f.period===facPeriodo&&(f.status==='lista'||f.status==='facturada'));
+ if(!lista.length){ alert('No hay documentos listos en '+mesLargo(facPeriodo)+'.'); return }
+ bajarArchivo('siigo-'+facPeriodo+'.csv',csvSiigo(lista));
+ toast(lista.length+' documento(s) exportado(s).');
+}
+
+/* ---- Cuenta de cobro para imprimir ---- */
+function imprimirCuenta(id){
+ const f=facDe(id); if(!f) return;
+ closeModal();
+ $('rvBody').innerHTML=hojaCuenta(f);
+ $('rvSheet').hidden=false;
+ document.body.classList.add('viendo-reporte');
+}
+function hojaCuenta(f){
+ const logo=(ME&&ME.logoUrl)||'', c=client(f.clientId)||{}, emp=(ME&&ME.company)||'HVAC 360°';
+ return `
+ <div class="phead">
+  <div class="pco">${logo?`<img src="${logo}" class="plogo">`:esc(emp)}</div>
+  <div class="pti">CUENTA DE COBRO · ${esc(mesLargo(f.period)).toUpperCase()}</div>
+  <div class="pnum"><div class="sm">DOCUMENTO</div><b>${esc(f.siigoNumero||f.id)}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(f.clientName||c.name||'')}</td><td class="lb">Fecha</td><td>${fmtDate(f.date)}</td></tr>
+  <tr><td class="lb">NIT</td><td>${esc(f.clientNit||c.nit||'')}</td><td class="lb">Vence</td><td>${fmtDate(f.dueDate)}</td></tr>
+  <tr><td class="lb">Contacto</td><td>${esc(c.contact||'')} ${esc(c.phone||'')}</td><td class="lb">Órdenes</td><td>${esc((f.orderIds||[]).join(', ')||'—')}</td></tr>
+ </table>
+ <table class="pt">
+  <tr><th>Descripción</th><th style="width:50px">Cant.</th><th style="width:85px">Vr. unit.</th><th style="width:95px">Vr. total</th></tr>
+  ${f.items.map(l=>`<tr><td>${esc(l.desc)}</td><td style="text-align:center">${l.qty}</td>
+   <td style="text-align:right">${money(l.unitPrice)}</td><td style="text-align:right">${money(l.qty*l.unitPrice)}</td></tr>`).join('')}
+  <tr><td colspan="3" style="text-align:right"><b>Subtotal</b></td><td style="text-align:right"><b>${money(f.subtotal)}</b></td></tr>
+  <tr><td colspan="3" style="text-align:right"><b>IVA ${f.ivaPct}%</b></td><td style="text-align:right"><b>${money(f.ivaValue)}</b></td></tr>
+  <tr><td colspan="3" style="text-align:right"><b>TOTAL A PAGAR</b></td><td style="text-align:right"><b>${money(f.total)}</b></td></tr>
+ </table>
+ ${f.notes?`<table class="pt"><tr><th>Observaciones</th></tr><tr><td style="white-space:pre-wrap">${esc(f.notes)}</td></tr></table>`:''}
+ <p class="pconv" style="margin-top:8px">${f.siigoNumero
+   ?'Documento de cobro correspondiente a la factura electrónica '+esc(f.siigoNumero)+'.'
+   :'Documento de cobro. La factura electrónica se expide por separado.'}</p>
+ <div class="pfirmas">
+  <div><div class="fbox"></div><div class="fl">RECIBIDO POR EL CLIENTE</div><div class="sm">${esc(c.contact||'')}</div></div>
+  <div><div class="fbox"></div><div class="fl">POR ${esc(emp).toUpperCase()}</div><div class="sm">${esc((ME&&ME.name)||'')}</div></div>
+ </div>`;
 }
 
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);

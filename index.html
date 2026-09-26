@@ -73,6 +73,10 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 #rvBody .pt td.tall{height:52px}
 #rvBody .pcols{column-count:3;column-gap:6px}
 #rvBody .pcols table{break-inside:avoid;width:100%}
+#rvBody .pfotos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px}
+#rvBody .pfotos figure{margin:0;break-inside:avoid}
+#rvBody .pfotos img{width:100%;height:105px;object-fit:cover;border:1px solid #000;display:block}
+#rvBody .pfotos figcaption{font-size:7.5px;font-weight:700;text-align:center;padding:1px 0}
 #rvBody .pconv{font-size:7.5px;margin:-2px 0 7px;line-height:1.3}
 #rvBody .pfirmas{display:flex;gap:26px;margin-top:16px;text-align:center}
 #rvBody .pfirmas>div{flex:1}
@@ -1050,12 +1054,15 @@ async function verReporte(id){
  $('rvSheet').hidden=false; cont.innerHTML='<p style="padding:30px;text-align:center">Cargando el reporte…</p>';
  document.body.classList.add('viendo-reporte');
  try{
-  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+  const [d,ph]=await Promise.all([
+   FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha')),
+   FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')).catch(()=>null)]);
+  const fotos=[]; if(ph) ph.forEach(x=>fotos.push(x.data()));
   if(!d.exists()){
    cont.innerHTML='<p style="padding:40px;text-align:center;color:#555">El técnico todavía no ha llenado el reporte de la orden '+esc(id)+'.<br><span style="font-size:11px">Si él dice que ya lo firmó, pídale que abra el reporte otra vez y toque «Cerrar y firmar»: puede que el guardado le haya fallado.</span></p>';
    return;
   }
-  cont.innerHTML=hojaReporte(o,d.data());
+  cont.innerHTML=hojaReporte(o,d.data(),fotos);
  }catch(e){
   console.error(e);
   cont.innerHTML='<p style="padding:40px;text-align:center;color:#a33">No se pudo abrir el reporte: '+esc(errMsg(e))+'</p>';
@@ -1064,7 +1071,16 @@ async function verReporte(id){
 function cerrarVisor(){ $('rvSheet').hidden=true; document.body.classList.remove('viendo-reporte') }
 function imprimirReporte(){ window.print() }
 
-function hojaReporte(o,R){
+const R_FASES=[['antes','Antes'],['durante','Durante'],['despues','Después']];
+function fotosHoja(fotos){
+ if(!fotos||!fotos.length) return '';
+ const por=f=>fotos.filter(x=>x.fase===f);
+ if(!R_FASES.some(([k])=>por(k).length)) return '';
+ return `<table class="pt"><tr><th class="gh" colspan="3">Registro fotográfico</th></tr></table>
+  <div class="pfotos">${R_FASES.map(([k,lbl])=>por(k).map(f=>
+   `<figure><img src="${f.data}"><figcaption>${lbl}</figcaption></figure>`).join('')).join('')}</div>`;
+}
+function hojaReporte(o,R,fotos){
  const prev=(R.tipo||'preventivo')==='preventivo';
  const c=client(o.clientId), st=site(o.siteId), a=asset(o.assetId);
  const eqs=R.equipos||[], checks=R.checks||{}, datos=R.datos||{}, ev=R.evaluacion||{};
@@ -1104,6 +1120,7 @@ function hojaReporte(o,R){
  ${prev?`<table class="pt"><tr><th>Recomendaciones del técnico</th></tr><tr><td class="tall">${esc(R.recomendaciones||'')}</td></tr>
    <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(R.observaciones||'')}</td></tr></table>`:''}
  ${evalHtml}
+ ${fotosHoja(fotos)}
  <div class="pfirmas">
   <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
    <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(R.firmaClienteNombre||'')}</div></div>

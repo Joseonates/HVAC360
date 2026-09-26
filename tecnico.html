@@ -66,6 +66,20 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
 .stars{display:flex;gap:7px}
 .st{flex:1;padding:10px 0;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;font:inherit;font-weight:700}
 .st.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.fotoGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.fotoBox{position:relative;aspect-ratio:1;border-radius:9px;overflow:hidden;background:#000}
+.fotoBox img{width:100%;height:100%;object-fit:cover;display:block}
+.fotoX{position:absolute;top:4px;right:4px;width:26px;height:26px;border:none;border-radius:50%;
+ background:rgba(0,0,0,.65);color:#fff;font:inherit;font-size:13px;line-height:1;padding:0}
+#vLupa{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.93);display:flex;align-items:center;justify-content:center;padding:14px}
+#vLupa[hidden]{display:none!important}
+#vLupa img{max-width:100%;max-height:86vh;border-radius:8px}
+#vLupa button{position:absolute;top:calc(env(safe-area-inset-top) + 12px);right:16px;background:rgba(255,255,255,.14);
+ border:none;color:#fff;font:inherit;padding:9px 15px;border-radius:9px}
+.pfotos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px}
+.pfotos figure{margin:0;break-inside:avoid}
+.pfotos img{width:100%;height:105px;object-fit:cover;border:1px solid #000;display:block}
+.pfotos figcaption{font-size:7.5px;font-weight:700;text-align:center;padding:1px 0}
 .firmaVacia{height:78px;border:1px dashed var(--line);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
 #vFirma{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 10px) 14px 16px}
 #vFirma[hidden]{display:none!important}
@@ -161,6 +175,11 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <span style="width:62px"></span>
  </header>
  <main id="repBody"></main>
+</div>
+
+<div id="vLupa" hidden onclick="cerrarLupa()">
+ <button onclick="cerrarLupa()">Cerrar</button>
+ <img id="lbImg" alt="">
 </div>
 
 <div id="vFirma" hidden>
@@ -411,6 +430,7 @@ async function abrirReporte(){
  REP.equipos=REP.equipos||[]; REP.checks=REP.checks||{}; REP.materiales=REP.materiales||[];
  REP.datos=REP.datos||{}; REP.evaluacion=REP.evaluacion||{};
  firmas.cliente=REP.firmaCliente||null; firmas.tecnico=REP.firmaTecnico||null;
+ await cargarFotos(o._id);
  view('vRep'); pintarReporte();
 }
 function cerrarReporte(){ view('vDet') }
@@ -481,6 +501,8 @@ function pintarReporte(){
    <div class="stars">${[1,2,3,4,5].map(n=>`<button type="button" class="st${(REP.evaluacion[id]>=n)?' on':''}" data-ev="${id}" data-n="${n}">${n}</button>`).join('')}</div></div>`}).join('')}
  </div>
 
+ ${bloqueFotos(firmado)}
+
  <div class="secTit">Firmas</div>
  <div class="card" style="padding:11px">
   <label>Nombre de quien recibe<input id="rFCNom" value="${esc(REP.firmaClienteNombre||'')}" ${firmado?'disabled':''}></label>
@@ -532,6 +554,108 @@ function recogerReporte(){
  document.querySelectorAll('[data-mt]').forEach(el=>{
   const i=+el.dataset.mt; REP.materiales[i]=REP.materiales[i]||{}; REP.materiales[i][el.dataset.f]=el.value});
  REP.materiales=REP.materiales.filter(m=>(m.descripcion||'').trim());
+}
+
+/* ================= REGISTRO FOTOGRÁFICO ================= */
+const FASES=[['antes','Antes'],['durante','Durante'],['despues','Después']];
+const MAX_FOTOS=6;          // por fase
+let FOTOS={antes:[],durante:[],despues:[]};
+
+async function cargarFotos(oid){
+ FOTOS={antes:[],durante:[],despues:[]};
+ try{
+  const snap=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',oid,'photos'));
+  snap.forEach(d=>{const x=d.data(); const f=FOTOS[x.fase]; if(f) f.push({id:d.id,data:x.data,nota:x.nota||'',at:x.at&&x.at.toDate?x.at.toDate():null})});
+  Object.values(FOTOS).forEach(l=>l.sort((a,b)=>(a.at&&b.at)?a.at-b.at:0));
+ }catch(e){ console.error('fotos',e) }
+}
+
+function bloqueFotos(firmado){
+ return `<div class="secTit">Registro fotográfico</div>
+ ${FASES.map(([k,lbl])=>`<div class="card" style="padding:11px">
+   <div class="row" style="margin-bottom:8px">
+    <span style="font-weight:700;font-size:13px">${lbl}</span>
+    <span class="sub">${FOTOS[k].length}/${MAX_FOTOS}</span>
+   </div>
+   <div class="fotoGrid">${FOTOS[k].map(f=>`<div class="fotoBox">
+     <img src="${f.data}" onclick="verFoto('${esc(f.id)}','${k}')">
+     ${firmado?'':`<button class="fotoX" onclick="borrarFoto('${esc(f.id)}','${k}')">✕</button>`}
+    </div>`).join('')||'<div class="sub">Sin fotos.</div>'}</div>
+   ${firmado||FOTOS[k].length>=MAX_FOTOS?'':`
+    <input type="file" accept="image/*" capture="environment" id="fi_${k}" hidden onchange="agregarFoto('${k}',this)">
+    <button class="btn sec" onclick="document.getElementById('fi_${k}').click()">Tomar o escoger foto</button>`}
+  </div>`).join('')}
+ <div id="fmsgF" class="msg"></div>`;
+}
+
+function comprimir(file){
+ return new Promise((res,rej)=>{
+  const r=new FileReader();
+  r.onerror=()=>rej(new Error('No se pudo leer la imagen.'));
+  r.onload=()=>{
+   const img=new Image();
+   img.onerror=()=>rej(new Error('El archivo no es una imagen válida.'));
+   img.onload=()=>{
+    const MAX=1280;
+    let w=img.width, h=img.height;
+    if(w>h && w>MAX){ h=Math.round(h*MAX/w); w=MAX }
+    else if(h>=w && h>MAX){ w=Math.round(w*MAX/h); h=MAX }
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(img,0,0,w,h);
+    let url=cv.toDataURL('image/jpeg',0.62);
+    if(url.length>700000) url=cv.toDataURL('image/jpeg',0.45);
+    if(url.length>880000) return rej(new Error('La foto es demasiado pesada incluso comprimida.'));
+    res(url);
+   };
+   img.src=r.result;
+  };
+  r.readAsDataURL(file);
+ });
+}
+
+async function agregarFoto(fase,input){
+ const file=input.files&&input.files[0]; input.value='';
+ if(!file) return;
+ const m=$('fmsgF');
+ if(FOTOS[fase].length>=MAX_FOTOS){ m.className='msg err'; m.textContent='Ya tiene '+MAX_FOTOS+' fotos en esa fase.'; return }
+ m.className='msg ok'; m.textContent='Procesando la foto…';
+ try{
+  const data=await comprimir(file);
+  m.textContent='Subiendo… ('+Math.round(data.length/1024)+' KB)';
+  const ref=await FB.addDoc(FB.collection(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photos'),
+   {fase,data,nota:null,by:FB.auth.currentUser.uid,byName:(ME&&ME.name)||null,at:FB.serverTimestamp()});
+  FOTOS[fase].push({id:ref.id,data,nota:'',at:new Date()});
+  m.className='msg ok'; m.textContent='Foto guardada.';
+  pintarReporte();
+ }catch(e){
+  console.error(e);
+  m.className='msg err'; m.textContent='No se pudo guardar la foto: '+(e.amable?e.message:errMsg(e));
+ }
+}
+async function borrarFoto(id,fase){
+ if(!confirm('¿Borrar esta foto?')) return;
+ try{
+  await FB.deleteDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photos',id));
+  FOTOS[fase]=FOTOS[fase].filter(f=>f.id!==id);
+  pintarReporte();
+ }catch(e){
+  const m=$('fmsgF'); m.className='msg err';
+  m.textContent='No se pudo borrar: '+errMsg(e)+'. Si el cliente ya firmó, la foto queda como evidencia.';
+ }
+}
+function verFoto(id,fase){
+ const f=(FOTOS[fase]||[]).find(x=>x.id===id); if(!f) return;
+ $('lbImg').src=f.data; $('vLupa').hidden=false;
+}
+function cerrarLupa(){ $('vLupa').hidden=true; $('lbImg').src='' }
+
+/* ---- Fotos dentro de la hoja impresa ---- */
+function fotosImpresas(){
+ const hay=FASES.some(([k])=>FOTOS[k].length);
+ if(!hay) return '';
+ return `<table class="pt"><tr><th class="gh" colspan="3">Registro fotográfico</th></tr></table>
+  <div class="pfotos">${FASES.map(([k,lbl])=>FOTOS[k].map(f=>
+    `<figure><img src="${f.data}"><figcaption>${lbl}</figcaption></figure>`).join('')).join('')}</div>`;
 }
 
 /* ---- Firma con el dedo, a pantalla completa ---- */
@@ -662,6 +786,7 @@ function verImpresion(){
  ${prev?`<table class="pt"><tr><th>Recomendaciones del técnico</th></tr><tr><td class="tall">${esc(REP.recomendaciones||'')}</td></tr>
    <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(REP.observaciones||'')}</td></tr></table>`:''}
  ${evalHtml}
+ ${fotosImpresas()}
  <div class="pfirmas">
   <div><div class="fbox">${REP.firmaCliente?`<img src="${REP.firmaCliente}">`:''}</div>
    <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(REP.firmaClienteNombre||'')}</div></div>

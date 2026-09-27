@@ -40,7 +40,12 @@ main{padding:14px 16px 90px;max-width:620px;margin:0 auto}
 .btn:disabled{opacity:.5}
 .btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
 .btn.warn{background:transparent;border:1px solid var(--red);color:#e8756b;font-weight:600;font-size:14px;padding:12px}
-input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
+.c-aprobado{background:rgba(31,157,85,.18);color:#4fc584}
+.c-rechazado{background:rgba(200,57,47,.18);color:#e8756b}
+.saldo{display:flex;justify-content:space-between;padding:7px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.saldo:last-child{border-bottom:none}
+.saldo b{font-size:15px}
 textarea{min-height:80px;resize:vertical}
 label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(--muted)}
 .dl{display:grid;grid-template-columns:96px 1fr;gap:7px 12px;font-size:14px;margin:12px 0}
@@ -160,7 +165,45 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
    <button id="tAbi" onclick="setTab('abiertas')">Abiertas</button>
    <button id="tTod" onclick="setTab('todas')">Todas</button>
   </div>
+  <button class="btn sec" style="margin:0 0 14px" onclick="abrirGastos()">💸 Mis gastos y anticipos</button>
   <div id="list"></div>
+ </main>
+</div>
+
+<div id="vGastos" hidden>
+ <header>
+  <button class="icbtn" onclick="view('vList')">‹ Volver</button>
+  <h1 style="flex:1;text-align:center">Mis gastos</h1>
+  <span style="width:62px"></span>
+ </header>
+ <main>
+  <div class="card" id="gSaldos"></div>
+  <button class="btn" onclick="nuevoGasto()">＋ Registrar un gasto</button>
+  <div id="gLista" style="margin-top:14px"></div>
+ </main>
+</div>
+
+<div id="vGForm" hidden>
+ <header>
+  <button class="icbtn" onclick="abrirGastos()">‹ Volver</button>
+  <h1 style="flex:1;text-align:center">Nuevo gasto</h1>
+  <span style="width:62px"></span>
+ </header>
+ <main>
+  <label>Fecha<input id="gxFecha" type="date"></label>
+  <label>¿En qué lo gastó?<select id="gxCat"></select></label>
+  <label>Detalle<input id="gxConc" maxlength="200" placeholder="Ej. Tanqueada para ir a Soledad"></label>
+  <label>Valor<input id="gxVal" type="number" inputmode="numeric" min="1" step="1000" placeholder="0"></label>
+  <label>¿Con qué plata pagó?<select id="gxFuente"></select></label>
+  <label>¿Fue para alguna orden?<select id="gxOrden"></select></label>
+  <label>Dónde lo compró<input id="gxProv" maxlength="120" placeholder="Ej. Terpel, Homecenter"></label>
+  <label>Número del recibo<input id="gxSop" maxlength="60" placeholder="Opcional"></label>
+  <label>Foto del recibo
+   <input type="file" id="gxFoto" accept="image/*" capture="environment" onchange="tomarRecibo(this)"></label>
+  <div id="gxPrev"></div>
+  <div id="gxMsg" class="msg"></div>
+  <button class="btn" id="gxBtn" onclick="guardarMiGasto()">Enviar a la oficina</button>
+  <button class="btn sec" onclick="abrirGastos()">Cancelar</button>
  </main>
 </div>
 
@@ -242,12 +285,12 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.09.28-1';
+const VERSION='v2026.09.29-1';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fdate=s=>{if(!s)return '—';const[y,m,d]=s.split('-');return `${d}/${m}/${y}`};
-function view(v){['vLogin','vList','vDet','vRep','vPrint','vFirma'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
+function view(v){['vLogin','vList','vDet','vRep','vPrint','vFirma','vGastos','vGForm'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
 function msg(el,t,cls){const e=$(el);e.textContent=t;e.className='msg'+(t?' '+cls:'')}
 
 function errMsg(e){
@@ -1020,6 +1063,118 @@ function arrancar(){
   else { TENANT=null;ME=null;ORDERS=[];if(unsub){unsub();unsub=null} $('inBtn').disabled=false; view('vLogin') }
  });
 }
+
+/* ================= MIS GASTOS =================
+   El técnico registra lo que gastó en la calle, con foto del recibo.
+   Queda pendiente hasta que la oficina lo apruebe. Nada de esto lo ve
+   el cliente: las reglas no le dan acceso a esta colección.          */
+const GX_CAT=['Combustible','Peajes','Transporte / taxi','Parqueadero','Alimentación','Hospedaje',
+ 'Compra de repuesto','Materiales','Alquiler de equipo','Grúa / transporte de equipo',
+ 'Dotación y EPP','Otro'];
+const GX_FUENTE={reembolsable:'De mi bolsillo (que me lo devuelvan)',
+ anticipo:'Del anticipo que me dieron', empresa:'Con la tarjeta o cuenta de la empresa'};
+const GX_EST={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
+let GASTOS=[], ANTICIPOS=[], GREC=null;
+const plata=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
+
+async function abrirGastos(){
+ view('vGastos');
+ $('gLista').innerHTML='<div class="empty">Cargando…</div>';
+ await cargarGastos();
+}
+async function cargarGastos(){
+ const u=FB.auth.currentUser&&FB.auth.currentUser.uid;
+ if(!u) return;
+ try{
+  const [ge,an]=await Promise.all([
+   FB.getDocs(FB.query(FB.collection(FB.fs,'tenants',TENANT,'expenses'),FB.where('techUid','==',u))),
+   FB.getDocs(FB.query(FB.collection(FB.fs,'tenants',TENANT,'advances'),FB.where('techUid','==',u))).catch(()=>null)]);
+  GASTOS=[]; ge.forEach(d=>GASTOS.push(Object.assign({_id:d.id},d.data())));
+  GASTOS.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  ANTICIPOS=[]; if(an) an.forEach(d=>ANTICIPOS.push(Object.assign({_id:d.id},d.data())));
+  pintarGastos();
+ }catch(e){
+  console.error(e);
+  $('gLista').innerHTML='<div class="empty">No se pudieron cargar sus gastos.<br>'+esc(errMsg(e))+'</div>';
+ }
+}
+function pintarGastos(){
+ const deb=GASTOS.filter(g=>g.status==='aprobado'&&g.fuente==='reembolsable'&&!g.pagado)
+  .reduce((a,g)=>a+(g.amount||0),0);
+ const ent=ANTICIPOS.filter(a=>a.status==='abierto').reduce((a,x)=>a+(x.amount||0)-(x.devuelto||0),0);
+ const leg=GASTOS.filter(g=>g.fuente==='anticipo'&&g.status==='aprobado').reduce((a,g)=>a+(g.amount||0),0);
+ const pend=GASTOS.filter(g=>g.status==='pendiente');
+ $('gSaldos').innerHTML=`
+  <div class="saldo"><span>Me deben</span><b style="color:#4fc584">${plata(deb)}</b></div>
+  <div class="saldo"><span>Anticipo sin legalizar</span><b>${plata(Math.max(0,ent-leg))}</b></div>
+  <div class="saldo"><span>Esperando aprobación</span><b>${pend.length} · ${plata(pend.reduce((a,g)=>a+(g.amount||0),0))}</b></div>`;
+ $('gLista').innerHTML=GASTOS.length?GASTOS.map(g=>`<div class="card">
+   <div class="row"><span class="num">${plata(g.amount)}</span>
+    <span class="chip c-${esc(g.status)}">${esc(GX_EST[g.status]||g.status)}</span></div>
+   <div class="sub" style="margin-top:6px;color:var(--text)">${esc(g.category||'')}</div>
+   <div class="sub">${esc(g.concept||'')}</div>
+   <div class="sub" style="margin-top:6px">${fdate(g.date)}${g.orderNumber?' · '+esc(g.orderNumber):''}
+    ${g.pagado?' · <span class="chip c-aprobado">Ya me lo pagaron</span>':''}</div>
+   ${g.nota?`<div class="sub" style="margin-top:6px;color:#e8b84b">${esc(g.nota)}</div>`:''}
+  </div>`).join(''):'<div class="empty">Todavía no ha registrado gastos.</div>';
+}
+function nuevoGasto(){
+ GREC=null;
+ $('gxFecha').value=hoy();
+ $('gxCat').innerHTML=GX_CAT.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+ $('gxFuente').innerHTML=Object.entries(GX_FUENTE).map(([k,l])=>`<option value="${esc(k)}">${esc(l)}</option>`).join('');
+ const abiertas=ORDERS.filter(o=>o.status!=='cancelada').slice(0,60);
+ $('gxOrden').innerHTML='<option value="">No, es un gasto general</option>'+
+  abiertas.map(o=>`<option value="${esc(o._id)}">${esc(o.number||o._id)} · ${esc(o.clientName||'')}</option>`).join('');
+ $('gxConc').value=''; $('gxVal').value=''; $('gxProv').value=''; $('gxSop').value='';
+ $('gxPrev').innerHTML=''; msg('gxMsg','','');
+ $('gxBtn').disabled=false;
+ view('vGForm');
+}
+function tomarRecibo(input){
+ const f=input.files&&input.files[0]; input.value='';
+ if(!f) return;
+ msg('gxMsg','Procesando la foto…','ok');
+ comprimir(f).then(({full,thumb})=>{
+  GREC={full,thumb};
+  $('gxPrev').innerHTML=`<img src="${thumb}" style="max-width:100%;border-radius:10px;margin:8px 0">`;
+  msg('gxMsg','Recibo listo ('+Math.round(full.length/1024)+' KB).','ok');
+ }).catch(e=>{ msg('gxMsg','No se pudo usar esa foto: '+(e.message||''),'err') });
+}
+async function guardarMiGasto(){
+ const fecha=$('gxFecha').value, cat=$('gxCat').value;
+ const conc=$('gxConc').value.trim(), val=Number($('gxVal').value)||0;
+ const fuente=$('gxFuente').value, oid=$('gxOrden').value;
+ if(!fecha){ msg('gxMsg','Ponga la fecha.','err'); return }
+ if(conc.length<2){ msg('gxMsg','Escriba en qué se gastó.','err'); return }
+ if(val<=0){ msg('gxMsg','Escriba el valor.','err'); return }
+ const o=oid?ORDERS.find(x=>x._id===oid):null;
+ const u=FB.auth.currentUser.uid;
+ const id='GA-'+Date.now().toString(36).toUpperCase();
+ msg('gxMsg','Enviando…','ok'); $('gxBtn').disabled=true;
+ try{
+  await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'expenses',id),{
+   seq:Math.floor(Date.now()/1000), number:id, date:fecha, category:cat, concept:conc,
+   amount:val, fuente, techId:null, techUid:u, techName:(ME&&ME.name)||null,
+   orderId:oid||null, orderNumber:o?(o.number||o._id):null,
+   proveedor:$('gxProv').value.trim()||null, nit:null, soporte:$('gxSop').value.trim()||null,
+   thumb:GREC?GREC.thumb:null, nota:null, status:'pendiente', aprobadoPor:null,
+   pagado:false, pagadoEl:null, advanceId:null,
+   createdAt:FB.serverTimestamp(), createdBy:u,
+   updatedAt:FB.serverTimestamp(), updatedBy:u});
+  if(GREC){
+   try{ await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'expenses',id,'file','recibo'),{data:GREC.full}) }
+   catch(e){ console.error(e) }
+  }
+  GREC=null;
+  await abrirGastos();
+ }catch(e){
+  console.error(e);
+  msg('gxMsg','No se pudo enviar: '+errMsg(e),'err');
+  $('gxBtn').disabled=false;
+ }
+}
+
 if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);
 </script>
 </body>

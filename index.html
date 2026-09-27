@@ -171,6 +171,7 @@ try {
     <div class="section">Servicio</div>
     <button data-page="quotes" title="Cotizaciones">🧮 <span>Cotizaciones</span></button>
     <button data-page="invoicing" title="Facturación">🧾 <span>Facturación</span></button>
+    <button data-page="expenses" title="Gastos">💸 <span>Gastos</span></button>
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
     <div class="section">Sistema</div>
@@ -288,6 +289,19 @@ try {
  <div id="facForm" hidden></div>
 </section>
 
+<!-- GASTOS -->
+<section id="expenses" class="page">
+ <div class="topline"><div><h1>Gastos</h1><p>Lo que sale de la caja: de la empresa y de los técnicos en la calle. Esto no aparece en nada que vea el cliente.</p></div>
+  <div class="daynav"><button class="btn secondary sm" onclick="moverGasPeriodo(-1)">‹</button>
+   <input type="month" id="gasPeriodo" onchange="cambiarGasPeriodo(this.value)">
+   <button class="btn secondary sm" onclick="moverGasPeriodo(1)">›</button>
+   <button class="btn primary sm" onclick="gastoForm('')">＋ Registrar gasto</button></div>
+ </div>
+ <div class="grid cards" id="gasCards"></div>
+ <div id="gasTabs" class="toolbar" style="margin:18px 0 16px"></div>
+ <div id="gasBody"></div>
+</section>
+
 <section id="neworder" class="page">
  <div class="topline"><div><h1 id="orderFormTitle">Nueva orden de trabajo</h1><p>Crear una orden para instalación, preventivo, correctivo o emergencia.</p></div></div>
  <div class="panel">
@@ -351,7 +365,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.28-1';
+const VERSION='v2026.09.29-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -848,7 +862,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={expenses:renderGastos,invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -1547,6 +1561,22 @@ const dnMov=(id,d)=>({id,type:d.type||'salida',partId:d.partId||'',partName:d.pa
  warehouseId:d.warehouseId||'',qty:d.qty||0,unitCost:d.unitCost,orderId:d.orderId||'',orderNumber:d.orderNumber||'',
  note:d.note||'',status:d.status||'pendiente',requestedBy:d.requestedBy||'',requestedByName:d.requestedByName||'',
  approvedBy:d.approvedBy||'',at:(d.createdAt&&d.createdAt.toDate)?d.createdAt.toDate().toISOString():''});
+const dnExpense=(id,d)=>({id,seq:d.seq||0,date:d.date||'',category:d.category||'Otro',
+ concept:d.concept||'',amount:d.amount||0,fuente:d.fuente||'empresa',
+ techId:d.techId||'',techUid:d.techUid||'',techName:d.techName||'',
+ orderId:d.orderId||'',orderNumber:d.orderNumber||'',proveedor:d.proveedor||'',nit:d.nit||'',
+ soporte:d.soporte||'',thumb:d.thumb||'',nota:d.nota||'',status:d.status||'pendiente',
+ aprobadoPor:d.aprobadoPor||'',pagado:d.pagado===true,pagadoEl:d.pagadoEl||'',advanceId:d.advanceId||''});
+const upExpense=g=>({seq:g.seq,number:g.id,date:g.date,category:g.category,concept:g.concept,
+ amount:Number(g.amount)||0,fuente:g.fuente,techId:nn(g.techId),techUid:nn(g.techUid),techName:nn(g.techName),
+ orderId:nn(g.orderId),orderNumber:nn(g.orderNumber),proveedor:nn(g.proveedor),nit:nn(g.nit),
+ soporte:nn(g.soporte),thumb:nn(g.thumb),nota:nn(g.nota),status:g.status,
+ aprobadoPor:nn(g.aprobadoPor),pagado:g.pagado===true,pagadoEl:nn(g.pagadoEl),advanceId:nn(g.advanceId)});
+const dnAdvance=(id,d)=>({id,seq:d.seq||0,date:d.date||'',techId:d.techId||'',techUid:d.techUid||'',
+ techName:d.techName||'',amount:d.amount||0,devuelto:d.devuelto||0,status:d.status||'abierto',nota:d.nota||''});
+const upAdvance=a=>({seq:a.seq,number:a.id,date:a.date,techId:nn(a.techId),techUid:nn(a.techUid),
+ techName:nn(a.techName),amount:Number(a.amount)||0,devuelto:Number(a.devuelto)||0,
+ status:a.status,nota:nn(a.nota)});
 const dnInvoice=(id,d)=>({id,seq:d.seq||0,clientId:d.clientId||'',clientName:d.clientName||'',clientNit:d.clientNit||'',
  period:d.period||'',date:d.date||'',dueDate:d.dueDate||'',kind:d.kind||'orden',
  orderIds:d.orderIds||[],contractId:d.contractId||'',consecutivo:d.consecutivo||'',
@@ -1600,7 +1630,7 @@ function upOrder(o){
 //  La oficina ve los cambios del técnico sin refrescar. Dos candados:
 //  nunca se pisa una orden que usted tenga editada sin subir, y no se
 //  repinta la pantalla mientras usted está escribiendo en un campo.
-let unsubOrders=null, unsubMovs=null, unsubQuotes=null, unsubFacs=null, refrescoPend=null;
+let unsubOrders=null, unsubMovs=null, unsubQuotes=null, unsubFacs=null, unsubGastos=null, refrescoPend=null;
 const escribiendo=()=>{
  const a=document.activeElement;
  return !!a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
@@ -1618,6 +1648,7 @@ function escucharCambios(){
  if(unsubMovs){ unsubMovs(); unsubMovs=null }
  if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
  if(unsubFacs){ unsubFacs(); unsubFacs=null }
+ if(unsubGastos){ unsubGastos(); unsubGastos=null }
  if(!TENANT) return;
 
  unsubOrders=FB.onSnapshot(C('workOrders'), snap=>{
@@ -1687,20 +1718,40 @@ function escucharCambios(){
   });
   if(cambios) refrescarSuave();
  }, err=>console.error('escucha de facturas', err));
+
+ // El técnico registra un gasto en la calle y la oficina lo ve al instante.
+ unsubGastos=FB.onSnapshot(C('expenses'), snap=>{
+  let cambios=0, nuevos=0;
+  db.expenses=db.expenses||[];
+  snap.docChanges().forEach(ch=>{
+   if(ch.type==='removed') return;
+   const nuevo=dnExpense(ch.doc.id, ch.doc.data());
+   const i=db.expenses.findIndex(x=>x.id===nuevo.id);
+   if(i<0){ db.expenses.push(nuevo); remote.expenses[nuevo.id]=JSON.stringify(nuevo); cambios++;
+            if(nuevo.status==='pendiente') nuevos++; return }
+   const local=db.expenses[i];
+   if(remote.expenses[local.id]!==JSON.stringify(local)) return;
+   if(JSON.stringify(local)===JSON.stringify(nuevo)) return;
+   db.expenses[i]=nuevo; remote.expenses[nuevo.id]=JSON.stringify(nuevo); cambios++;
+  });
+  if(cambios){ refrescarSuave(); if(nuevos) toast(nuevos+' gasto(s) nuevo(s) por aprobar') }
+ }, err=>console.error('escucha de gastos', err));
 }
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,ct,wh,pa,mv,co,fa,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,wh,pa,mv,co,fa,ga,an,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
   FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
   FB.getDocs(C('warehouses')),FB.getDocs(C('parts')),FB.getDocs(C('movements')),
   FB.getDocs(C('quotes')).catch(()=>null),
   FB.getDocs(C('invoices')).catch(()=>null),
+  FB.getDocs(C('expenses')).catch(()=>null),
+  FB.getDocs(C('advances')).catch(()=>null),
   FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],invoices:[],stock:{}};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},invoices:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],invoices:[],expenses:[],advances:[],stock:{}};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},invoices:{},expenses:{},advances:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
@@ -1713,6 +1764,8 @@ async function fsLoad(){
  take(mv,db.movements,'movements',dnMov);
  if(co) take(co,db.quotes,'quotes',dnQuote);
  if(fa) take(fa,db.invoices,'invoices',dnInvoice);
+ if(ga) take(ga,db.expenses,'expenses',dnExpense);
+ if(an) take(an,db.advances,'advances',dnAdvance);
  // La existencia vive dentro de cada bodega
  await Promise.all(db.warehouses.map(async w=>{
   try{ const st=await FB.getDocs(C('warehouses',w.id,'stock'));
@@ -1779,6 +1832,8 @@ async function fsSave(){
   await syncColl('parts','parts',upPart);
   await syncColl('quotes','quotes',upQuote);
   await syncColl('invoices','invoices',upInvoice);
+  await syncColl('expenses','expenses',upExpense);
+  await syncColl('advances','advances',upAdvance);
   await syncOrders();
   storageOk=true;
  }catch(e){
@@ -1911,6 +1966,7 @@ function startAuth(){
    if(unsubMovs){ unsubMovs(); unsubMovs=null }
    if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
    if(unsubFacs){ unsubFacs(); unsubFacs=null }
+   if(unsubGastos){ unsubGastos(); unsubGastos=null }
    TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false);
   }
  });
@@ -2341,13 +2397,15 @@ async function pintarCosto(id){
  const tarifa=Number(cotSet('tarifaHora',0))||0;
  const obra=Math.round(horas*tarifa);
  const cot=(db.quotes||[]).find(q=>q.resultOrderId===id&&q.status==='aprobada');
- const costo=rep.costo+obra;
+ const gas=gastosDeOrden(id);
+ const costo=rep.costo+obra+gas;
  const venta=cot?cot.subtotal:(rep.venta+obra);
  const margen=venta-costo, pctm=venta?Math.round(margen*100/venta):0;
  caja.innerHTML=`<h2 style="font-size:15px">Costo y margen</h2>
   <div class="table-wrap"><table><tbody>
    <tr><td>Repuestos aprobados${rep.det.length?' ('+rep.det.length+')':''}</td><td style="text-align:right">${money(rep.costo)}</td><td class="small">venta ${money(rep.venta)}</td></tr>
    <tr><td>Mano de obra${horas?' · '+horas+' h':''}</td><td style="text-align:right">${money(obra)}</td><td class="small">${tarifa?money(tarifa)+'/h':'sin tarifa configurada'}</td></tr>
+   <tr><td>Gastos del servicio</td><td style="text-align:right">${money(gas)}</td><td class="small">${gas?'combustible, peajes, compras':'sin gastos aprobados'}</td></tr>
    <tr><td><b>Costo del servicio</b></td><td style="text-align:right"><b>${money(costo)}</b></td><td></td></tr>
    <tr><td>Valor al cliente${cot?' · cotización '+esc(cot.id):''}</td><td style="text-align:right">${money(venta)}</td><td class="small">${cot?'sin IVA':'precio de lista + obra'}</td></tr>
    <tr><td><b>Margen</b></td><td style="text-align:right"><b style="color:${margen>=0?'var(--ok,#2e9e5b)':'var(--danger)'}">${money(margen)}</b></td><td class="small">${pctm}%</td></tr>
@@ -2795,6 +2853,371 @@ function hojaCuenta(f){
   <div><div class="fbox"></div><div class="fl">RECIBIDO POR EL CLIENTE</div><div class="sm">${esc(c.contact||'')}</div></div>
   <div><div class="fbox"></div><div class="fl">POR ${esc(emp).toUpperCase()}</div><div class="sm">${esc((ME&&ME.name)||'')}</div></div>
  </div>`;
+}
+
+/* ================= GASTOS =================
+   Dos orígenes: los que registra el técnico desde el celular (con foto
+   del recibo) y los que registra la oficina. El cliente nunca los ve:
+   las reglas no le dan lectura y el portal ni siquiera los consulta.  */
+const GAS_CAT=[
+ ['Combustible','campo'],['Peajes','campo'],['Transporte / taxi','campo'],['Parqueadero','campo'],
+ ['Alimentación','campo'],['Hospedaje','campo'],
+ ['Compra de repuesto','servicio'],['Materiales','servicio'],['Alquiler de equipo','servicio'],
+ ['Grúa / transporte de equipo','servicio'],
+ ['Arriendo','fijo'],['Servicios públicos','fijo'],['Internet y celulares','fijo'],
+ ['Seguros','fijo'],['Impuestos','fijo'],['Software','fijo'],
+ ['Mantenimiento de vehículo','vehiculo'],['SOAT y tecnomecánica','vehiculo'],
+ ['Dotación y EPP','personal'],['Capacitación','personal'],['Nómina','personal'],
+ ['Otro','otro']];
+const GAS_GRUPO={campo:'De campo',servicio:'Compras del servicio',fijo:'Fijos de la empresa',
+ vehiculo:'Vehículos',personal:'Personal',otro:'Otros'};
+const GAS_FUENTE={reembolsable:'Lo puso el técnico',anticipo:'Legaliza anticipo',empresa:'Lo pagó la empresa'};
+const GAS_EST={pendiente:'Pendiente',aprobado:'Aprobado',rechazado:'Rechazado'};
+const GAS_COLOR={pendiente:'orange',aprobado:'green',rechazado:'red'};
+const gasBadge=s=>`<span class="status ${GAS_COLOR[s]||'gray'}">${esc(GAS_EST[s]||s)}</span>`;
+const grupoDe=c=>{const f=GAS_CAT.find(x=>x[0]===c); return f?f[1]:'otro'};
+const gastoDe=id=>byId(db.expenses||[],id);
+const anticipoDe=id=>byId(db.advances||[],id);
+let gasTab='pendientes', gasPeriodo=periodoHoy(), gasRecibo=null, gasEdit=null;
+// Los gastos que llegan del celular traen un número propio (no consecutivo),
+// para que dos técnicos nunca choquen. La oficina sigue con GA-0001, GA-0002...
+const nuevoIdGasto=()=>{
+ let max=0;
+ (db.expenses||[]).forEach(x=>{ const m=/^GA-(\d+)$/.exec(x.id); if(m&&+m[1]>max) max=+m[1] });
+ return 'GA-'+String(max+1).padStart(4,'0');
+};
+const nuevoSeqGasto=()=>Math.max(0,...(db.expenses||[]).filter(x=>/^GA-\d+$/.test(x.id)).map(x=>x.seq||0))+1;
+
+const gastosDelMes=p=>(db.expenses||[]).filter(g=>(g.date||'').slice(0,7)===p);
+const gastosPendientes=()=>(db.expenses||[]).filter(g=>g.status==='pendiente');
+const porReembolsar=uidTec=>(db.expenses||[])
+ .filter(g=>g.status==='aprobado'&&g.fuente==='reembolsable'&&!g.pagado&&(!uidTec||g.techUid===uidTec))
+ .reduce((a,g)=>a+(g.amount||0),0);
+function saldoAnticipos(uidTec){
+ const ent=(db.advances||[]).filter(a=>a.techUid===uidTec&&a.status==='abierto')
+  .reduce((a,x)=>a+(x.amount||0)-(x.devuelto||0),0);
+ const leg=(db.expenses||[]).filter(g=>g.techUid===uidTec&&g.fuente==='anticipo'&&g.status==='aprobado')
+  .reduce((a,g)=>a+(g.amount||0),0);
+ return ent-leg;
+}
+// Lo que un servicio le costó a la empresa en gastos aprobados.
+const gastosDeOrden=id=>(db.expenses||[])
+ .filter(g=>g.orderId===id&&g.status==='aprobado')
+ .reduce((a,g)=>a+(g.amount||0),0);
+
+/* ---- Pantalla ---- */
+function setGasTab(t){ gasTab=t; renderGastos() }
+function cambiarGasPeriodo(v){ gasPeriodo=v||periodoHoy(); renderGastos() }
+function moverGasPeriodo(n){
+ const [y,m]=gasPeriodo.split('-').map(Number);
+ const d=new Date(y,m-1+n,1);
+ gasPeriodo=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+ renderGastos();
+}
+function renderGastos(){
+ db.expenses=db.expenses||[]; db.advances=db.advances||[];
+ $('gasPeriodo').value=gasPeriodo;
+ const mes=gastosDelMes(gasPeriodo), apro=mes.filter(g=>g.status==='aprobado');
+ const pend=gastosPendientes();
+ $('gasCards').innerHTML=[
+  ['Gastos aprobados del mes','💸',money(apro.reduce((a,g)=>a+g.amount,0)),apro.length+' registro(s)'],
+  ['Esperando aprobación','⏳',pend.length,money(pend.reduce((a,g)=>a+g.amount,0))],
+  ['Por reembolsar a técnicos','🙋',money(porReembolsar()),'gastos aprobados sin pagar'],
+  ['Anticipos sin legalizar','🧾',money(db.techs.reduce((a,t)=>a+Math.max(0,saldoAnticipos(t.uid)),0)),'entregado menos legalizado']
+ ].map(([t,i,v,s])=>`<div class="card"><div class="ci">${i}</div><h2>${esc(t)}</h2><div class="big">${typeof v==='number'?v:esc(v)}</div><span class="small">${esc(s)}</span></div>`).join('');
+
+ $('gasTabs').innerHTML=[['pendientes','Por aprobar'+(pend.length?' ('+pend.length+')':'')],
+  ['mes','Gastos del mes'],['tecnicos','Saldos por técnico'],['anticipos','Anticipos']]
+  .map(([k,l])=>`<button class="btn ${gasTab===k?'primary':'secondary'} sm" onclick="setGasTab('${k}')">${esc(l)}</button>`).join(' ');
+
+ if(gasTab==='pendientes') pintarPendientes(pend);
+ else if(gasTab==='mes') pintarMes(mes);
+ else if(gasTab==='tecnicos') pintarSaldos();
+ else pintarAnticipos();
+}
+const filaGasto=(g,acciones)=>`<tr>
+ <td><b>${esc(g.id)}</b><span class="small" style="display:block">${fmtDate(g.date)}</span></td>
+ <td>${esc(g.category)}<span class="small" style="display:block">${esc(GAS_GRUPO[grupoDe(g.category)])}</span></td>
+ <td>${esc(g.concept)}${g.orderNumber?`<span class="small" style="display:block">Orden ${esc(g.orderNumber)}</span>`:''}</td>
+ <td>${esc(g.techName||'Empresa')}<span class="small" style="display:block">${esc(GAS_FUENTE[g.fuente]||'')}</span></td>
+ <td style="text-align:right"><b>${money(g.amount)}</b></td>
+ <td>${gasBadge(g.status)}${g.pagado?' <span class="status green">Pagado</span>':''}</td>
+ <td>${acciones||''}</td></tr>`;
+
+function pintarPendientes(pend){
+ $('gasBody').innerHTML=`<div class="panel"><div class="table-wrap"><table>
+  <thead><tr><th>Gasto</th><th>Categoría</th><th>Concepto</th><th>Quién</th><th style="text-align:right">Valor</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${pend.length?pend.map(g=>filaGasto(g,
+    `<button class="btn secondary sm" data-id="${esc(g.id)}" onclick="verGasto(this.dataset.id)">Ver</button>
+     <button class="btn primary sm" data-id="${esc(g.id)}" onclick="aprobarGasto(this.dataset.id)">Aprobar</button>
+     <button class="btn danger sm" data-id="${esc(g.id)}" onclick="rechazarGasto(this.dataset.id)">Rechazar</button>`)).join('')
+   :emptyRow(7,'No hay gastos esperando aprobación.')}</tbody></table></div></div>`;
+}
+function pintarMes(mes){
+ const grupos={};
+ mes.filter(g=>g.status==='aprobado').forEach(g=>{
+  const k=grupoDe(g.category); grupos[k]=(grupos[k]||0)+g.amount;
+ });
+ const total=Object.values(grupos).reduce((a,b)=>a+b,0);
+ $('gasBody').innerHTML=`<div class="grid two">
+  <div class="panel"><h2>Por grupo · ${esc(mesLargo(gasPeriodo))}</h2>
+   ${total?Object.entries(grupos).sort((a,b)=>b[1]-a[1]).map(([k,v])=>bar(GAS_GRUPO[k]+' · '+money(v),v,total)).join('')
+          :'<p class="small">Sin gastos aprobados en el mes.</p>'}</div>
+  <div class="panel"><h2>Resumen</h2>
+   <p class="small">Aprobado: <b style="color:var(--text)">${money(total)}</b></p>
+   <p class="small">Pendiente: <b style="color:var(--text)">${money(mes.filter(g=>g.status==='pendiente').reduce((a,g)=>a+g.amount,0))}</b></p>
+   <p class="small">Rechazado: <b style="color:var(--text)">${money(mes.filter(g=>g.status==='rechazado').reduce((a,g)=>a+g.amount,0))}</b></p>
+   <div class="actions"><button class="btn secondary sm" onclick="exportarGastos()">Descargar el mes en Excel</button></div></div>
+ </div>
+ <div class="panel" style="margin-top:16px"><div class="table-wrap"><table>
+  <thead><tr><th>Gasto</th><th>Categoría</th><th>Concepto</th><th>Quién</th><th style="text-align:right">Valor</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${mes.length?mes.slice().sort((a,b)=>a.date<b.date?1:-1).map(g=>filaGasto(g,
+    `<button class="btn secondary sm" data-id="${esc(g.id)}" onclick="verGasto(this.dataset.id)">Ver</button>`)).join('')
+   :emptyRow(7,'No hay gastos en '+mesLargo(gasPeriodo)+'.')}</tbody></table></div></div>`;
+}
+function pintarSaldos(){
+ const filas=db.techs.filter(t=>t.uid).map(t=>{
+  const reem=porReembolsar(t.uid), ant=saldoAnticipos(t.uid);
+  const gm=(db.expenses||[]).filter(g=>g.techUid===t.uid&&g.status==='aprobado'&&(g.date||'').slice(0,7)===gasPeriodo)
+   .reduce((a,g)=>a+g.amount,0);
+  return `<tr><td><b>${esc(t.name)}</b></td>
+   <td style="text-align:right">${money(gm)}</td>
+   <td style="text-align:right">${reem?`<b style="color:var(--danger)">${money(reem)}</b>`:money(0)}</td>
+   <td style="text-align:right">${ant?`<b>${money(ant)}</b>`:money(0)}</td>
+   <td>${reem?`<button class="btn primary sm" data-u="${esc(t.uid)}" onclick="pagarReembolso(this.dataset.u)">Marcar reembolso pagado</button>`:''}
+       <button class="btn secondary sm" data-u="${esc(t.uid)}" onclick="anticipoForm(this.dataset.u)">Entregar anticipo</button></td></tr>`;
+ }).join('');
+ $('gasBody').innerHTML=`<div class="panel"><div class="table-wrap"><table>
+  <thead><tr><th>Técnico</th><th style="text-align:right">Gastó en ${esc(mesLargo(gasPeriodo))}</th>
+   <th style="text-align:right">Se le debe</th><th style="text-align:right">Anticipo sin legalizar</th><th></th></tr></thead>
+  <tbody>${filas||emptyRow(5,'Todavía no hay técnicos con acceso a la app.')}</tbody></table></div>
+  <p class="small" style="margin-top:10px">“Se le debe” son los gastos aprobados que el técnico puso de su bolsillo y todavía no se le han devuelto.</p></div>`;
+}
+function pintarAnticipos(){
+ const list=(db.advances||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+ $('gasBody').innerHTML=`<div class="panel">
+  <div class="topline" style="margin-bottom:10px"><div><h2>Anticipos entregados</h2>
+   <p class="small">El técnico los legaliza registrando gastos con la opción “Legaliza anticipo”.</p></div>
+   <button class="btn primary sm" onclick="anticipoForm('')">＋ Entregar anticipo</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Anticipo</th><th>Fecha</th><th>Técnico</th>
+   <th style="text-align:right">Entregado</th><th style="text-align:right">Devuelto</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${list.length?list.map(a=>`<tr><td><b>${esc(a.id)}</b></td><td>${fmtDate(a.date)}</td>
+    <td>${esc(a.techName||'')}</td><td style="text-align:right">${money(a.amount)}</td>
+    <td style="text-align:right">${money(a.devuelto)}</td>
+    <td>${a.status==='abierto'?'<span class="status blue">Abierto</span>':'<span class="status gray">Cerrado</span>'}</td>
+    <td>${a.status==='abierto'?`<button class="btn secondary sm" data-id="${esc(a.id)}" onclick="cerrarAnticipo(this.dataset.id)">Cerrar</button>`:''}</td></tr>`).join('')
+   :emptyRow(7,'No se ha entregado ningún anticipo.')}</tbody></table></div></div>`;
+}
+
+/* ---- Aprobar, rechazar, pagar ---- */
+function aprobarGasto(id){
+ const g=gastoDe(id); if(!g||g.status!=='pendiente') return;
+ g.status='aprobado'; g.aprobadoPor=uid();
+ save(); renderGastos(); toast(id+' aprobado.');
+}
+function rechazarGasto(id){
+ const g=gastoDe(id); if(!g||g.status!=='pendiente') return;
+ const motivo=prompt('¿Por qué se rechaza? El técnico lo va a ver.');
+ if(motivo===null) return;
+ if(motivo.trim().length<3){ alert('Escriba el motivo.'); return }
+ g.status='rechazado'; g.aprobadoPor=uid();
+ g.nota=(g.nota?g.nota+' · ':'')+'Rechazado: '+motivo.trim();
+ save(); renderGastos(); toast(id+' rechazado.');
+}
+function pagarReembolso(uidTec){
+ const lista=(db.expenses||[]).filter(g=>g.techUid===uidTec&&g.status==='aprobado'&&g.fuente==='reembolsable'&&!g.pagado);
+ if(!lista.length) return;
+ const total=lista.reduce((a,g)=>a+g.amount,0);
+ const t=db.techs.find(x=>x.uid===uidTec);
+ if(!confirm('¿Marcar como pagados '+money(total)+' a '+((t&&t.name)||'el técnico')+'? ('+lista.length+' gasto(s))')) return;
+ lista.forEach(g=>{ g.pagado=true; g.pagadoEl=todayStr() });
+ save(); renderGastos(); toast('Reembolso de '+money(total)+' marcado como pagado.');
+}
+
+/* ---- Anticipos ---- */
+function anticipoForm(uidTec){
+ const tecs=db.techs.filter(t=>t.uid);
+ if(!tecs.length){ alert('Primero déle acceso a la app a algún técnico.'); return }
+ openModal(`<div class="modal-head"><h2>Entregar anticipo</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="formgrid">
+   <label>Técnico <span class="req">*</span><select id="anTec">${opts(tecs.map(t=>({value:t.uid,label:t.name})),uidTec||'')}</select></label>
+   <label>Fecha<input id="anFecha" type="date" value="${todayStr()}"></label>
+   <label>Valor entregado <span class="req">*</span><input id="anValor" type="number" min="1" step="10000"></label>
+   <label style="grid-column:1/-1">Nota<input id="anNota" maxlength="300" placeholder="Ej. viaje a Santa Marta"></label>
+  </div>
+  <div id="anErr" class="errors"></div>
+  <div class="actions"><button class="btn primary" onclick="guardarAnticipo()">Entregar</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+function guardarAnticipo(){
+ const u=$('anTec').value, v=Number($('anValor').value)||0;
+ if(!u){ $('anErr').textContent='Escoja el técnico.'; return }
+ if(v<=0){ $('anErr').textContent='El valor debe ser mayor que cero.'; return }
+ const t=db.techs.find(x=>x.uid===u)||{};
+ db.advances=db.advances||[];
+ const seq=Math.max(0,...db.advances.map(x=>x.seq||0))+1;
+ db.advances.push({id:nextId('AN-',db.advances,4),seq,date:$('anFecha').value||todayStr(),
+  techId:t.id||'',techUid:u,techName:t.name||'',amount:v,devuelto:0,status:'abierto',
+  nota:$('anNota').value.trim()});
+ save(); closeModal(); gasTab='anticipos'; renderGastos(); toast('Anticipo entregado.');
+}
+function cerrarAnticipo(id){
+ const a=anticipoDe(id); if(!a||a.status!=='abierto') return;
+ const d=prompt('¿Cuánto devolvió en efectivo? (0 si legalizó todo)','0');
+ if(d===null) return;
+ const v=Number(d)||0;
+ if(v<0||v>a.amount){ alert('El valor devuelto no puede ser negativo ni mayor al anticipo.'); return }
+ a.devuelto=v; a.status='cerrado';
+ save(); renderGastos(); toast(id+' cerrado.');
+}
+
+/* ---- Registrar un gasto desde la oficina ---- */
+function gastoForm(id){
+ const g=id?gastoDe(id):null;
+ if(id&&!g) return;
+ gasEdit=id||null; gasRecibo=null;
+ const tecs=db.techs.filter(t=>t.uid);
+ const v=g||{date:todayStr(),category:'Arriendo',concept:'',amount:0,fuente:'empresa',
+  techUid:'',orderId:'',proveedor:'',nit:'',soporte:'',nota:''};
+ const abiertas=db.orders.filter(o=>o.status!=='Cancelada').slice(0,120);
+ openModal(`<div class="modal-head"><h2>${id?'Editar gasto '+esc(id):'Registrar gasto'}</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <div class="formgrid">
+   <label>Fecha <span class="req">*</span><input id="gFecha" type="date" value="${esc(v.date)}"></label>
+   <label>Categoría <span class="req">*</span><select id="gCat">${opts(GAS_CAT.map(c=>({value:c[0],label:GAS_GRUPO[c[1]]+' · '+c[0]})),v.category)}</select></label>
+   <label style="grid-column:1/-1">Concepto <span class="req">*</span><input id="gConc" maxlength="200" value="${esc(v.concept)}" placeholder="Ej. Arriendo de la bodega, mes de septiembre"></label>
+   <label>Valor <span class="req">*</span><input id="gVal" type="number" min="1" step="1000" value="${v.amount||''}"></label>
+   <label>Quién lo pagó<select id="gFuente" onchange="gastoFuente()">${opts(Object.entries(GAS_FUENTE).map(([k,l])=>({value:k,label:l})),v.fuente)}</select></label>
+   <label>Técnico<select id="gTec">${opts(tecs.map(t=>({value:t.uid,label:t.name})),v.techUid||'','Gasto de la empresa (sin técnico)')}</select></label>
+   <label>Orden asociada<select id="gOrden">${opts(abiertas.map(o=>({value:o.id,label:o.id+' · '+((client(o.clientId)||{}).name||'')})),v.orderId||'','Sin orden (gasto general)')}</select></label>
+   <label>Proveedor<input id="gProv" maxlength="120" value="${esc(v.proveedor||'')}"></label>
+   <label>NIT del proveedor<input id="gNit" maxlength="40" value="${esc(v.nit||'')}"></label>
+   <label>Número del soporte<input id="gSop" maxlength="60" value="${esc(v.soporte||'')}" placeholder="Factura o recibo"></label>
+   <label style="grid-column:1/-1">Nota<input id="gNota" maxlength="500" value="${esc(v.nota||'')}"></label>
+   <label style="grid-column:1/-1">Foto del soporte (opcional)<input type="file" id="gFoto" accept="image/*" onchange="cargarRecibo(this)"></label>
+  </div>
+  <div id="gPrev" class="small"></div>
+  <div id="gErr" class="errors"></div>
+  <div class="actions"><button class="btn primary" onclick="guardarGasto()">Guardar</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ gastoFuente();
+}
+function gastoFuente(){
+ const f=$('gFuente').value, t=$('gTec');
+ if(f!=='empresa'&&!t.value&&t.options.length>1) t.selectedIndex=1;
+}
+function escalarImg(img,lado,calidad){
+ let w=img.width,h=img.height;
+ if(w>h&&w>lado){ h=Math.round(h*lado/w); w=lado }
+ else if(h>=w&&h>lado){ w=Math.round(w*lado/h); h=lado }
+ const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+ cv.getContext('2d').drawImage(img,0,0,w,h);
+ const url=cv.toDataURL('image/jpeg',calidad);
+ cv.width=cv.height=1;
+ return url;
+}
+function cargarRecibo(input){
+ const f=input.files&&input.files[0]; input.value='';
+ if(!f) return;
+ const prev=$('gPrev'); prev.textContent='Procesando la imagen…';
+ const url=URL.createObjectURL(f);
+ const img=new Image();
+ img.onerror=()=>{ URL.revokeObjectURL(url); prev.textContent='No se pudo leer la imagen.' };
+ img.onload=()=>{
+  try{
+   let full=escalarImg(img,1280,0.6);
+   if(full.length>700000) full=escalarImg(img,860,0.5);
+   const thumb=escalarImg(img,240,0.6);
+   URL.revokeObjectURL(url);
+   if(full.length>880000||thumb.length>78000){ prev.textContent='La imagen es demasiado pesada.'; return }
+   gasRecibo={full,thumb};
+   prev.innerHTML=`<img src="${thumb}" style="max-height:110px;border-radius:8px;margin-top:8px"> <span>Soporte listo (${Math.round(full.length/1024)} KB)</span>`;
+  }catch(e){ prev.textContent='No se pudo procesar la imagen.' }
+ };
+ img.src=url;
+}
+async function guardarGasto(){
+ const errs=[];
+ const fecha=$('gFecha').value, cat=$('gCat').value;
+ const conc=$('gConc').value.trim(), val=Number($('gVal').value)||0;
+ const fuente=$('gFuente').value, tuid=$('gTec').value, oid=$('gOrden').value;
+ if(!fecha) errs.push('Ponga la fecha.');
+ if(conc.length<2) errs.push('Escriba el concepto.');
+ if(val<=0) errs.push('El valor debe ser mayor que cero.');
+ if(fuente!=='empresa'&&!tuid) errs.push('Escoja el técnico: ese gasto lo puso una persona.');
+ if(errs.length){ $('gErr').innerHTML=errs.map(e=>'• '+esc(e)).join('<br>'); return }
+
+ const t=db.techs.find(x=>x.uid===tuid)||{};
+ const o=oid?byId(db.orders,oid):null;
+ db.expenses=db.expenses||[];
+ const datos={date:fecha,category:cat,concept:conc,amount:val,fuente,
+  techId:t.id||'',techUid:tuid||'',techName:t.name||'',
+  orderId:oid||'',orderNumber:o?o.id:'',proveedor:$('gProv').value.trim(),
+  nit:$('gNit').value.trim(),soporte:$('gSop').value.trim(),nota:$('gNota').value.trim()};
+ let g=gasEdit?gastoDe(gasEdit):null;
+ if(g){ Object.assign(g,datos) }
+ else{
+  const seq=nuevoSeqGasto();
+  g=Object.assign({id:nuevoIdGasto(),seq,status:'aprobado',aprobadoPor:uid(),
+   pagado:false,pagadoEl:'',advanceId:'',thumb:''},datos);
+  db.expenses.push(g);
+ }
+ if(gasRecibo) g.thumb=gasRecibo.thumb;
+ save();
+ if(gasRecibo){
+  try{ await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'expenses',g.id,'file','recibo'),{data:gasRecibo.full}) }
+  catch(e){ console.error(e); toast('El gasto se guardó, pero la foto no subió.') }
+ }
+ gasRecibo=null; gasEdit=null;
+ closeModal(); renderGastos(); toast('Gasto '+g.id+' guardado.');
+}
+
+/* ---- Ver un gasto con su soporte ---- */
+async function verGasto(id){
+ const g=gastoDe(id); if(!g) return;
+ openModal(`<div class="modal-head"><div><h2>${esc(g.id)}</h2>
+   <div style="margin-top:6px">${gasBadge(g.status)}${g.pagado?' <span class="status green">Reembolso pagado</span>':''}</div></div>
+  <button class="x" onclick="closeModal()">✕</button></div>
+ <div class="dl">
+  <div><span class="small">Fecha</span><b>${fmtDate(g.date)}</b></div>
+  <div><span class="small">Categoría</span><b>${esc(g.category)}</b><span class="small">${esc(GAS_GRUPO[grupoDe(g.category)])}</span></div>
+  <div><span class="small">Valor</span><b>${money(g.amount)}</b><span class="small">${esc(GAS_FUENTE[g.fuente]||'')}</span></div>
+  <div><span class="small">Quién</span><b>${esc(g.techName||'Gasto de la empresa')}</b></div>
+  <div><span class="small">Orden</span><b>${esc(g.orderNumber||'—')}</b></div>
+  <div><span class="small">Proveedor</span><b>${esc(g.proveedor||'—')}</b><span class="small">${esc(g.soporte||'')}</span></div>
+ </div>
+ <p style="white-space:pre-wrap;margin-top:8px">${esc(g.concept)}</p>
+ ${g.nota?`<p class="small" style="margin-top:6px">${esc(g.nota)}</p>`:''}
+ <div id="gvRecibo" style="margin-top:12px">${g.thumb?'<span class="small">Cargando el soporte…</span>':'<span class="small">Sin foto del soporte.</span>'}</div>
+ <hr><div class="actions">
+  ${g.status==='pendiente'?`<button class="btn primary" data-id="${esc(g.id)}" onclick="aprobarGasto(this.dataset.id);closeModal()">Aprobar</button>
+   <button class="btn danger" data-id="${esc(g.id)}" onclick="rechazarGasto(this.dataset.id);closeModal()">Rechazar</button>`:''}
+  ${g.status!=='rechazado'?`<button class="btn secondary" data-id="${esc(g.id)}" onclick="closeModal();gastoForm(this.dataset.id)">Editar</button>`:''}
+ </div>`);
+ if(!g.thumb) return;
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'expenses',id,'file','recibo'));
+  const caja=$('gvRecibo'); if(!caja) return;
+  const src=(d.exists()&&d.data().data)||g.thumb;
+  caja.innerHTML=`<img src="${src}" style="max-width:100%;border-radius:10px;border:1px solid var(--line)">`;
+ }catch(e){
+  const caja=$('gvRecibo');
+  if(caja) caja.innerHTML=`<img src="${g.thumb}" style="max-width:100%;border-radius:10px"><span class="small">Solo se pudo cargar la miniatura.</span>`;
+ }
+}
+
+/* ---- Exportar ---- */
+function exportarGastos(){
+ const mes=gastosDelMes(gasPeriodo);
+ if(!mes.length){ alert('No hay gastos en '+mesLargo(gasPeriodo)+'.'); return }
+ const cab=['Número','Fecha','Grupo','Categoría','Concepto','Quién lo pagó','Técnico','Orden',
+  'Proveedor','NIT','Soporte','Valor','Estado','Reembolso pagado'];
+ const filas=mes.slice().sort((a,b)=>a.date<b.date?-1:1).map(g=>[g.id,fmtDate(g.date),
+  GAS_GRUPO[grupoDe(g.category)],g.category,g.concept,GAS_FUENTE[g.fuente]||g.fuente,
+  g.techName||'',g.orderNumber||'',g.proveedor||'',g.nit||'',g.soporte||'',g.amount,
+  GAS_EST[g.status]||g.status,g.pagado?'Sí':'No']);
+ const csv='﻿'+[cab].concat(filas).map(f=>f.map(csvCampo).join(';')).join('\r\n')+'\r\n';
+ bajarArchivo('gastos-'+gasPeriodo+'.csv',csv);
+ toast(mes.length+' gasto(s) exportado(s).');
 }
 
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);

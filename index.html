@@ -326,10 +326,7 @@ try {
 <section id="reports" class="page">
  <div class="topline"><div><h1>Reportes</h1><p>Indicadores calculados con los datos registrados.</p></div></div>
  <div class="grid cards" id="repCards"></div>
- <div class="grid two">
-  <div class="panel"><h2>Servicios por tipo</h2><div id="repTypes"></div></div>
-  <div class="panel"><h2>Próxima evolución</h2><div class="timeline"><div class="event"><b>Fase 2</b><span class="small">GPS, evidencias, firma digital y trabajo móvil. Con esto se podrán medir resolución en primera visita y satisfacción del cliente.</span></div><div class="event"><b>Fase 3</b><span class="small">Inventario, repuestos, cotizaciones y facturación.</span></div><div class="event"><b>Fase 4</b><span class="small">Contratos y programación automática de preventivos.</span></div></div></div>
- </div>
+ <div class="panel"><h2>Servicios por tipo</h2><div id="repTypes"></div></div>
  <div class="panel" style="margin-top:18px"><h2>Productividad por técnico</h2><div class="table-wrap"><table><thead><tr><th>Técnico</th><th>Asignadas</th><th>Completadas</th><th>Abiertas</th><th>Vencidas</th><th>Cumplimiento</th></tr></thead><tbody id="repTechs"></tbody></table></div></div>
 </section>
 
@@ -365,7 +362,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.29-1';
+const VERSION='v2026.09.29-2';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];

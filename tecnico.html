@@ -40,6 +40,8 @@ main{padding:14px 16px 90px;max-width:620px;margin:0 auto}
 .btn:disabled{opacity:.5}
 .btn.sec{background:transparent;border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;padding:12px}
 .btn.warn{background:transparent;border:1px solid var(--red);color:#e8756b;font-weight:600;font-size:14px;padding:12px}
+.dosbtn{display:flex;gap:8px}
+.dosbtn .btn{margin-top:10px}
 input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--text);font:inherit;margin-top:6px}
 .c-aprobado{background:rgba(31,157,85,.18);color:#4fc584}
 .c-rechazado{background:rgba(200,57,47,.18);color:#e8756b}
@@ -199,7 +201,12 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <label>Dónde lo compró<input id="gxProv" maxlength="120" placeholder="Ej. Terpel, Homecenter"></label>
   <label>Número del recibo<input id="gxSop" maxlength="60" placeholder="Opcional"></label>
   <label>Foto del recibo
-   <input type="file" id="gxFoto" accept="image/*" capture="environment" onchange="tomarRecibo(this)"></label>
+   <input type="file" id="gxCam" accept="image/*" capture="environment" hidden onchange="tomarRecibo(this)">
+   <input type="file" id="gxGal" accept="image/*" hidden onchange="tomarRecibo(this)">
+   <div class="dosbtn">
+    <button class="btn sec" onclick="document.getElementById('gxCam').click()">📷 Tomar foto</button>
+    <button class="btn sec" onclick="document.getElementById('gxGal').click()">🖼️ De la galería</button>
+   </div></label>
   <div id="gxPrev"></div>
   <div id="gxMsg" class="msg"></div>
   <button class="btn" id="gxBtn" onclick="guardarMiGasto()">Enviar a la oficina</button>
@@ -285,7 +292,7 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.09.29-2';
+const VERSION='v2026.09.30-1';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -730,8 +737,12 @@ function bloqueFotos(firmado){
      ${firmado?'':`<button class="fotoX" onclick="borrarFoto('${esc(f.id)}','${k}')">✕</button>`}
     </div>`).join('')||'<div class="sub">Sin fotos.</div>'}</div>
    ${firmado||FOTOS[k].length>=MAX_FOTOS?'':`
-    <input type="file" accept="image/*" capture="environment" id="fi_${k}" hidden onchange="agregarFoto('${k}',this)">
-    <button class="btn sec" onclick="document.getElementById('fi_${k}').click()">Tomar o escoger foto</button>`}
+    <input type="file" accept="image/*" capture="environment" id="fc_${k}" hidden onchange="agregarFoto('${k}',this)">
+    <input type="file" accept="image/*" multiple id="fg_${k}" hidden onchange="agregarFoto('${k}',this)">
+    <div class="dosbtn">
+     <button class="btn sec" onclick="document.getElementById('fc_${k}').click()">📷 Tomar foto</button>
+     <button class="btn sec" onclick="document.getElementById('fg_${k}').click()">🖼️ De la galería</button>
+    </div>`}
   </div>`).join('')}
  <div id="fmsgF" class="msg"></div>`;
 }
@@ -768,27 +779,45 @@ function comprimir(file){
  });
 }
 
+// Sirve para el botón de la cámara (una foto) y para el de la galería
+// (varias de una). Se suben una por una para no ahogar la memoria del
+// celular ni la conexión.
+// Ojo: pintarReporte() vuelve a dibujar la pantalla y con ella el aviso,
+// así que el aviso se busca de nuevo cada vez en vez de guardar la caja.
+function avisoFoto(texto,clase){
+ const e=$('fmsgF');
+ if(e){ e.className='msg '+(clase||'ok'); e.textContent=texto }
+}
 async function agregarFoto(fase,input){
- const file=input.files&&input.files[0]; input.value='';
- if(!file) return;
- const m=$('fmsgF');
- if(FOTOS[fase].length>=MAX_FOTOS){ m.className='msg err'; m.textContent='Ya tiene '+MAX_FOTOS+' fotos en esa fase.'; return }
- m.className='msg ok'; m.textContent='Procesando la foto…';
- try{
-  const {full,thumb}=await comprimir(file);
-  m.textContent='Subiendo… ('+Math.round(full.length/1024)+' KB)';
-  const col=FB.collection(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photos');
-  const ref=await FB.addDoc(col,{fase,thumb,nota:null,by:FB.auth.currentUser.uid,
-    byName:(ME&&ME.name)||null,at:FB.serverTimestamp()});
-  await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photoFiles',ref.id),{data:full});
-  // La foto grande NO se queda en memoria: solo la miniatura.
-  FOTOS[fase].push({id:ref.id,thumb,at:new Date()});
-  m.className='msg ok'; m.textContent='Foto guardada.';
-  pintarReporte();
- }catch(e){
-  console.error(e);
-  m.className='msg err'; m.textContent='No se pudo guardar la foto: '+(e.message||errMsg(e));
+ const files=Array.from((input&&input.files)||[]); if(input) input.value='';
+ if(!files.length) return;
+ const libres=MAX_FOTOS-FOTOS[fase].length;
+ if(libres<=0){ avisoFoto('Ya tiene '+MAX_FOTOS+' fotos en esa fase.','err'); return }
+ const lote=files.slice(0,libres);
+ const sobran=files.length-lote.length;
+ let subidas=0;
+ for(let i=0;i<lote.length;i++){
+  avisoFoto(lote.length>1?('Procesando foto '+(i+1)+' de '+lote.length+'…'):'Procesando la foto…','ok');
+  try{
+   const {full,thumb}=await comprimir(lote[i]);
+   avisoFoto('Subiendo… ('+Math.round(full.length/1024)+' KB)','ok');
+   const col=FB.collection(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photos');
+   const ref=await FB.addDoc(col,{fase,thumb,nota:null,by:FB.auth.currentUser.uid,
+     byName:(ME&&ME.name)||null,at:FB.serverTimestamp()});
+   await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',REPORD._id,'photoFiles',ref.id),{data:full});
+   // La foto grande NO se queda en memoria: solo la miniatura.
+   FOTOS[fase].push({id:ref.id,thumb,at:new Date()});
+   subidas++;
+   pintarReporte();
+  }catch(e){
+   console.error(e);
+   pintarReporte();
+   avisoFoto('No se pudo guardar '+(lote.length>1?('la foto '+(i+1)+': '):'la foto: ')+(e.message||errMsg(e)),'err');
+   return;
+  }
  }
+ avisoFoto((subidas>1?subidas+' fotos guardadas.':'Foto guardada.')
+  +(sobran?' Quedaron '+sobran+' por fuera: el máximo es '+MAX_FOTOS+' por fase.':''),'ok');
 }
 async function borrarFoto(id,fase){
  if(!confirm('¿Borrar esta foto?')) return;

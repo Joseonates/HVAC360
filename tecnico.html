@@ -5,10 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f1419">
 <title>HVAC 360° · Técnico</title>
+<link rel="manifest" href="manifest-tecnico.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="HVAC Técnico">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
 :root{--bg:#0f1419;--panel:#182029;--line:#28323e;--text:#e8edf3;--muted:#8b97a5;--accent:#2f7df6;
  --green:#1f9d55;--yellow:#c9931a;--orange:#d2762a;--red:#c8392f;--blue:#2f7df6}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}   /* sin esto, un botón con hidden se seguía viendo */
 body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;font-size:15px;line-height:1.45}
 header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);
  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;align-items:center;gap:10px}
@@ -167,6 +175,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
    <button id="tAbi" onclick="setTab('abiertas')">Abiertas</button>
    <button id="tTod" onclick="setTab('todas')">Todas</button>
   </div>
+  <button class="btn sec" id="btnInstalar" hidden style="margin:0 0 10px" onclick="instalarApp()">📲 Instalar la app en este celular</button>
   <button class="btn sec" style="margin:0 0 14px" onclick="abrirGastos()">💸 Mis gastos y anticipos</button>
   <div id="list"></div>
  </main>
@@ -292,7 +301,7 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.09.30-1';
+const VERSION='v2026.10.06-1';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -469,9 +478,9 @@ function detalle(id){
 async function cargarHistorial(id){
  try{
   const ev=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'events'));
-  const l=[]; ev.forEach(d=>{const x=d.data();l.push({at:x.at&&x.at.toDate?x.at.toDate():null,status:x.status,note:x.note,by:x.byName})});
+  const l=[]; ev.forEach(d=>{const x=d.data();l.push({at:x.at&&x.at.toDate?x.at.toDate():null,status:x.status,type:x.type,note:x.note,by:x.byName})});
   l.sort((a,b)=>(a.at&&b.at)?a.at-b.at:0);
-  $('hist').innerHTML=l.length?l.map(h=>`<div><b style="color:var(--text)">${esc(LBL[h.status]||h.status||'')}</b>
+  $('hist').innerHTML=l.length?l.map(h=>`<div><b style="color:var(--text)">${esc(LBL[h.status]||h.status||(h.type==='reporte_reabierto'?'Reporte reabierto':''))}</b>
    ${h.at?' · '+h.at.toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'}):''}
    ${h.by?' · '+esc(h.by):''}${h.note?'<br>'+esc(h.note):''}</div>`).join(''):'<div>Sin movimientos todavía.</div>';
  }catch(e){ $('hist').innerHTML='<div>No se pudo cargar el historial.</div>' }
@@ -588,8 +597,12 @@ function pintarReporte(){
  const o=REPORD, prev=REP.tipo==='preventivo';
  const firmado=!!REP.firmaCliente;
  $('repTit').textContent=(prev?'Preventivo':'Correctivo')+' · '+(o.number||'');
+ const reabierto=!firmado&&!!REP.reabiertoMotivo;
  $('repBody').innerHTML=`
  ${firmado?'<div class="card" style="border-color:var(--green)"><b style="color:#4fc584">Reporte firmado por el cliente.</b><div class="sub">Ya no se puede modificar. Puede verlo o imprimirlo.</div></div>':''}
+ ${reabierto?`<div class="card" style="border-color:#e8b84b"><b style="color:#e8b84b">La oficina reabrió este reporte.</b>
+   <div class="sub" style="margin-top:4px">Motivo: ${esc(REP.reabiertoMotivo)}</div>
+   <div class="sub" style="margin-top:6px">Corrija lo que haga falta y vuelva a recoger las dos firmas.</div></div>`:''}
 
  <div class="card">
   <div class="sub" style="color:var(--text);font-weight:700;margin-bottom:9px">Servicio</div>
@@ -1203,6 +1216,49 @@ async function guardarMiGasto(){
   $('gxBtn').disabled=false;
  }
 }
+
+
+/* ================= INSTALAR EN EL CELULAR =================
+   Hace que la página se pueda guardar como una app de verdad: ícono en
+   la pantalla de inicio, pantalla completa sin barra del navegador, y
+   que abra aunque no haya señal. Los datos siguen viniendo de Firebase
+   cuando hay internet.                                                */
+let promesaInstalar=null;
+const yaInstalada=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+const esIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+
+function verBotonInstalar(mostrar){
+ const b=document.getElementById('btnInstalar');
+ if(b) b.hidden=!mostrar;
+}
+window.addEventListener('beforeinstallprompt',e=>{
+ e.preventDefault(); promesaInstalar=e; verBotonInstalar(true);
+});
+window.addEventListener('appinstalled',()=>{
+ promesaInstalar=null; verBotonInstalar(false);
+});
+async function instalarApp(){
+ if(promesaInstalar){
+  promesaInstalar.prompt();
+  try{ await promesaInstalar.userChoice }catch(e){}
+  promesaInstalar=null; verBotonInstalar(false);
+  return;
+ }
+ if(esIOS()){
+  alert('Para instalarla en un iPhone:\n\n1. Toque el botón Compartir (el cuadrito con la flecha hacia arriba).\n2. Baje y toque «Agregar a la pantalla de inicio».\n3. Toque «Agregar».\n\nLe queda el ícono junto a sus otras aplicaciones.');
+  return;
+ }
+ alert('Para instalarla:\n\n1. Abra el menú del navegador (los tres puntos).\n2. Toque «Instalar aplicación» o «Agregar a la pantalla de inicio».\n\nSi no le aparece la opción, asegúrese de estar entrando por la dirección de internet (https) y no por un archivo guardado.');
+}
+function prepararInstalacion(){
+ if(yaInstalada()){ verBotonInstalar(false); return }
+ if(esIOS()) verBotonInstalar(true);          // iPhone no avisa solo: el botón explica cómo
+ const seguro=location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname);
+ if('serviceWorker' in navigator && seguro){
+  navigator.serviceWorker.register('sw.js').catch(e=>console.log('No se pudo preparar el modo sin señal:',e.message));
+ }
+}
+window.addEventListener('load',prepararInstalacion);
 
 if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);
 </script>

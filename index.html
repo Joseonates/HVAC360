@@ -4,7 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
-<title>HVAC 360° - Fase 1</title>
+<title>HVAC 360° · Centro de operaciones</title>
+<link rel="manifest" href="manifest-oficina.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HVAC Oficina">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -180,7 +186,7 @@ try {
 </aside>
 
 <main class="main">
-<header><div class="header-title"><img id="hdLogo" hidden style="height:30px;background:#fff;padding:3px;border-radius:5px;vertical-align:middle;margin-right:9px"> Centro de Operaciones HVAC <span class="small" id="uCompany"></span></div><div class="user"><span class="small"><b id="uName">—</b> <span id="uRole" class="small"></span></span><div class="avatar" id="uAvatar">—</div><button class="userbtn" onclick="doLogout()">Salir</button></div></header>
+<header><div class="header-title"><img id="hdLogo" hidden style="height:30px;background:#fff;padding:3px;border-radius:5px;vertical-align:middle;margin-right:9px"> Centro de Operaciones HVAC <span class="small" id="uCompany"></span></div><div class="user"><button class="userbtn" id="btnInstalar" hidden onclick="instalarApp()">Instalar app</button><span class="small"><b id="uName">—</b> <span id="uRole" class="small"></span></span><div class="avatar" id="uAvatar">—</div><button class="userbtn" onclick="doLogout()">Salir</button></div></header>
 <div class="content">
 
 <!-- DASHBOARD -->
@@ -354,6 +360,7 @@ try {
 <div id="rvSheet" hidden>
  <div class="rvbar">
   <button class="sec" onclick="cerrarVisor()">Cerrar</button>
+  <button class="sec" id="rvReabrir" hidden onclick="reabrirReporte()">Reabrir para corregir</button>
   <button onclick="imprimirReporte()">Imprimir / Guardar PDF</button>
  </div>
  <div id="rvPaper"><div id="rvBody"></div></div>
@@ -362,7 +369,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.09.30-1';
+const VERSION='v2026.10.06-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -1381,12 +1388,51 @@ async function verReporte(id){
    return;
   }
   cont.innerHTML=hojaReporte(o,d.data(),fotos);
+  RV_ORDEN=id;
+  const btn=$('rvReabrir');
+  if(btn) btn.hidden=!(d.data().firmaCliente && ['admin','coordinador'].includes((ME&&ME.role)||''));
  }catch(e){
   console.error(e);
   cont.innerHTML='<p style="padding:40px;text-align:center;color:#a33">No se pudo abrir el reporte: '+esc(errMsg(e))+'</p>';
  }
 }
-function cerrarVisor(){ $('rvSheet').hidden=true; document.body.classList.remove('viendo-reporte') }
+let RV_ORDEN=null;
+function cerrarVisor(){ $('rvSheet').hidden=true; RV_ORDEN=null;
+ const b=$('rvReabrir'); if(b) b.hidden=true;
+ document.body.classList.remove('viendo-reporte') }
+
+/* ---- Reabrir un reporte que el cliente ya firmó ----
+   Se usa cuando el técnico se equivocó (firmas cambiadas, datos malos).
+   Borra las dos firmas, exige un motivo y deja el rastro: quién autorizó
+   la corrección y por qué. El técnico vuelve a llenarlo y a recoger la
+   firma buena. Lo firmado nunca se edita a escondidas.               */
+async function reabrirReporte(){
+ const id=RV_ORDEN; if(!id) return;
+ const motivo=prompt('¿Por qué se reabre el reporte de '+id+'?\nEl técnico lo va a ver y queda registrado en el historial.');
+ if(motivo===null) return;
+ if(motivo.trim().length<3){ alert('Escriba el motivo (al menos 3 letras).'); return }
+ if(!confirm('Esto BORRA las dos firmas del reporte de '+id+'.\n\nEl técnico tendrá que corregirlo y recoger otra vez la firma del cliente. ¿Continuar?')) return;
+ try{
+  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha');
+  const d=await FB.getDoc(ref);
+  if(!d.exists()){ alert('Esa orden no tiene reporte.'); return }
+  await FB.setDoc(ref,Object.assign({},d.data(),{
+   firmaCliente:null, firmaTecnico:null,
+   reabiertoPor:uid(), reabiertoEl:sv(), reabiertoMotivo:motivo.trim(),
+   updatedAt:sv(), updatedBy:uid()}));
+  try{
+   await FB.addDoc(C('workOrders',id,'events'),{type:'reporte_reabierto',status:null,
+    note:'Reporte reabierto para corregir: '+motivo.trim(),
+    by:uid(), byName:(ME&&ME.name)||null, at:sv()});
+  }catch(e){ console.error('no se pudo dejar la nota en el historial',e) }
+  cerrarVisor();
+  toast('Reporte de '+id+' reabierto. Avísele al técnico para que lo corrija.');
+  refresh();
+ }catch(e){
+  console.error(e);
+  alert('No se pudo reabrir: '+errMsg(e));
+ }
+}
 function imprimirReporte(){ window.print() }
 
 const R_FASES=[['antes','Antes'],['durante','Durante'],['despues','Después']];
@@ -1772,7 +1818,8 @@ async function fsLoad(){
  db.orders.sort((a,b)=>(b.seq||0)-(a.seq||0));
  await Promise.all(db.orders.slice(0,60).map(async o=>{
   try{const ev=await FB.getDocs(C('workOrders',o.id,'events'));
-   const list=[];ev.forEach(d=>{const x=d.data();list.push({at:(x.at&&x.at.toDate)?x.at.toDate().toISOString():'',status:Mi.ordStatus[x.status]||x.status||'',note:x.note||''})});
+   const list=[];ev.forEach(d=>{const x=d.data();list.push({at:(x.at&&x.at.toDate)?x.at.toDate().toISOString():'',
+    status:Mi.ordStatus[x.status]||x.status||(x.type==='reporte_reabierto'?'Reporte reabierto':''),note:x.note||''})});
    list.sort((a,b)=>a.at<b.at?-1:1);o.history=list;remote.events[o.id]=list.length;
   }catch(e){}}));
 }
@@ -2327,6 +2374,7 @@ function crearOrdenCot(id){
 function imprimirCotizacion(id){
  const q=cotDe(id); if(!q) return;
  closeModal();
+ RV_ORDEN=null; if($('rvReabrir')) $('rvReabrir').hidden=true;
  $('rvBody').innerHTML=hojaCotizacion(q);
  $('rvSheet').hidden=false;
  document.body.classList.add('viendo-reporte');
@@ -2817,6 +2865,7 @@ function exportarMes(){
 function imprimirCuenta(id){
  const f=facDe(id); if(!f) return;
  closeModal();
+ RV_ORDEN=null; if($('rvReabrir')) $('rvReabrir').hidden=true;
  $('rvBody').innerHTML=hojaCuenta(f);
  $('rvSheet').hidden=false;
  document.body.classList.add('viendo-reporte');
@@ -3216,6 +3265,49 @@ function exportarGastos(){
  bajarArchivo('gastos-'+gasPeriodo+'.csv',csv);
  toast(mes.length+' gasto(s) exportado(s).');
 }
+
+
+/* ================= INSTALAR EN EL CELULAR =================
+   Hace que la página se pueda guardar como una app de verdad: ícono en
+   la pantalla de inicio, pantalla completa sin barra del navegador, y
+   que abra aunque no haya señal. Los datos siguen viniendo de Firebase
+   cuando hay internet.                                                */
+let promesaInstalar=null;
+const yaInstalada=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+const esIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+
+function verBotonInstalar(mostrar){
+ const b=document.getElementById('btnInstalar');
+ if(b) b.hidden=!mostrar;
+}
+window.addEventListener('beforeinstallprompt',e=>{
+ e.preventDefault(); promesaInstalar=e; verBotonInstalar(true);
+});
+window.addEventListener('appinstalled',()=>{
+ promesaInstalar=null; verBotonInstalar(false);
+});
+async function instalarApp(){
+ if(promesaInstalar){
+  promesaInstalar.prompt();
+  try{ await promesaInstalar.userChoice }catch(e){}
+  promesaInstalar=null; verBotonInstalar(false);
+  return;
+ }
+ if(esIOS()){
+  alert('Para instalarla en un iPhone:\n\n1. Toque el botón Compartir (el cuadrito con la flecha hacia arriba).\n2. Baje y toque «Agregar a la pantalla de inicio».\n3. Toque «Agregar».\n\nLe queda el ícono junto a sus otras aplicaciones.');
+  return;
+ }
+ alert('Para instalarla:\n\n1. Abra el menú del navegador (los tres puntos).\n2. Toque «Instalar aplicación» o «Agregar a la pantalla de inicio».\n\nSi no le aparece la opción, asegúrese de estar entrando por la dirección de internet (https) y no por un archivo guardado.');
+}
+function prepararInstalacion(){
+ if(yaInstalada()){ verBotonInstalar(false); return }
+ if(esIOS()) verBotonInstalar(true);          // iPhone no avisa solo: el botón explica cómo
+ const seguro=location.protocol==='https:'||['localhost','127.0.0.1'].includes(location.hostname);
+ if('serviceWorker' in navigator && seguro){
+  navigator.serviceWorker.register('sw.js').catch(e=>console.log('No se pudo preparar el modo sin señal:',e.message));
+ }
+}
+window.addEventListener('load',prepararInstalacion);
 
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);
 

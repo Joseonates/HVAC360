@@ -274,12 +274,91 @@ service cloud.firestore {
         allow delete: if false;
       }
       function validTech(d) {
-        return d.keys().hasOnly(['name', 'phone', 'email', 'specialties', 'branchId', 'active', 'uid',
+        return d.keys().hasOnly(['name', 'phone', 'email', 'specialties', 'branchId', 'active', 'uid', 'warehouseId',
                                  'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && optStr(d, 'warehouseId', 64)
           && str(d.name, 2, 100) && d.active is bool
           && optStr(d, 'phone', 40) && optStr(d, 'email', 120) && optStr(d, 'branchId', 64)
           && optStr(d, 'uid', 128)
           && (!('specialties' in d) || (d.specialties is list && d.specialties.size() <= 20));
+      }
+
+      // ---------------- Bodegas y existencias ----------------
+      match /warehouses/{wid} {
+        allow read: if isStaff(t);
+        allow create: if canManage(t) && validWarehouse(newData()) && createdStamp();
+        allow update: if canManage(t) && validWarehouse(newData()) && updatedStamp();
+        allow delete: if false;
+
+        // La existencia solo la mueve la oficina. El técnico la lee para
+        // saber si hay repuesto, pero nunca la toca.
+        match /stock/{partId} {
+          allow read: if isStaff(t);
+          allow write: if canManage(t)
+            && newData().keys().hasOnly(['qty', 'updatedAt', 'updatedBy'])
+            && newData().qty is number && newData().qty >= 0
+            && newData().updatedAt == request.time && newData().updatedBy == uid();
+        }
+      }
+      function validWarehouse(d) {
+        return d.keys().hasOnly(['name', 'city', 'active', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.name, 2, 100) && optStr(d, 'city', 80) && d.active is bool;
+      }
+
+      // ---------------- Catálogo de repuestos ----------------
+      match /parts/{pid} {
+        allow read: if isStaff(t);
+        allow create: if canManage(t) && validPart(newData()) && createdStamp();
+        allow update: if canManage(t) && validPart(newData()) && updatedStamp();
+        allow delete: if false;
+      }
+      function validPart(d) {
+        return d.keys().hasOnly(['code', 'name', 'unit', 'category', 'cost', 'price', 'minStock', 'active',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && str(d.code, 1, 30) && str(d.name, 2, 120) && str(d.unit, 1, 20)
+          && optStr(d, 'category', 60) && d.active is bool
+          && d.cost is number && d.cost >= 0
+          && d.price is number && d.price >= 0
+          && d.minStock is number && d.minStock >= 0;
+      }
+
+      // ---------------- Movimientos de inventario ----------------
+      //  El técnico PIDE la salida de un repuesto desde su orden: queda
+      //  pendiente y no mueve nada. La oficina la aprueba o la rechaza, y
+      //  es ahí donde baja la existencia.
+      match /movements/{mid} {
+        allow read: if isStaff(t);
+
+        allow create: if tenantActive(t) && validMovement(newData()) && createdStamp()
+          && (
+            canManage(t)
+            || ( isTech(t)
+                 && newData().type == 'salida'
+                 && newData().status == 'pendiente'
+                 && newData().requestedBy == uid()
+                 && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(newData().orderId)).data.techUid == uid() )
+          );
+
+        allow update: if canManage(t) && validMovement(newData()) && updatedStamp()
+          && oldData().status == 'pendiente'
+          && newData().status in ['aprobado', 'rechazado']
+          && unchanged(['type', 'partId', 'warehouseId', 'qty', 'orderId', 'requestedBy']);
+
+        allow delete: if false;
+      }
+      function validMovement(d) {
+        return d.keys().hasOnly(['type', 'partId', 'partName', 'warehouseId', 'qty', 'unitCost',
+                                 'orderId', 'orderNumber', 'note', 'status',
+                                 'requestedBy', 'requestedByName', 'approvedBy',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.type in ['entrada', 'salida', 'ajuste']
+          && str(d.partId, 1, 64) && str(d.warehouseId, 1, 64)
+          && d.qty is number && d.qty != 0
+          && d.status in ['pendiente', 'aprobado', 'rechazado']
+          && optStr(d, 'partName', 120) && optStr(d, 'orderId', 64) && optStr(d, 'orderNumber', 20)
+          && optStr(d, 'note', 500) && optStr(d, 'requestedBy', 128)
+          && optStr(d, 'requestedByName', 100) && optStr(d, 'approvedBy', 128)
+          && (!('unitCost' in d) || d.unitCost == null || (d.unitCost is number && d.unitCost >= 0));
       }
 
       // ---------------- Contratos de mantenimiento ----------------
@@ -291,7 +370,7 @@ service cloud.firestore {
       }
       function validContract(d) {
         return d.keys().hasOnly(['name','clientId','clientName','siteIds','frequency','mode','overrides',
-                                 'startDate','endDate','techId','status','notes','lastRun',
+                                 'startDate','endDate','techId','status','notes','lastRun','valorMensual',
                                  'createdAt','createdBy','updatedAt','updatedBy'])
           && str(d.name, 2, 120)
           && str(d.clientId, 1, 64)
@@ -301,7 +380,219 @@ service cloud.firestore {
           && isDate(d.startDate) && optDate(d, 'endDate')
           && d.siteIds is list && d.siteIds.size() <= 200
           && optStr(d, 'techId', 64) && optStr(d, 'notes', 2000) && optStr(d, 'clientName', 150)
-          && optDate(d, 'lastRun');
+          && optDate(d, 'lastRun')
+          && (!('valorMensual' in d) || d.valorMensual == null
+              || (d.valorMensual is number && d.valorMensual >= 0));
+      }
+
+      // ---------------- Cotizaciones ----------------
+      //  La oficina la arma (borrador), la envía al cliente, y el cliente
+      //  la aprueba o la rechaza desde su portal. Una vez aprobada queda
+      //  congelada: es el precio que el cliente avaló. Lo único que se le
+      //  puede pegar después es el número de la orden que se generó con ella.
+      //  El cliente nunca ve los borradores.
+      match /quotes/{qid} {
+        allow read: if isStaff(t)
+          || ( isCustomer(t) && resource.data.clientId == myClientId(t)
+               && resource.data.status in ['enviada', 'aprobada', 'rechazada', 'vencida'] );
+
+        allow create: if canManage(t) && validQuote(newData()) && createdStamp()
+          && newData().status in ['borrador', 'enviada']
+          && newData().get('decidedBy', null) == null
+          && newData().get('resultOrderId', null) == null;
+
+        allow update: if oficinaEditaCot() || oficinaLigaOrden() || clienteDecide();
+
+        allow delete: if false;
+
+        //  La oficina solo edita mientras el cliente no haya decidido.
+        function oficinaEditaCot() {
+          return canManage(t) && validQuote(newData()) && updatedStamp()
+            && oldData().status in ['borrador', 'enviada', 'rechazada', 'vencida']
+            && newData().status in ['borrador', 'enviada', 'rechazada', 'vencida', 'anulada']
+            && unchanged(['seq', 'number', 'clientId', 'decidedBy', 'decidedAt', 'clientNote', 'resultOrderId']);
+        }
+        //  Aprobada + se le pega la orden de trabajo que salió de ella. Una sola vez.
+        function oficinaLigaOrden() {
+          return canManage(t) && updatedStamp()
+            && oldData().status == 'aprobada'
+            && changedKeys().hasOnly(['resultOrderId', 'updatedAt', 'updatedBy'])
+            && oldData().get('resultOrderId', null) == null
+            && newData().resultOrderId is string;
+        }
+        //  El cliente solo decide sobre lo que se le envió, y solo lo suyo.
+        function clienteDecide() {
+          return isCustomer(t) && tenantActive(t) && updatedStamp()
+            && oldData().clientId == myClientId(t)
+            && oldData().status == 'enviada'
+            && newData().status in ['aprobada', 'rechazada']
+            && changedKeys().hasOnly(['status', 'clientNote', 'decidedBy', 'decidedAt', 'updatedAt', 'updatedBy'])
+            && newData().decidedBy == uid()
+            && newData().decidedAt == request.time
+            && optStr(newData(), 'clientNote', 1000);
+        }
+      }
+      function validQuote(d) {
+        return d.keys().hasOnly(['seq', 'number', 'clientId', 'clientName', 'siteId', 'siteName',
+                                 'orderId', 'orderNumber', 'assetId', 'title', 'date', 'validUntil',
+                                 'items', 'notes', 'subtotal', 'ivaPct', 'ivaValue', 'total',
+                                 'status', 'clientNote', 'decidedBy', 'decidedAt', 'resultOrderId',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.seq is number && d.seq > 0
+          && str(d.number, 3, 20)
+          && str(d.clientId, 1, 64)
+          && str(d.title, 3, 140)
+          && isDate(d.date) && optDate(d, 'validUntil')
+          && d.status in ['borrador', 'enviada', 'aprobada', 'rechazada', 'vencida', 'anulada']
+          && d.items is list && d.items.size() >= 1 && d.items.size() <= 60
+          && d.subtotal is number && d.subtotal >= 0
+          && d.ivaPct is number && d.ivaPct >= 0 && d.ivaPct <= 100
+          && d.ivaValue is number && d.ivaValue >= 0
+          && d.total is number && d.total >= 0
+          && optStr(d, 'clientName', 150) && optStr(d, 'siteId', 64) && optStr(d, 'siteName', 150)
+          && optStr(d, 'orderId', 64) && optStr(d, 'orderNumber', 20) && optStr(d, 'assetId', 64)
+          && optStr(d, 'notes', 3000) && optStr(d, 'clientNote', 1000)
+          && optStr(d, 'decidedBy', 128) && optStr(d, 'resultOrderId', 64);
+      }
+
+      // ---------------- Preparación de la factura ----------------
+      //  HVAC 360 NO emite factura electrónica: eso lo hace el software
+      //  contable con un proveedor autorizado por la DIAN. Aquí solo se
+      //  arma el borrador con lo que hay que cobrar, se exporta y después
+      //  se anota el número real de la factura. Una vez anotado, se congela.
+      match /invoices/{iid} {
+        allow read: if isStaff(t);
+
+        allow create: if canManage(t) && validInvoice(newData()) && createdStamp()
+          && newData().status == 'borrador'
+          && newData().get('siigoNumero', null) == null;
+
+        allow update: if canManage(t) && validInvoice(newData()) && updatedStamp()
+          && oldData().status != 'facturada'
+          && unchanged(['seq', 'number', 'clientId']);
+
+        allow delete: if false;
+      }
+      function validInvoice(d) {
+        return d.keys().hasOnly(['seq', 'number', 'clientId', 'clientName', 'clientNit',
+                                 'period', 'date', 'dueDate', 'kind', 'orderIds', 'contractId',
+                                 'consecutivo', 'items', 'notes',
+                                 'subtotal', 'ivaPct', 'ivaValue', 'total',
+                                 'status', 'siigoNumero',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.seq is number && d.seq > 0
+          && str(d.number, 3, 20)
+          && str(d.clientId, 1, 64)
+          && d.kind in ['orden', 'consolidado', 'contrato']
+          && d.status in ['borrador', 'lista', 'facturada', 'anulada']
+          && isDate(d.date) && optDate(d, 'dueDate')
+          && d.period is string && d.period.matches('^[0-9]{4}-[0-9]{2}$')
+          && d.orderIds is list && d.orderIds.size() <= 200
+          && d.items is list && d.items.size() >= 1 && d.items.size() <= 200
+          && d.subtotal is number && d.subtotal >= 0
+          && d.ivaPct is number && d.ivaPct >= 0 && d.ivaPct <= 100
+          && d.ivaValue is number && d.ivaValue >= 0
+          && d.total is number && d.total >= 0
+          && optStr(d, 'clientName', 150) && optStr(d, 'clientNit', 40)
+          && optStr(d, 'contractId', 64) && optStr(d, 'consecutivo', 20)
+          && optStr(d, 'notes', 2000) && optStr(d, 'siigoNumero', 40);
+      }
+
+      // ---------------- Gastos ----------------
+      //  Regla dura: un gasto NUNCA lo ve el cliente. Aquí no aparece
+      //  isCustomer por ningún lado, así que el portal del cliente no
+      //  puede leer ni un solo documento de esta colección.
+      //  El técnico solo ve y edita los suyos, y solo mientras estén
+      //  pendientes. La oficina aprueba, rechaza y marca el reembolso.
+      match /expenses/{eid} {
+        function mioGasto() { return isTech(t) && resource.data.techUid == uid(); }
+
+        allow read: if isManager(t) || mioGasto();
+
+        allow create: if tenantActive(t) && validExpense(newData()) && createdStamp()
+          && (
+            ( canManage(t) && newData().status in ['pendiente', 'aprobado'] )
+            || ( isTech(t)
+                 && newData().techUid == uid()
+                 && newData().status == 'pendiente'
+                 && newData().pagado == false
+                 && newData().get('aprobadoPor', null) == null )
+          );
+
+        allow update: if tenantActive(t) && validExpense(newData()) && updatedStamp()
+          && unchanged(['seq', 'number', 'techUid'])
+          && (
+            canManage(t)
+            || ( isTech(t) && oldData().techUid == uid()
+                 && oldData().status == 'pendiente'
+                 && newData().status == 'pendiente'
+                 && newData().pagado == false
+                 && changedKeys().hasOnly(['date', 'category', 'concept', 'amount', 'fuente',
+                                           'orderId', 'orderNumber', 'proveedor', 'nit', 'soporte',
+                                           'thumb', 'nota', 'advanceId', 'updatedAt', 'updatedBy']) )
+          );
+
+        allow delete: if false;
+
+        // La foto del recibo va aparte para no engordar el documento.
+        match /file/{docId} {
+          function gastoPadre() { return get(/databases/$(database)/documents/tenants/$(t)/expenses/$(eid)).data; }
+          function dueno() { return isTech(t) && gastoPadre().techUid == uid(); }
+
+          allow read: if isManager(t) || dueno();
+          allow create: if tenantActive(t) && (canManage(t) || dueno())
+            && newData().keys().hasOnly(['data']) && str(newData().data, 20, 900000);
+          allow update: if tenantActive(t)
+            && (canManage(t) || (dueno() && gastoPadre().status == 'pendiente'))
+            && newData().keys().hasOnly(['data']) && str(newData().data, 20, 900000);
+          allow delete: if false;
+        }
+      }
+      function validExpense(d) {
+        return d.keys().hasOnly(['seq', 'number', 'date', 'category', 'concept', 'amount', 'fuente',
+                                 'techId', 'techUid', 'techName', 'orderId', 'orderNumber',
+                                 'proveedor', 'nit', 'soporte', 'thumb', 'nota',
+                                 'status', 'aprobadoPor', 'pagado', 'pagadoEl', 'advanceId',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.seq is number && d.seq > 0
+          && str(d.number, 3, 20)
+          && isDate(d.date)
+          && str(d.category, 2, 40)
+          && str(d.concept, 2, 200)
+          && d.amount is number && d.amount > 0
+          && d.fuente in ['reembolsable', 'anticipo', 'empresa']
+          && d.status in ['pendiente', 'aprobado', 'rechazado']
+          && d.pagado is bool
+          && optStr(d, 'techId', 64) && optStr(d, 'techUid', 128) && optStr(d, 'techName', 100)
+          && optStr(d, 'orderId', 64) && optStr(d, 'orderNumber', 20)
+          && optStr(d, 'proveedor', 120) && optStr(d, 'nit', 40) && optStr(d, 'soporte', 60)
+          && optStr(d, 'nota', 500) && optStr(d, 'aprobadoPor', 128) && optStr(d, 'advanceId', 64)
+          && optDate(d, 'pagadoEl')
+          && (!('thumb' in d) || d.thumb == null
+              || (d.thumb is string && d.thumb.size() <= 80000));
+      }
+
+      // ---------------- Anticipos a los técnicos ----------------
+      //  Plata que se le entrega al técnico por adelantado. Él la legaliza
+      //  con gastos de fuente "anticipo". Tampoco la ve el cliente.
+      match /advances/{aid} {
+        allow read: if isManager(t) || (isTech(t) && resource.data.techUid == uid());
+        allow create: if canManage(t) && validAdvance(newData()) && createdStamp();
+        allow update: if canManage(t) && validAdvance(newData()) && updatedStamp()
+          && unchanged(['seq', 'number', 'techUid', 'amount']);
+        allow delete: if false;
+      }
+      function validAdvance(d) {
+        return d.keys().hasOnly(['seq', 'number', 'date', 'techId', 'techUid', 'techName',
+                                 'amount', 'devuelto', 'status', 'nota',
+                                 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
+          && d.seq is number && d.seq > 0
+          && str(d.number, 3, 20) && isDate(d.date)
+          && d.amount is number && d.amount > 0
+          && d.devuelto is number && d.devuelto >= 0
+          && d.status in ['abierto', 'cerrado']
+          && optStr(d, 'techId', 64) && optStr(d, 'techUid', 128)
+          && optStr(d, 'techName', 100) && optStr(d, 'nota', 300);
       }
 
       // ---------------- Órdenes de trabajo ----------------
@@ -352,17 +643,53 @@ service cloud.firestore {
           allow create: if tenantActive(t) && (isManager(t) || miOrden()) && validReport(newData());
 
           // Mientras el cliente no haya firmado, se puede seguir editando.
+          // Ya firmado queda cerrado, SALVO que la oficina lo reabra: eso
+          // borra las dos firmas, exige un motivo y deja escrito quién lo
+          // autorizó. Después el técnico vuelve a llenarlo y a recoger la
+          // firma buena. Nunca se edita un reporte firmado "por debajo":
+          // o está sin firmar, o alguien de la oficina respondió por la
+          // reapertura con su nombre.
           allow update: if tenantActive(t) && (isManager(t) || miOrden())
             && validReport(newData())
-            && (!('firmaCliente' in oldData()) || oldData().firmaCliente == null);
+            && ( sinFirmar() || reapertura() );
+
+          function sinFirmar() {
+            return !('firmaCliente' in oldData()) || oldData().firmaCliente == null;
+          }
+          function reapertura() {
+            return canManage(t)
+              && oldData().get('firmaCliente', null) != null
+              && newData().get('firmaCliente', null) == null
+              && newData().get('firmaTecnico', null) == null
+              && newData().reabiertoPor == uid()
+              && newData().reabiertoEl == request.time
+              && str(newData().get('reabiertoMotivo', ''), 3, 300);
+          }
 
           allow delete: if false;
+        }
+        // Si el servicio consumió materiales, el reporte firmado debe
+        // señalar una foto real de cada fase. No se cuentan fotos (las
+        // reglas no pueden), se exige que las tres existan y que cada una
+        // sea de la fase que dice ser.
+        function exigeEvidencia(d) {
+          return d.get('firmaCliente', null) != null && d.get('materiales', []).size() > 0;
+        }
+        function fotoDeFase(d, fase) {
+          return d.get('evidencia', {}).get(fase, '') is string
+            && d.get('evidencia', {}).get(fase, '').size() > 0
+            && exists(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)/photos/$(d.evidencia[fase]))
+            && get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)/photos/$(d.evidencia[fase])).data.fase == fase;
         }
         function validReport(d) {
           return d.keys().hasOnly(['tipo','horaEntrada','horaSalida','equipos','checks','materiales',
                                    'actividad','datos','recomendaciones','observaciones','evaluacion',
+                                   'evidencia',
                                    'firmaCliente','firmaClienteNombre','firmaTecnico','firmaTecnicoNombre',
+                                   'reabiertoPor','reabiertoEl','reabiertoMotivo',
                                    'createdAt','createdBy','updatedAt','updatedBy'])
+            && ( !exigeEvidencia(d)
+                 || (fotoDeFase(d,'antes') && fotoDeFase(d,'durante') && fotoDeFase(d,'despues')) )
             && d.tipo in ['preventivo','correctivo']
             && d.updatedAt == request.time && d.updatedBy == uid()
             && optStr(d, 'actividad', 4000)
@@ -370,9 +697,59 @@ service cloud.firestore {
             && optStr(d, 'observaciones', 2000)
             && optStr(d, 'firmaClienteNombre', 120)
             && optStr(d, 'firmaTecnicoNombre', 120)
+            && optStr(d, 'reabiertoPor', 128)
+            && optStr(d, 'reabiertoMotivo', 300)
             // Las firmas son imágenes pequeñas guardadas como texto.
             && optStr(d, 'firmaCliente', 260000)
             && optStr(d, 'firmaTecnico', 260000);
+        }
+
+        // ---- Registro fotográfico: antes, durante y después ----
+        //  Cada foto es un documento aparte, comprimida por la app antes
+        //  de subirla. Así no engorda el reporte y solo se descarga cuando
+        //  alguien de verdad la mira.
+        match /photos/{photoId} {
+          function fOrd()  { return get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data; }
+          function fMia()  { return isTech(t) && fOrd().techUid == uid(); }
+          function fFicha(){ return /databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)/report/ficha; }
+          function fSinFirmar(){
+            return !exists(fFicha()) || get(fFicha()).data.get('firmaCliente', null) == null;
+          }
+
+          allow read: if isManager(t) || fMia()
+            || (isCustomer(t) && fOrd().clientId == myClientId(t));
+
+          // La ficha liviana: solo la miniatura. Es lo que se lista en el
+          // celular, para no bajar las fotos grandes sin necesidad.
+          allow create: if tenantActive(t) && (isManager(t) || fMia())
+            && newData().keys().hasOnly(['fase', 'thumb', 'nota', 'by', 'byName', 'at'])
+            && newData().fase in ['antes', 'durante', 'despues']
+            && newData().by == uid() && newData().at == request.time
+            && str(newData().thumb, 100, 80000)
+            && optStr(newData(), 'nota', 300)
+            && optStr(newData(), 'byName', 100);
+
+          // Una foto no se edita nunca. Se puede borrar solo mientras el
+          // cliente no haya firmado: después es parte de la evidencia.
+          allow update: if false;
+          allow delete: if tenantActive(t) && (isManager(t) || fMia()) && fSinFirmar();
+        }
+
+        // La foto en tamaño bueno, en un documento aparte. Solo se descarga
+        // cuando alguien la abre o imprime el reporte.
+        match /photoFiles/{photoId} {
+          function gOrd()  { return get(/databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)).data; }
+          function gMia()  { return isTech(t) && gOrd().techUid == uid(); }
+          function gFicha(){ return /databases/$(database)/documents/tenants/$(t)/workOrders/$(orderId)/report/ficha; }
+
+          allow read: if isManager(t) || gMia()
+            || (isCustomer(t) && gOrd().clientId == myClientId(t));
+          allow create: if tenantActive(t) && (isManager(t) || gMia())
+            && newData().keys().hasOnly(['data'])
+            && str(newData().data, 100, 900000);
+          allow update: if false;
+          allow delete: if tenantActive(t) && (isManager(t) || gMia())
+            && (!exists(gFicha()) || get(gFicha()).data.get('firmaCliente', null) == null);
         }
 
         // Historial inmutable de la orden

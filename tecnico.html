@@ -301,7 +301,7 @@ const PLBL={normal:'Normal',media:'Media',alta:'Alta',critica:'Crítica'};
 const NEXT={programada:'en_ruta',en_ruta:'en_servicio',en_servicio:'completada'};
 const NEXTL={en_ruta:'Salgo para allá',en_servicio:'Llegué, inicio servicio',completada:'Terminé el servicio'};
 
-const VERSION='v2026.10.06-1';
+const VERSION='v2026.10.06-2';
 let TENANT=null, ME=null, ORDERS=[], TAB='hoy', DET=null, unsub=null, EMPRESA='', LOGO='';
 let BODEGAS=[], REPUESTOS=[], EXIST={};
 const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -567,8 +567,13 @@ async function abrirReporte(){
  firmas.cliente=REP.firmaCliente||null; firmas.tecnico=REP.firmaTecnico||null;
  await cargarFotos(o._id);
  // ¿Quedó un borrador sin subir en este celular?
+ const reabiertoEnServidor=!REP.firmaCliente&&!!REP.reabiertoMotivo;
  const loc=leerLocal();
- if(loc&&loc.rep&&!REP.firmaCliente){
+ if(loc&&loc.rep&&reabiertoEnServidor){
+  // La oficina mandó corregir: el borrador viejo de este celular trae las
+  // firmas malas. Se descarta para no volver a trabar el reporte.
+  limpiarLocal();
+ }else if(loc&&loc.rep&&!REP.firmaCliente){
   const cuando=new Date(loc.ts).toLocaleString('es-CO',{dateStyle:'short',timeStyle:'short'});
   if(confirm('Hay un borrador de esta orden sin subir, de '+cuando+'.\n\n¿Recuperarlo?')){
    REP=loc.rep; firmas=loc.firmas||firmas; sucio=true;
@@ -599,7 +604,7 @@ function pintarReporte(){
  $('repTit').textContent=(prev?'Preventivo':'Correctivo')+' · '+(o.number||'');
  const reabierto=!firmado&&!!REP.reabiertoMotivo;
  $('repBody').innerHTML=`
- ${firmado?'<div class="card" style="border-color:var(--green)"><b style="color:#4fc584">Reporte firmado por el cliente.</b><div class="sub">Ya no se puede modificar. Puede verlo o imprimirlo.</div></div>':''}
+ ${firmado?'<div class="card" style="border-color:var(--green)"><b style="color:#4fc584">Reporte firmado por el cliente.</b><div class="sub">Ya no se puede modificar. Si quedó algo mal, pídale a la oficina que lo reabra para corregirlo.</div></div>':''}
  ${reabierto?`<div class="card" style="border-color:#e8b84b"><b style="color:#e8b84b">La oficina reabrió este reporte.</b>
    <div class="sub" style="margin-top:4px">Motivo: ${esc(REP.reabiertoMotivo)}</div>
    <div class="sub" style="margin-top:6px">Corrija lo que haga falta y vuelva a recoger las dos firmas.</div></div>`:''}

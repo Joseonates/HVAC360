@@ -369,7 +369,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.06-1';
+const VERSION='v2026.10.06-2';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -1412,25 +1412,40 @@ async function reabrirReporte(){
  if(motivo===null) return;
  if(motivo.trim().length<3){ alert('Escriba el motivo (al menos 3 letras).'); return }
  if(!confirm('Esto BORRA las dos firmas del reporte de '+id+'.\n\nEl técnico tendrá que corregirlo y recoger otra vez la firma del cliente. ¿Continuar?')) return;
+ const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha');
  try{
-  const ref=FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha');
   const d=await FB.getDoc(ref);
   if(!d.exists()){ alert('Esa orden no tiene reporte.'); return }
   await FB.setDoc(ref,Object.assign({},d.data(),{
    firmaCliente:null, firmaTecnico:null,
    reabiertoPor:uid(), reabiertoEl:sv(), reabiertoMotivo:motivo.trim(),
    updatedAt:sv(), updatedBy:uid()}));
+
+  // No basta con que no salga error: se vuelve a leer para comprobar que
+  // la firma de verdad quedó borrada. Si no, el técnico seguiría trabado
+  // y nadie se daría cuenta.
+  const ver=await FB.getDoc(ref);
+  if(!ver.exists()||ver.data().firmaCliente!=null){
+   alert('La reapertura no quedó guardada: el reporte sigue firmado.\n\nVuelva a intentarlo y, si sigue igual, avíseme.');
+   return;
+  }
   try{
    await FB.addDoc(C('workOrders',id,'events'),{type:'reporte_reabierto',status:null,
     note:'Reporte reabierto para corregir: '+motivo.trim(),
     by:uid(), byName:(ME&&ME.name)||null, at:sv()});
   }catch(e){ console.error('no se pudo dejar la nota en el historial',e) }
   cerrarVisor();
-  toast('Reporte de '+id+' reabierto. Avísele al técnico para que lo corrija.');
+  toast('Listo: las firmas de '+id+' se borraron. El técnico ya lo puede corregir.');
+  alert('Reporte de '+id+' reabierto.\n\nEl técnico ya lo puede editar desde su celular. Dígale que entre a la orden, abra «Reporte de servicio para el cliente», corrija y vuelva a recoger las dos firmas.');
   refresh();
  }catch(e){
   console.error(e);
-  alert('No se pudo reabrir: '+errMsg(e));
+  const cod=(e&&e.code)||'';
+  if(cod.includes('permission-denied')){
+   alert('No se pudo reabrir: las reglas de seguridad que están publicadas todavía no permiten esta operación.\n\nFALTA PUBLICAR LAS REGLAS NUEVAS:\n1. Entre a console.firebase.google.com y abra el proyecto.\n2. Firestore Database → pestaña Reglas.\n3. Pegue el contenido del archivo firestore.rules nuevo.\n4. Botón Publicar.\n\nDespués vuelva a intentar aquí.');
+  }else{
+   alert('No se pudo reabrir: '+errMsg(e));
+  }
  }
 }
 function imprimirReporte(){ window.print() }
@@ -1491,7 +1506,11 @@ function hojaReporte(o,R,fotos){
   <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
    <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${esc(R.firmaTecnicoNombre||'')}</div></div>
  </div>
- ${R.firmaCliente?'':'<p class="pconv" style="margin-top:10px">Reporte sin firmar: el técnico todavía puede modificarlo.</p>'}`;
+ ${R.firmaCliente?'':(R.reabiertoMotivo
+   ?'<p class="pconv" style="margin-top:10px;font-weight:700">REABIERTO para corregir'
+     +(R.reabiertoEl&&R.reabiertoEl.toDate?' el '+fmtDateTime(R.reabiertoEl.toDate().toISOString()):'')
+     +' · motivo: '+esc(R.reabiertoMotivo)+'. El técnico lo puede editar y volver a firmar.</p>'
+   :'<p class="pconv" style="margin-top:10px">Reporte sin firmar: el técnico todavía puede modificarlo.</p>')}`;
 }
 
 /* ================= REPORTES ================= */

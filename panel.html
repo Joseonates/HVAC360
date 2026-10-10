@@ -158,7 +158,7 @@ try{
 <div id="toast" class="toast" hidden></div>
 
 <script>
-const VERSION='v2026.10.12-2';
+const VERSION='v2026.10.12-3';
 const $=i=>document.getElementById(i);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
@@ -429,7 +429,7 @@ function formEmpresa(){
    <label>Contraseña inicial <b style="color:var(--danger)">*</b><input id="nClave" value="${esc(claveSugerida())}"><span class="small">Mínimo 6 caracteres. Él la puede cambiar después.</span></label>
    <label>Empieza como<select id="nEstado"><option value="prueba">En prueba</option><option value="activo">Activa (ya paga)</option></select></label>
    <label>Plan<select id="nPlan">${PLANES.length?PLANES.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join(''):'<option value="basico">basico</option>'}</select></label>
-   <label>Días de prueba<input id="nDias" type="number" min="0" max="365" value="15"></label>
+   <label>Días de prueba<input id="nDias" type="number" min="0" max="365" value="30"></label>
   </div>
   <div id="nmsg2" class="msg"></div>
   <div class="acc">
@@ -519,6 +519,7 @@ function pintarPlanes(){
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
    <h2 style="margin:0;flex:1">Planes comerciales</h2>
    <button class="btn" onclick="formPlan('')">＋ Nuevo plan</button>
+   ${PLANES.length?'':'<button class="btn sec" onclick="planesSugeridos()">Crear los tres planes sugeridos</button>'}
   </div>
   <p class="small">Los topes de cada plan son el valor por defecto que se le pone a una empresa nueva.
    A una empresa puntual usted le puede subir el tope sin cambiarle el plan.</p>
@@ -552,6 +553,39 @@ function formPlan(id){
   <div id="pmsg" class="msg"></div>
   <div class="acc"><button class="btn" onclick="guardarPlan()">Guardar</button>
    <button class="btn sec" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+/* ---- Los tres planes sugeridos ----
+   Un punto de partida, no una verdad: con las primeras empresas usted
+   sabrá si el tope del Básico se queda corto. Nunca pisa un plan que ya
+   exista, para no borrarle un precio que usted haya ajustado.        */
+const PLANES_SUGERIDOS=[
+ {id:'basico', name:'Básico', orden:1, precioMes:99000, maxUsuarios:5, maxOrdenesMes:150,
+  notas:'Para empresas de 2 o 3 técnicos. Incluye órdenes, informe firmado por el cliente, portal del cliente y gastos.'},
+ {id:'profesional', name:'Profesional', orden:2, precioMes:189000, maxUsuarios:12, maxOrdenesMes:600,
+  notas:'Para 5 a 10 técnicos. Suma inventario con aprobación de salidas, cotizaciones y facturación preparada para Siigo.'},
+ {id:'empresarial', name:'Empresarial', orden:3, precioMes:349000, maxUsuarios:30, maxOrdenesMes:2500,
+  notas:'Para empresas con varias sedes o contratos grandes. Formatos de informe a la medida y acompañamiento.'}
+];
+async function planesSugeridos(){
+ const hay=PLANES_SUGERIDOS.filter(p=>PLANES.some(x=>x.id===p.id)).map(p=>p.name);
+ const faltan=PLANES_SUGERIDOS.filter(p=>!PLANES.some(x=>x.id===p.id));
+ if(!faltan.length){ toast('Esos tres planes ya existen.'); return }
+ const resumen=faltan.map(p=>'· '+p.name+' · '+money(p.precioMes)+'/mes · '+p.maxUsuarios+
+   ' usuarios · '+p.maxOrdenesMes+' órdenes al mes').join('\n');
+ if(!confirm('Se van a crear estos planes:\n\n'+resumen+
+   (hay.length?('\n\nNo se tocan los que ya existen: '+hay.join(', ')):'')+
+   '\n\nDespués los puede editar uno por uno. ¿Continuar?')) return;
+ try{
+  for(const p of faltan){
+   await FB.setDoc(FB.doc(FB.fs,'plans',p.id),{
+    name:p.name, orden:p.orden, precioMes:p.precioMes,
+    maxUsuarios:p.maxUsuarios, maxOrdenesMes:p.maxOrdenesMes,
+    activo:true, notas:p.notas,
+    updatedAt:FB.serverTimestamp(), updatedBy:YO.uid});
+  }
+  toast('Listo: '+faltan.length+' plan(es) creado(s).');
+  await cargar();
+ }catch(e){ alert('No se pudieron crear: '+errMsg(e)) }
 }
 async function guardarPlan(){
  const id=($('pId').value||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');

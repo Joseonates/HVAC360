@@ -444,7 +444,8 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.12-2';
+const VERSION='v2026.10.12-3';
+const DIAS_PRUEBA=30;      // lo que dura la prueba de quien se registra solo
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -2018,7 +2019,13 @@ async function doRegister(){
   const u=cred.user.uid;
   const tid='emp-'+Math.random().toString(36).slice(2,10);
   const b=FB.writeBatch(FB.fs);
-  b.set(FB.doc(FB.fs,'tenants',tid),{name:co,status:'prueba',plan:'basico',createdBy:u,createdAt:FB.serverTimestamp()});
+  //  La prueba nace con fecha. Antes no la tenía, y una empresa que se
+  //  registraba sola se quedaba trabajando gratis hasta que alguien se
+  //  diera cuenta. Las reglas ahora exigen la fecha y no dejan pasarse
+  //  de 45 días: el que quiera más, se lo da usted desde el panel.
+  const finPrueba=new Date(Date.now()+DIAS_PRUEBA*86400000);
+  b.set(FB.doc(FB.fs,'tenants',tid),{name:co,status:'prueba',plan:'basico',
+   trialEnds:finPrueba,createdBy:u,createdAt:FB.serverTimestamp()});
   b.set(FB.doc(FB.fs,'tenants',tid,'members',u),{name:na,email:em,role:'admin',active:true,
    createdAt:FB.serverTimestamp(),createdBy:u,updatedAt:FB.serverTimestamp(),updatedBy:u});
   b.set(FB.doc(FB.fs,'users',u),{tenantId:tid,email:em,createdAt:FB.serverTimestamp()});

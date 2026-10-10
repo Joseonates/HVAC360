@@ -238,6 +238,7 @@ try {
     <button data-page="templates" title="Formatos de informe">📝 <span>Formatos de informe</span></button>
     <button data-page="users" title="Usuarios">👤 <span>Usuarios</span></button>
     <button data-page="backup" title="Respaldo de datos">⛁ <span>Respaldo de datos</span></button>
+    <button data-page="panelext" id="navPanel" hidden title="Panel de la plataforma">🛠 <span>Panel de la plataforma</span></button>
   </nav>
 </aside>
 
@@ -443,7 +444,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.12-1';
+const VERSION='v2026.10.12-2';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -949,7 +950,29 @@ function show(id){
  if(RENDER[id])RENDER[id]();
  window.scrollTo(0,0);
 }
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>b.dataset.page==='neworder'?newOrder():show(b.dataset.page)));
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>{
+ const p=b.dataset.page;
+ if(p==='neworder') return newOrder();
+ if(p==='panelext') return abrirPanelPlataforma();   // no es una página de aquí: es otra aplicación
+ show(p);
+}));
+/* ---- El panel de la plataforma ----
+   Vive en su propia página, aparte, porque no es parte del sistema que
+   usa una empresa: es el tablero del dueño de la plataforma. El botón
+   solo aparece si quien entró está en /platformAdmins, y ese documento
+   únicamente se puede crear a mano en la consola de Firebase. Una
+   empresa cliente nunca lo ve, y aunque adivinara la dirección, el
+   panel no le mostraría nada.                                        */
+function abrirPanelPlataforma(){
+ window.open(location.pathname.replace(/[^/]*$/,'panel.html'),'_blank');
+}
+async function verSiEsDueno(){
+ const b=$('navPanel'); if(!b) return;
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'platformAdmins',uid()));
+  b.hidden=!d.exists();
+ }catch(e){ b.hidden=true }
+}
 function refresh(){if(RENDER[currentPage])RENDER[currentPage]()}
 
 /* ================= DASHBOARD ================= */
@@ -2106,6 +2129,7 @@ async function onSignedIn(user){
   escucharCambios();
   setUserChip();
   avisoSuscripcion();
+  verSiEsDueno();
   $('authScreen').style.display='none';
   bootUI();
   RENDER[currentPage]&&RENDER[currentPage]();
@@ -2121,7 +2145,7 @@ function startAuth(){
    if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
    if(unsubFacs){ unsubFacs(); unsubFacs=null }
    if(unsubGastos){ unsubGastos(); unsubGastos=null }
-   TENANT=null;ME=null;MIEMBROS=[];EMPRESA={};booted=false;$('authScreen').style.display='flex';authBusy(false);
+   TENANT=null;ME=null;MIEMBROS=[];EMPRESA={};booted=false;{const b=$('navPanel'); if(b) b.hidden=true}$('authScreen').style.display='flex';authBusy(false);
   }
  });
 }

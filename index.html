@@ -90,6 +90,58 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 #rvBody .fbox img{max-height:54px}
 #rvBody .fl{font-size:9px;font-weight:700;margin-top:3px}
 #rvBody .sm{font-size:8px}
+
+/* ---- Editor de formatos de informe ---- */
+.plcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:1100px){.plcols{grid-template-columns:1fr}}
+.plsec{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.plsec:last-child{border-bottom:none}
+.plsec .plnom{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:var(--text)}
+.plsec .plnom small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.plsec.apagada .plnom{color:var(--muted);font-weight:500}
+.plint{width:40px;height:23px;border-radius:20px;border:none;background:#cbd5e1;position:relative;cursor:pointer;flex:none}
+.plint[aria-checked="true"]{background:var(--primary)}
+.plint:disabled{opacity:.45;cursor:default}
+.plint i{position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:left .15s}
+.plint[aria-checked="true"] i{left:20px}
+.plsub{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px;margin:2px 0 12px}
+.plgrupo{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:10px}
+.plgrupo:last-of-type{border-bottom:none}
+.plgcab{display:flex;gap:8px;align-items:center;margin-bottom:7px}
+.plgcab input{font-weight:700;margin-top:0}
+.plitem{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.plitem input{margin-top:0;font-size:13px;padding:7px 9px}
+/* La vista previa usa las mismas reglas de la hoja impresa: una sola
+   apariencia, para que lo que se ve en el editor sea lo que sale. */
+.hojaprev{max-height:74vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}
+.hojaprev{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#000}
+.hojaprev .phead{display:flex;align-items:stretch;border:1px solid #000;margin-bottom:6px}
+.hojaprev .pco{padding:6px 10px;font-weight:700;font-size:13px;border-right:1px solid #000;display:flex;align-items:center;justify-content:center;min-width:150px;max-width:190px}
+.hojaprev .plogo{max-height:52px;max-width:170px}
+.hojaprev .pti{flex:1;padding:8px 10px;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;text-align:center}
+.hojaprev .pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
+.hojaprev .pnum .sm{font-size:8px;font-weight:700}
+.hojaprev .pt{width:100%;border-collapse:collapse;margin-bottom:6px}
+.hojaprev .pt td,.hojaprev .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+.hojaprev .pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
+.hojaprev .pt th.gh{text-align:center;text-transform:uppercase}
+.hojaprev .pt td.lb{background:#eef2f7;font-weight:700;width:90px}
+.hojaprev .pt td.v{width:44px;text-align:center;font-weight:700}
+.hojaprev .pt td.tall{height:52px}
+.hojaprev .pcols{column-count:3;column-gap:6px}
+.hojaprev .pcols table{break-inside:avoid;width:100%}
+.hojaprev .pfotos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px}
+.hojaprev .pfotos figure{margin:0;break-inside:avoid}
+.hojaprev .pfotos img{width:100%;height:105px;object-fit:cover;border:1px solid #000;display:block}
+.hojaprev .pfotos figcaption{font-size:7.5px;font-weight:700;text-align:center;padding:1px 0}
+.hojaprev .pconv{font-size:7.5px;margin:-2px 0 7px;line-height:1.3}
+.hojaprev .pfirmas{display:flex;gap:26px;margin-top:16px;text-align:center}
+.hojaprev .pfirmas>div{flex:1}
+.hojaprev .fbox{height:56px;border-bottom:1px solid #000;display:flex;align-items:flex-end;justify-content:center}
+.hojaprev .fbox img{max-height:54px}
+.hojaprev .fl{font-size:9px;font-weight:700;margin-top:3px}
+.hojaprev .sm{font-size:8px}
+.hojaprev .plfoto{height:60px;border:1px solid #000;background:#eef2f7;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#475569}
 @media print{
  body.viendo-reporte .app,body.viendo-reporte #modal,body.viendo-reporte #toast,body.viendo-reporte .rvbar{display:none!important}
  body.viendo-reporte #rvSheet{position:static;background:#fff;padding:0;overflow:visible}
@@ -112,6 +164,7 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
    <label class="authlbl">Correo<input id="liEmail" type="email" autocomplete="username" placeholder="usted@empresa.com"></label>
    <label class="authlbl">Contraseña<input id="liPass" type="password" autocomplete="current-password" placeholder="••••••••"></label>
    <button class="btn primary authbtn" id="liBtn" onclick="doLogin()">Entrar</button>
+   <p class="authalt"><a href="#" onclick="recuperarClave();return false">Olvidé mi contraseña</a></p>
    <p class="authalt">¿Su empresa aún no está registrada?
     <a href="#" onclick="showPane('Reg');return false">Registrarla</a></p>
   </div>
@@ -181,6 +234,9 @@ try {
     <button data-page="neworder" title="Nueva orden">＋ <span>Nueva orden</span></button>
     <button data-page="reports" title="Reportes">▥ <span>Reportes</span></button>
     <div class="section">Sistema</div>
+    <button data-page="company" title="Mi empresa">🏢 <span>Mi empresa</span></button>
+    <button data-page="templates" title="Formatos de informe">📝 <span>Formatos de informe</span></button>
+    <button data-page="users" title="Usuarios">👤 <span>Usuarios</span></button>
     <button data-page="backup" title="Respaldo de datos">⛁ <span>Respaldo de datos</span></button>
   </nav>
 </aside>
@@ -331,9 +387,29 @@ try {
 <!-- REPORTES -->
 <section id="reports" class="page">
  <div class="topline"><div><h1>Reportes</h1><p>Indicadores calculados con los datos registrados.</p></div></div>
+ <div class="panel" id="repResultado" style="margin-bottom:18px"></div>
+ <h2 style="font-size:16px;margin:0 0 12px">Operación</h2>
  <div class="grid cards" id="repCards"></div>
  <div class="panel"><h2>Servicios por tipo</h2><div id="repTypes"></div></div>
  <div class="panel" style="margin-top:18px"><h2>Productividad por técnico</h2><div class="table-wrap"><table><thead><tr><th>Técnico</th><th>Asignadas</th><th>Completadas</th><th>Abiertas</th><th>Vencidas</th><th>Cumplimiento</th></tr></thead><tbody id="repTechs"></tbody></table></div></div>
+</section>
+
+<!-- MI EMPRESA -->
+<section id="company" class="page">
+ <div class="topline"><div><h1>Mi empresa</h1><p>Los datos que salen en los documentos, el logo y el estado de su plan.</p></div></div>
+ <div id="companyBody"></div>
+</section>
+
+<!-- USUARIOS -->
+<section id="users" class="page">
+ <div class="topline"><div><h1>Usuarios</h1><p>Quién entra al sistema, con qué rol y desde dónde.</p></div></div>
+ <div id="usersBody"></div>
+</section>
+
+<!-- FORMATOS DE INFORME -->
+<section id="templates" class="page">
+ <div class="topline"><div><h1>Formatos de informe</h1><p>Cómo se ve la hoja que firma el cliente y qué llena el técnico en el celular.</p></div></div>
+ <div id="templatesBody"></div>
 </section>
 
 <!-- RESPALDO -->
@@ -342,10 +418,8 @@ try {
  <div class="grid three" style="margin-top:0">
   <div class="card"><h2>Exportar</h2><p>Descarga un archivo .json con clientes, sedes, equipos, técnicos y órdenes.</p><button class="btn primary" onclick="exportData()">Descargar respaldo</button></div>
   <div class="card"><h2>Logo de la empresa</h2>
-   <p>Aparece en la cabecera de los reportes que firma el cliente.</p>
-   <div id="logoPrev" style="margin:10px 0"></div>
-   <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" onchange="subirLogo(this)">
-   <p class="small">Se reduce automáticamente. Use una imagen con fondo blanco o transparente.</p>
+   <p>El logo se cambió de sitio: ahora está en <b>Mi empresa</b>, junto con el NIT, el teléfono y la dirección.</p>
+   <button class="btn secondary" onclick="show('company')">Ir a Mi empresa</button>
   </div>
   <div class="card"><h2>Importar</h2><p>Reemplaza los datos actuales por los de un respaldo.</p><input type="file" id="importFile" accept=".json,application/json" onchange="importData(this)"></div>
   <div class="card"><h2>Datos de ejemplo</h2><p>Borra todo y carga de nuevo los datos de demostración.</p><button class="btn danger" onclick="resetDemo()">Restaurar demo</button></div>
@@ -369,7 +443,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.06-2';
+const VERSION='v2026.10.12-1';
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
 const ORDER_STATUS=['Pendiente','Programada','En ruta','En servicio','Completada','Cancelada'];
@@ -866,7 +940,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={expenses:renderGastos,invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={templates:renderPlantillas,users:renderUsers,company:renderCompany,expenses:renderGastos,invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -1460,61 +1534,27 @@ function fotosHoja(fotos){
    `<figure><img src="${f.data}"><figcaption>${lbl}</figcaption></figure>`).join('')).join('')}</div>`;
 }
 function hojaReporte(o,R,fotos){
- const prev=(R.tipo||'preventivo')==='preventivo';
  const c=client(o.clientId), st=site(o.siteId), a=asset(o.assetId);
- const eqs=R.equipos||[], checks=R.checks||{}, datos=R.datos||{}, ev=R.evaluacion||{};
- const eq=[0,1,2].map(i=>{const e=eqs[i]||{};
-  return `<tr><td>${esc(R_ROLES[i])}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.capacidad||'')}</td>
-   <td>${esc(e.marca||'')}</td><td>${esc(e.modelo||'')}</td><td>${esc(e.serie||'')}</td>
-   <td>${esc(e.ubicacion||'')}</td><td>${esc(e.numero||'')}</td></tr>`}).join('');
- const checksHtml=Object.entries(R_CHECKS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
-  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${checks['c_'+rk(g)+'_'+rk(it)]?'X':''}</td></tr>`).join('')}</table>`).join('');
- const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
- const matHtml=`<table class="pt"><tr><th>Descripción de materiales y repuestos</th><th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
-  ${mats.map(m=>`<tr><td>${esc(m.descripcion||'')}</td><td class="v">${esc(m.unidad||'')}</td><td class="v">${esc(m.cantidad||'')}</td></tr>`).join('')}</table>
-  <table class="pt"><tr><th>Descripción de la actividad</th></tr><tr><td class="tall">${esc(R.actividad||'')}</td></tr></table>`;
- const datosHtml=Object.entries(R_DATOS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
-  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${esc(datos['d_'+rk(g)+'_'+rk(it)]||'')}</td></tr>`).join('')}</table>`).join('');
- const evalHtml=`<table class="pt"><tr><th>Evaluación del servicio · califique de 1 a 5, donde 5 es el máximo</th>
-  <th style="width:44px">1</th><th style="width:44px">2</th><th style="width:44px">3</th><th style="width:44px">4</th><th style="width:44px">5</th></tr>
-  ${R_EVALS.map(e=>{const v=ev['e_'+rk(e)]||0;
-   return `<tr><td>${esc(e)}</td>${[1,2,3,4,5].map(n=>`<td class="v">${v===n?'X':''}</td>`).join('')}</tr>`}).join('')}</table>`;
- const logo=(ME&&ME.logoUrl)||'';
- return `
- <div class="phead">
-  <div class="pco">${logo?`<img src="${logo}" class="plogo">`:esc((ME&&ME.company)||'HVAC 360°')}</div>
-  <div class="pti">REPORTE DE MANTENIMIENTO ${prev?'PREVENTIVO':'CORRECTIVO'}</div>
-  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(o.id)}</b></div>
- </div>
- <table class="pt">
-  <tr><td class="lb">Cliente</td><td>${esc(c?.name||'')}</td><td class="lb">Fecha</td><td>${fmtDate(o.date)}</td></tr>
-  <tr><td class="lb">Sede</td><td>${esc(st?.name||'')}</td><td class="lb">Equipo</td><td>${esc(a?.id||'')}</td></tr>
-  <tr><td class="lb">Hora entrada</td><td>${esc(R.horaEntrada||'')}</td><td class="lb">Hora salida</td><td>${esc(R.horaSalida||'')}</td></tr>
- </table>
- <table class="pt"><tr><th colspan="8" class="gh">Identificación del equipo</th></tr>
-  <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicación</th><th>No.</th></tr>${eq}</table>
- <div class="pconv">${R_TIPOS.map(t=>t[0]+': '+t[1]).join(' · ')}</div>
- ${prev?`<div class="pcols">${checksHtml}</div>`:matHtml}
- <div class="pcols">${datosHtml}</div>
- ${prev?`<table class="pt"><tr><th>Recomendaciones del técnico</th></tr><tr><td class="tall">${esc(R.recomendaciones||'')}</td></tr>
-   <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(R.observaciones||'')}</td></tr></table>`:''}
- ${evalHtml}
- ${fotosHoja(fotos)}
- <div class="pfirmas">
-  <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
-   <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(R.firmaClienteNombre||'')}</div></div>
-  <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
-   <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${esc(R.firmaTecnicoNombre||'')}</div></div>
- </div>
- ${R.firmaCliente?'':(R.reabiertoMotivo
+ //  La hoja se arma con el formato con el que se llenó el reporte. Los
+ //  informes viejos no guardan ninguno: esos usan el de fábrica, que es
+ //  exactamente como salían antes.
+ const pl=plPorId(db.templates,R.plantilla,R.tipo);
+ const cuerpo=plHoja({pl,R,esc,fdate:fmtDate,
+  logo:(ME&&ME.logoUrl)||'', empresa:(ME&&ME.company)||'HVAC 360\u00b0',
+  numero:o.id, cliente:(c&&c.name)||'', fecha:o.date,
+  sede:(st&&st.name)||'', equipo:(a&&a.id)||'',
+  tipos:R_TIPOS.map(t=>t[0]+': '+t[1]).join(' \u00b7 '),
+  fotosHtml:fotosHoja(fotos)});
+ const pie = R.firmaCliente ? '' : (R.reabiertoMotivo
    ?'<p class="pconv" style="margin-top:10px;font-weight:700">REABIERTO para corregir'
      +(R.reabiertoEl&&R.reabiertoEl.toDate?' el '+fmtDateTime(R.reabiertoEl.toDate().toISOString()):'')
-     +' · motivo: '+esc(R.reabiertoMotivo)+'. El técnico lo puede editar y volver a firmar.</p>'
-   :'<p class="pconv" style="margin-top:10px">Reporte sin firmar: el técnico todavía puede modificarlo.</p>')}`;
+     +' \u00b7 motivo: '+esc(R.reabiertoMotivo)+'. El t\u00e9cnico lo puede editar y volver a firmar.</p>'
+   :'<p class="pconv" style="margin-top:10px">Reporte sin firmar: el t\u00e9cnico todav\u00eda puede modificarlo.</p>');
+ return cuerpo+pie;
 }
-
 /* ================= REPORTES ================= */
 function renderReports(){
+ pintarResultado();
  const t=todayStr(), valid=db.orders.filter(o=>o.status!=='Cancelada');
  const prevDue=valid.filter(o=>o.type==='Preventivo'&&o.date<=t), prevDone=prevDue.filter(o=>o.status==='Completada').length;
  const closed=valid.filter(o=>o.status==='Completada').length, late=valid.filter(isOverdue).length;
@@ -1802,7 +1842,7 @@ function escucharCambios(){
 
 /* ================= CARGA ================= */
 async function fsLoad(){
- const [cl,si,as,te,or,ct,wh,pa,mv,co,fa,ga,an,cn]=await Promise.all([
+ const [cl,si,as,te,or,ct,wh,pa,mv,co,fa,ga,an,pl,cn]=await Promise.all([
   FB.getDocs(C('clients')),FB.getDocs(C('sites')),FB.getDocs(C('assets')),
   FB.getDocs(C('technicians')),FB.getDocs(C('workOrders')),FB.getDocs(C('contracts')),
   FB.getDocs(C('warehouses')),FB.getDocs(C('parts')),FB.getDocs(C('movements')),
@@ -1810,10 +1850,11 @@ async function fsLoad(){
   FB.getDocs(C('invoices')).catch(()=>null),
   FB.getDocs(C('expenses')).catch(()=>null),
   FB.getDocs(C('advances')).catch(()=>null),
+  FB.getDocs(C('reportTemplates')).catch(()=>null),
   FB.getDoc(P('counters','workOrders'))]);
  counterVal=cn.exists()?(cn.data().value||0):0;
- db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],invoices:[],expenses:[],advances:[],stock:{}};
- remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},invoices:{},expenses:{},advances:{},events:{}};
+ db={clients:[],sites:[],assets:[],techs:[],orders:[],contracts:[],warehouses:[],parts:[],movements:[],quotes:[],invoices:[],expenses:[],advances:[],templates:[],stock:{}};
+ remote={clients:{},sites:{},assets:{},techs:{},orders:{},contracts:{},warehouses:{},parts:{},movements:{},quotes:{},invoices:{},expenses:{},advances:{},templates:{},events:{}};
  const take=(snap,arr,key,fn)=>snap.forEach(d=>{const x=fn(d.id,d.data());arr.push(x);remote[key][d.id]=JSON.stringify(x)});
  take(cl,db.clients,'clients',dnClient);
  take(si,db.sites,'sites',dnSite);
@@ -1828,6 +1869,7 @@ async function fsLoad(){
  if(fa) take(fa,db.invoices,'invoices',dnInvoice);
  if(ga) take(ga,db.expenses,'expenses',dnExpense);
  if(an) take(an,db.advances,'advances',dnAdvance);
+ if(pl) take(pl,db.templates,'templates',dnPlantilla);
  // La existencia vive dentro de cada bodega
  await Promise.all(db.warehouses.map(async w=>{
   try{ const st=await FB.getDocs(C('warehouses',w.id,'stock'));
@@ -1897,6 +1939,7 @@ async function fsSave(){
   await syncColl('invoices','invoices',upInvoice);
   await syncColl('expenses','expenses',upExpense);
   await syncColl('advances','advances',upAdvance);
+  await syncPlantillas();
   await syncOrders();
   storageOk=true;
  }catch(e){
@@ -1922,6 +1965,16 @@ function errMsg(e){
  if(c.includes('unauthorized-domain')) return 'Este dominio no está autorizado en Firebase. Agréguelo en Authentication → Settings → Authorized domains.';
  if(c.includes('permission-denied')) return 'Las reglas de seguridad rechazaron la operación.';
  return (e&&e.message)||'Error desconocido.';
+}
+/* ---- Recuperar la contraseña ----
+   Firebase manda el correo; nosotros no guardamos ni vemos claves.   */
+async function recuperarClave(){
+ const em=($('liEmail').value||'').trim();
+ if(!em){ authErr('Escriba primero su correo arriba y vuelva a tocar el enlace.'); $('liEmail').focus(); return }
+ try{
+  await FB.sendPasswordResetEmail(FB.auth,em);
+  authErr('Le enviamos un correo a '+em+' con el enlace para cambiar la contraseña. Si no lo ve, revise la carpeta de correo no deseado.');
+ }catch(e){ authErr(errMsg(e)) }
 }
 async function doLogin(){
  const em=$('liEmail').value.trim(), pw=$('liPass').value;
@@ -1987,6 +2040,42 @@ function aplicarLogo(){
  }
  if(ME&&ME.company) document.title=ME.company+' · HVAC 360°';
 }
+/* ---- Estado de la suscripción ----
+   Si la empresa está suspendida o se le venció la prueba, la base de
+   datos ya no acepta cambios. Mejor decirlo de frente arriba, que dejar
+   que la gente choque contra un error raro al guardar.               */
+let EMPRESA={};
+function avisoSuscripcion(){
+ const d=EMPRESA||{};
+ const fin=(d.trialEnds&&d.trialEnds.toDate)?d.trialEnds.toDate():null;
+ const vence=(d.vence&&d.vence.toDate)?d.vence.toDate():null;
+ const dias=f=>f?Math.ceil((f-new Date())/86400000):null;
+ let texto='', color='var(--danger)';
+ if(d.status==='suspendido')
+  texto='Su empresa está suspendida: puede consultar, pero no puede crear ni modificar nada. Comuníquese con el proveedor del sistema.';
+ else if(d.status==='cancelado')
+  texto='Su empresa está cancelada: la información queda visible, pero no se puede modificar.';
+ else if(d.status==='prueba'&&fin&&fin<new Date())
+  texto='Se venció el periodo de prueba. Puede consultar, pero no puede registrar nada nuevo. Comuníquese con el proveedor del sistema para activar su plan.';
+ else if(d.status==='prueba'&&fin&&dias(fin)<=7){
+  texto='Su prueba termina en '+dias(fin)+' día(s), el '+fmtDate(fin.getFullYear()+'-'+String(fin.getMonth()+1).padStart(2,'0')+'-'+String(fin.getDate()).padStart(2,'0'))+'.';
+  color='var(--warn)';
+ }else if(d.status==='activo'&&vence&&dias(vence)!=null&&dias(vence)<=7&&dias(vence)>=0){
+  texto='Su suscripción vence en '+dias(vence)+' día(s).';
+  color='var(--warn)';
+ }
+ let caja=$('avisoSusc');
+ if(!texto){ if(caja) caja.remove(); return }
+ if(!caja){
+  caja=document.createElement('div');
+  caja.id='avisoSusc';
+  caja.style.cssText='padding:11px 22px;font-size:14px;font-weight:600;color:#fff;text-align:center';
+  const main=document.querySelector('.main');
+  if(main) main.insertBefore(caja,main.firstChild); else document.body.appendChild(caja);
+ }
+ caja.style.background=color;
+ caja.textContent=texto;
+}
 function setUserChip(){
  aplicarLogo();
  const n=(ME&&ME.name)||'Usuario';
@@ -2012,9 +2101,11 @@ async function onSignedIn(user){
    authErr('Su usuario está inactivo en esta empresa.'); authBusy(false); await FB.signOut(FB.auth); return;
   }
   ME=Object.assign({},md.data(),{company:td.exists()?td.data().name:'',logoUrl:td.exists()?(td.data().logoUrl||''):'',settings:td.exists()?(td.data().settings||{}):{}});
+  EMPRESA=td.exists()?td.data():{};
   await fsLoad();
   escucharCambios();
   setUserChip();
+  avisoSuscripcion();
   $('authScreen').style.display='none';
   bootUI();
   RENDER[currentPage]&&RENDER[currentPage]();
@@ -2030,7 +2121,7 @@ function startAuth(){
    if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
    if(unsubFacs){ unsubFacs(); unsubFacs=null }
    if(unsubGastos){ unsubGastos(); unsubGastos=null }
-   TENANT=null;ME=null;booted=false;$('authScreen').style.display='flex';authBusy(false);
+   TENANT=null;ME=null;MIEMBROS=[];EMPRESA={};booted=false;$('authScreen').style.display='flex';authBusy(false);
   }
  });
 }
@@ -2306,6 +2397,7 @@ function verCotizacion(id){
   ${q.status==='borrador'?`<button class="btn primary" data-id="${esc(q.id)}" onclick="enviarCot(this.dataset.id)">Enviar al cliente</button>`:''}
   ${q.status==='aprobada'&&!q.resultOrderId?`<button class="btn primary" data-id="${esc(q.id)}" onclick="ordenDesdeCot(this.dataset.id)">Generar orden de trabajo</button>`:''}
   <button class="btn secondary" data-id="${esc(q.id)}" onclick="imprimirCotizacion(this.dataset.id)">Imprimir / PDF</button>
+  <button class="btn secondary" data-id="${esc(q.id)}" onclick="whatsappCot(this.dataset.id)">Enviar por WhatsApp</button>
   <button class="btn secondary" data-id="${esc(q.id)}" onclick="duplicarCot(this.dataset.id)">Duplicar</button>
   ${cotEditable(q)?`<button class="btn danger" data-id="${esc(q.id)}" onclick="anularCot(this.dataset.id)">Anular</button>`:''}
  </div>`);
@@ -2719,6 +2811,7 @@ function verFactura(id){
   ${f.status==='lista'?`<button class="btn primary" data-id="${esc(f.id)}" onclick="anotarFactura(this.dataset.id)">Anotar número de factura</button>`:''}
   <button class="btn secondary" data-id="${esc(f.id)}" onclick="exportarSiigo(this.dataset.id)">Descargar para Siigo</button>
   <button class="btn secondary" data-id="${esc(f.id)}" onclick="imprimirCuenta(this.dataset.id)">Cuenta de cobro</button>
+  <button class="btn secondary" data-id="${esc(f.id)}" onclick="whatsappCuenta(this.dataset.id)">Cobrar por WhatsApp</button>
   ${editable?`<button class="btn danger" data-id="${esc(f.id)}" onclick="anularFactura(this.dataset.id)">Anular</button>`:''}
  </div>`);
 }
@@ -3026,7 +3119,7 @@ function pintarMes(mes){
  const total=Object.values(grupos).reduce((a,b)=>a+b,0);
  $('gasBody').innerHTML=`<div class="grid two">
   <div class="panel"><h2>Por grupo · ${esc(mesLargo(gasPeriodo))}</h2>
-   ${total?Object.entries(grupos).sort((a,b)=>b[1]-a[1]).map(([k,v])=>bar(GAS_GRUPO[k]+' · '+money(v),v,total)).join('')
+   ${total?Object.entries(grupos).sort((a,b)=>b[1]-a[1]).map(([k,v])=>barraPlata(GAS_GRUPO[k],v,total)).join('')
           :'<p class="small">Sin gastos aprobados en el mes.</p>'}</div>
   <div class="panel"><h2>Resumen</h2>
    <p class="small">Aprobado: <b style="color:var(--text)">${money(total)}</b></p>
@@ -3327,6 +3420,969 @@ function prepararInstalacion(){
  }
 }
 window.addEventListener('load',prepararInstalacion);
+
+/* ================= USUARIOS DE LA EMPRESA =================
+   Quién entra, con qué rol y si sigue habilitado. Se lee y se escribe
+   directo contra Firestore, aparte del guardado general, para no
+   mezclarlo con los datos de la operación.                           */
+const ROLES={admin:'Administrador',coordinador:'Coordinador',tecnico:'Técnico',cliente:'Cliente (portal)'};
+const ROL_QUE_HACE={
+ admin:'Todo: configuración, usuarios, facturación y gastos.',
+ coordinador:'Opera el día a día: órdenes, clientes, inventario, cotizaciones. No toca usuarios.',
+ tecnico:'Solo la app del celular: sus órdenes y sus reportes.',
+ cliente:'Solo el portal: sus servicios, equipos y cotizaciones.'};
+let MIEMBROS=[], cargandoMiembros=false;
+
+async function cargarMiembros(){
+ if(!TENANT) return;
+ const ms=await FB.getDocs(C('members'));
+ MIEMBROS=[]; ms.forEach(d=>MIEMBROS.push(Object.assign({uid:d.id},d.data())));
+ MIEMBROS.sort((a,b)=>{
+  const o={admin:0,coordinador:1,tecnico:2,cliente:3};
+  const d=(o[a.role]??9)-(o[b.role]??9);
+  return d||String(a.name||'').localeCompare(String(b.name||''));
+ });
+}
+function topeDeUsuarios(){
+ const t=(EMPRESA&&EMPRESA.maxUsuarios);
+ return Number(t)||0;
+}
+async function renderUsers(){
+ const cont=$('usersBody');
+ if(!cont) return;
+ if(!cargandoMiembros&&!MIEMBROS.length){
+  cargandoMiembros=true;
+  cont.innerHTML='<div class="panel"><p class="small">Cargando usuarios…</p></div>';
+  try{ await cargarMiembros() }
+  catch(e){ cont.innerHTML='<div class="panel"><div class="errors">No se pudieron cargar los usuarios: '+esc(errMsg(e))+'</div></div>'; cargandoMiembros=false; return }
+  cargandoMiembros=false;
+ }
+ pintarUsuarios();
+}
+function pintarUsuarios(){
+ const activos=MIEMBROS.filter(m=>m.active!==false).length;
+ const tope=topeDeUsuarios();
+ const yo=(FB.auth.currentUser||{}).uid;
+ const soyAdmin=(ME&&ME.role)==='admin';
+
+ const porRol={};
+ MIEMBROS.forEach(m=>{ porRol[m.role]=(porRol[m.role]||0)+1 });
+
+ $('usersBody').innerHTML=`
+ <div class="grid cards">
+  <div class="card"><div class="ci">👤</div><h2>Usuarios activos</h2>
+   <div class="big">${activos}${tope?' / '+tope:''}</div>
+   <span class="small">${tope?(activos>tope?'Se pasó del tope de su plan':'dentro del tope de su plan'):'su plan no tiene tope'}</span></div>
+  <div class="card"><div class="ci">🛠️</div><h2>Técnicos con app</h2>
+   <div class="big">${porRol.tecnico||0}</div><span class="small">entran desde el celular</span></div>
+  <div class="card"><div class="ci">🏢</div><h2>Clientes con portal</h2>
+   <div class="big">${porRol.cliente||0}</div><span class="small">consultan sus servicios</span></div>
+  <div class="card"><div class="ci">🔑</div><h2>Con mando</h2>
+   <div class="big">${(porRol.admin||0)+(porRol.coordinador||0)}</div><span class="small">administradores y coordinadores</span></div>
+ </div>
+ ${tope&&activos>tope?`<div class="errors" style="margin-top:16px">Tiene ${activos} usuarios activos y su plan cubre ${tope}. El sistema no se lo impide, pero conviene hablar con el proveedor para subir el plan.</div>`:''}
+ <div class="panel" style="margin-top:18px">
+  <div class="topline" style="margin-bottom:12px"><div><h2 style="margin:0">Quién tiene acceso</h2>
+   <p class="small">Desactivar a alguien le quita la entrada de inmediato, sin borrar nada de lo que hizo.</p></div>
+   ${soyAdmin?'<button class="btn primary" onclick="formUsuario()">＋ Dar acceso a alguien</button>':''}</div>
+  <div class="table-wrap"><table>
+   <thead><tr><th>Persona</th><th>Correo</th><th>Rol</th><th>Estado</th><th style="text-align:right">Acciones</th></tr></thead>
+   <tbody>${MIEMBROS.length?MIEMBROS.map(m=>filaUsuario(m,yo,soyAdmin)).join(''):emptyRow(5,'No hay usuarios cargados.')}</tbody>
+  </table></div>
+  ${soyAdmin?'':'<p class="small" style="margin-top:12px">Solo el administrador puede crear usuarios o cambiar roles.</p>'}
+ </div>
+ <div class="panel" style="margin-top:16px">
+  <h2>Qué puede hacer cada rol</h2>
+  <div class="table-wrap"><table><tbody>
+   ${Object.entries(ROLES).map(([k,l])=>`<tr><td style="width:170px"><b>${esc(l)}</b></td>
+     <td class="small">${esc(ROL_QUE_HACE[k])}</td></tr>`).join('')}
+  </tbody></table></div>
+ </div>`;
+}
+function filaUsuario(m,yo,soyAdmin){
+ const esYo=m.uid===yo;
+ const act=m.active!==false;
+ return `<tr>
+  <td><b>${esc(m.name||'—')}</b>${esYo?' <span class="small">(usted)</span>':''}
+      ${m.clientId?`<div class="small">Cliente: ${esc((client(m.clientId)||{}).name||m.clientId)}</div>`:''}</td>
+  <td class="small">${esc(m.email||'—')}</td>
+  <td>${esc(ROLES[m.role]||m.role||'—')}</td>
+  <td>${act?'<span class="status green">Activo</span>':'<span class="status gray">Desactivado</span>'}</td>
+  <td style="text-align:right;white-space:nowrap">${soyAdmin&&!esYo?`
+    <button class="btn secondary sm" data-u="${esc(m.uid)}" onclick="formRol(this.dataset.u)" title="Cambiar el rol">Rol</button>
+    <button class="btn ${act?'danger':'primary'} sm" data-u="${esc(m.uid)}" onclick="cambiarActivo(this.dataset.u,${act?'false':'true'})">${act?'Desactivar':'Reactivar'}</button>`:''}
+   ${m.email?`<button class="btn secondary sm" data-e="${esc(m.email)}" onclick="enviarCambioClave(this.dataset.e)" title="Enviarle un correo para que cambie su contraseña">Clave</button>`:''}
+  </td></tr>`;
+}
+
+/* ---- Cambiar el rol ---- */
+function formRol(u){
+ const m=MIEMBROS.find(x=>x.uid===u); if(!m) return;
+ openModal(`<div class="modal-head"><h2>Rol de ${esc(m.name||'')}</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <label>Rol<select id="urRol">${opts(Object.entries(ROLES).map(([k,l])=>({value:k,label:l})),m.role)}</select></label>
+  <p class="small" id="urQue">${esc(ROL_QUE_HACE[m.role]||'')}</p>
+  <div class="errors" id="urErr"></div>
+  <div class="actions"><button class="btn primary" data-u="${esc(u)}" onclick="guardarRol(this.dataset.u)">Guardar</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ $('urRol').onchange=()=>{ $('urQue').textContent=ROL_QUE_HACE[$('urRol').value]||'' };
+}
+async function guardarRol(u){
+ const m=MIEMBROS.find(x=>x.uid===u); if(!m) return;
+ const rol=$('urRol').value;
+ if(rol===m.role){ closeModal(); return }
+ if(rol==='cliente'&&!m.clientId){
+  $('urErr').textContent='Un usuario de portal tiene que estar amarrado a un cliente. Créelo desde la ficha del cliente, con “Crear acceso al portal”.';
+  return;
+ }
+ try{
+  await FB.updateDoc(P('members',u),{role:rol,updatedAt:sv(),updatedBy:uid()});
+  m.role=rol; closeModal(); pintarUsuarios();
+  toast(m.name+' ahora es '+ROLES[rol]+'.');
+ }catch(e){ $('urErr').textContent='No se pudo cambiar: '+errMsg(e) }
+}
+
+/* ---- Activar / desactivar ---- */
+async function cambiarActivo(u,activar){
+ const m=MIEMBROS.find(x=>x.uid===u); if(!m) return;
+ const texto=activar
+  ? '¿Reactivar a '+(m.name||'')+'? Va a poder entrar otra vez.'
+  : '¿Desactivar a '+(m.name||'')+'? No va a poder entrar hasta que usted lo reactive. Lo que ya registró se conserva.';
+ if(!confirm(texto)) return;
+ try{
+  await FB.updateDoc(P('members',u),{active:activar,updatedAt:sv(),updatedBy:uid()});
+  m.active=activar; pintarUsuarios();
+  toast(activar?(m.name+' reactivado.'):(m.name+' desactivado.'));
+ }catch(e){ alert('No se pudo: '+errMsg(e)) }
+}
+
+/* ---- Correo para cambiar la contraseña ---- */
+async function enviarCambioClave(correo){
+ if(!correo) return;
+ if(!confirm('¿Enviarle a '+correo+' un correo para que cambie su contraseña?')) return;
+ try{
+  await FB.sendPasswordResetEmail(FB.auth,correo);
+  toast('Correo enviado a '+correo+'. Dígale que revise también el correo no deseado.');
+ }catch(e){ alert('No se pudo enviar: '+errMsg(e)) }
+}
+
+/* ---- Dar acceso a alguien nuevo ----
+   Para técnicos y clientes se reutilizan los mismos pasos que ya
+   funcionaban desde su ficha: así no hay dos formas distintas de crear
+   la misma cuenta.                                                   */
+function formUsuario(){
+ openModal(`<div class="modal-head"><h2>Dar acceso a alguien</h2><button class="x" onclick="closeModal()">✕</button></div>
+  <label>¿Qué va a hacer esta persona?<select id="nuRol" onchange="pintarFormUsuario()">
+   ${opts(Object.entries(ROLES).map(([k,l])=>({value:k,label:l})),'coordinador')}</select></label>
+  <div id="nuCuerpo"></div>`);
+ pintarFormUsuario();
+}
+function pintarFormUsuario(){
+ const rol=$('nuRol').value;
+ const c=$('nuCuerpo');
+ c.innerHTML='<p class="small">'+esc(ROL_QUE_HACE[rol]||'')+'</p>';
+
+ if(rol==='tecnico'){
+  const libres=db.techs.filter(t=>!t.uid);
+  c.innerHTML+=libres.length
+   ? `<label>¿Cuál técnico?<select id="nuTec">${opts(libres.map(t=>({value:t.id,label:t.name})),'')}</select></label>
+      <label>Correo<input id="tAccEmail" type="email" placeholder="tecnico@empresa.com"></label>
+      <label>Contraseña inicial<input id="tAccPass" value="${esc(claveNueva())}"></label>
+      <div class="errors" id="tErr"></div>
+      <div class="actions"><button class="btn primary" onclick="crearAcceso($('nuTec').value)">Crear acceso</button>
+       <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`
+   : `<div class="errors">Todos sus técnicos ya tienen acceso. Si es alguien nuevo, créelo primero en
+      <b>Técnicos → ＋ Nuevo técnico</b> y vuelva aquí.</div>
+      <div class="actions"><button class="btn secondary" onclick="closeModal();show('technicians')">Ir a Técnicos</button></div>`;
+  return;
+ }
+ if(rol==='cliente'){
+  const libres=db.clients.filter(x=>!x.portalUid);
+  c.innerHTML+=libres.length
+   ? `<label>¿Cuál cliente?<select id="nuCli">${opts(libres.map(x=>({value:x.id,label:x.name})),'')}</select></label>
+      <label>Correo<input id="cPortEmail" type="email" placeholder="contacto@cliente.com"></label>
+      <label>Contraseña inicial<input id="cPortPass" value="${esc(claveNueva())}"></label>
+      <div class="errors" id="cErr"></div>
+      <div class="actions"><button class="btn primary" onclick="crearAccesoCliente($('nuCli').value)">Crear acceso</button>
+       <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`
+   : `<div class="errors">Todos sus clientes ya tienen portal, o todavía no ha creado clientes.</div>
+      <div class="actions"><button class="btn secondary" onclick="closeModal();show('clients')">Ir a Clientes</button></div>`;
+  return;
+ }
+ // Administrador o coordinador: gente de la oficina.
+ c.innerHTML+=`
+  <label>Nombre completo<input id="nuNombre" maxlength="100"></label>
+  <label>Correo<input id="nuCorreo" type="email" placeholder="persona@empresa.com"></label>
+  <label>Contraseña inicial<input id="nuClave" value="${esc(claveNueva())}"><span class="small">Mínimo 6 caracteres. Ella la puede cambiar después con “Olvidé mi contraseña”.</span></label>
+  <div class="errors" id="nuErr"></div>
+  <div class="actions"><button class="btn primary" id="nuBtn" onclick="crearUsuarioOficina()">Crear acceso</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`;
+}
+function claveNueva(){
+ const a='abcdefghijkmnpqrstuvwxyz', n='23456789';
+ let s=''; for(let i=0;i<5;i++) s+=a[Math.floor(Math.random()*a.length)];
+ for(let i=0;i<3;i++) s+=n[Math.floor(Math.random()*n.length)];
+ return 'hvac'+s;
+}
+async function crearUsuarioOficina(){
+ const rol=$('nuRol').value;
+ const nom=$('nuNombre').value.trim(), em=$('nuCorreo').value.trim(), pw=$('nuClave').value;
+ const err=$('nuErr');
+ if(nom.length<2){ err.textContent='Escriba el nombre.'; return }
+ if(!em.includes('@')){ err.textContent='El correo no es válido.'; return }
+ if(pw.length<6){ err.textContent='La contraseña debe tener al menos 6 caracteres.'; return }
+ $('nuBtn').disabled=true;
+ let paso='1 · crear la cuenta', sec=null;
+ err.textContent='Paso '+paso+'…';
+ try{
+  sec=FB.initializeApp(FB.cfg,'usr-'+Date.now());
+  const secAuth=FB.getAuth(sec);
+  const nu=await altaCuenta(secAuth,em,pw,'esta persona');
+
+  paso='2 · darle acceso a su empresa'; err.textContent='Paso '+paso+'…';
+  const b=FB.writeBatch(FB.fs);
+  b.set(P('members',nu),{name:nom,email:em,role:rol,active:true,
+   createdAt:sv(),createdBy:uid(),updatedAt:sv(),updatedBy:uid()});
+  b.set(FB.doc(FB.fs,'users',nu),{tenantId:TENANT,email:em,createdAt:sv()});
+  await b.commit();
+  try{ await FB.signOut(secAuth) }catch(e){}
+
+  closeModal();
+  await cargarMiembros(); pintarUsuarios();
+  openModal(`<div class="modal-head"><h2>Acceso creado</h2><button class="x" onclick="closeModal()">✕</button></div>
+   <p>Entréguele estos datos a <b>${esc(nom)}</b>:</p>
+   <div class="panel" style="padding:14px">
+    <p style="margin:0 0 6px"><b>Correo:</b> ${esc(em)}</p>
+    <p style="margin:0"><b>Contraseña:</b> ${esc(pw)}</p>
+   </div>
+   <p class="small">Entra por esta misma dirección. Dígale que cambie la contraseña apenas entre.</p>
+   <div class="actions"><button class="btn primary" onclick="closeModal()">Listo</button></div>`);
+ }catch(e){
+  console.error('crearUsuarioOficina falló en el paso',paso,e);
+  err.textContent=e.amable?e.message:('Falló el paso '+paso+': '+errMsg(e)+(e.code?' ['+e.code+']':''));
+  const b=$('nuBtn'); if(b) b.disabled=false;
+ }finally{ if(sec) try{ await FB.deleteApp(sec) }catch(e){} }
+}
+
+/* ================= MI EMPRESA ================= */
+function renderCompany(){
+ const d=EMPRESA||{};
+ const esAdmin=(ME&&ME.role)==='admin';
+ const fin=(d.trialEnds&&d.trialEnds.toDate)?d.trialEnds.toDate():((d.vence&&d.vence.toDate)?d.vence.toDate():null);
+ const dias=fin?Math.ceil((fin-new Date())/86400000):null;
+ const EST={prueba:'En prueba',activo:'Activa',suspendido:'Suspendida',cancelado:'Cancelada'};
+ const ordenes=counterVal||0;
+
+ // Si todavía no se han leído los usuarios, se leen y se vuelve a pintar:
+ // sin esto el conteo de usuarios salía vacío al entrar directo aquí.
+ if(!MIEMBROS.length&&!cargandoMiembros){
+  cargandoMiembros=true;
+  cargarMiembros().then(()=>{ cargandoMiembros=false; if(currentPage==='company') renderCompany() })
+                  .catch(()=>{ cargandoMiembros=false });
+ }
+ $('companyBody').innerHTML=`
+ <div class="grid two">
+  <div class="panel">
+   <h2>Datos de la empresa</h2>
+   <p class="small">Esto es lo que sale en los reportes, las cotizaciones y las cuentas de cobro.</p>
+   <div class="formgrid" style="margin-top:12px">
+    <label>Nombre comercial <span class="req">*</span><input id="emNombre" maxlength="120" value="${esc(d.name||'')}" ${esAdmin?'':'disabled'}></label>
+    <label>Razón social<input id="emRazon" maxlength="120" value="${esc(d.legalName||'')}" ${esAdmin?'':'disabled'}></label>
+    <label>NIT<input id="emNit" maxlength="40" value="${esc(d.nit||'')}" ${esAdmin?'':'disabled'}></label>
+    <label>Teléfono<input id="emTel" maxlength="40" value="${esc(d.phone||'')}" ${esAdmin?'':'disabled'}></label>
+    <label>Correo<input id="emCorreo" maxlength="120" value="${esc(d.email||'')}" ${esAdmin?'':'disabled'}></label>
+    <label>Ciudad<input id="emCiudad" maxlength="80" value="${esc(d.city||'')}" ${esAdmin?'':'disabled'}></label>
+    <label style="grid-column:1/-1">Dirección<input id="emDir" maxlength="200" value="${esc(d.address||'')}" ${esAdmin?'':'disabled'}></label>
+   </div>
+   <div id="emErr" class="errors"></div>
+   ${esAdmin?'<div class="actions"><button class="btn primary" onclick="guardarEmpresa()">Guardar datos</button></div>'
+            :'<p class="small">Solo el administrador puede cambiar estos datos.</p>'}
+  </div>
+
+  <div class="panel">
+   <h2>Logo</h2>
+   <p class="small">Aparece en la aplicación, en los reportes que firma el cliente, en las cotizaciones y en las cuentas de cobro.</p>
+   <div id="logoPrev" style="margin:12px 0"></div>
+   ${esAdmin?`<input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" onchange="subirLogo(this)">
+    <p class="small">Se reduce automáticamente. Use una imagen con fondo blanco o transparente.</p>`:''}
+  </div>
+ </div>
+
+ <div class="panel" style="margin-top:18px">
+  <h2>Su plan</h2>
+  <div class="dl">
+   <div><span class="small">Estado</span><b>${esc(EST[d.status]||d.status||'—')}</b>
+    ${(d.status==='prueba'&&fin&&fin<new Date())?'<span class="small" style="color:var(--danger)">La prueba se venció</span>':''}</div>
+   <div><span class="small">Plan</span><b>${esc(d.plan||'—')}</b></div>
+   <div><span class="small">${d.status==='prueba'?'La prueba termina':'Vence'}</span>
+    <b>${fin?fmtDate(fin.getFullYear()+'-'+String(fin.getMonth()+1).padStart(2,'0')+'-'+String(fin.getDate()).padStart(2,'0')):'Sin vencimiento'}</b>
+    ${dias!=null&&dias>=0?`<span class="small">faltan ${dias} día(s)</span>`:''}</div>
+   <div><span class="small">Usuarios</span><b>${MIEMBROS.filter(m=>m.active!==false).length||'—'}${d.maxUsuarios?' de '+d.maxUsuarios:''}</b></div>
+   <div><span class="small">Órdenes emitidas</span><b>${ordenes}</b>${d.maxOrdenesMes?`<span class="small">tope ${d.maxOrdenesMes} al mes</span>`:''}</div>
+  </div>
+  <p class="small" style="margin-top:12px">El plan, el estado y los topes los maneja el proveedor del sistema.
+   Si necesita más usuarios o reactivar el servicio, comuníquese con él.</p>
+ </div>`;
+ pintarLogo();
+}
+async function guardarEmpresa(){
+ const nom=$('emNombre').value.trim();
+ if(nom.length<2){ $('emErr').textContent='El nombre de la empresa no puede quedar vacío.'; return }
+ $('emErr').textContent='Guardando…';
+ try{
+  const campos={name:nom, legalName:nn($('emRazon').value.trim()), nit:nn($('emNit').value.trim()),
+   phone:nn($('emTel').value.trim()), email:nn($('emCorreo').value.trim()),
+   city:nn($('emCiudad').value.trim()), address:nn($('emDir').value.trim()),
+   updatedAt:sv(), updatedBy:uid()};
+  await FB.updateDoc(FB.doc(FB.fs,'tenants',TENANT),campos);
+  Object.assign(EMPRESA,campos);
+  ME.company=nom;
+  setUserChip();
+  $('emErr').textContent='';
+  toast('Datos de la empresa guardados.');
+ }catch(e){ $('emErr').textContent='No se pudo guardar: '+errMsg(e) }
+}
+
+//  Barra para cifras de dinero: la de siempre imprime el número crudo
+//  entre paréntesis, que sirve para contar órdenes pero no para pesos.
+function barraPlata(label,valor,total){
+ const p=total?Math.round(valor*100/total):0;
+ return `<div class="small" style="margin-top:14px">${esc(label)} · ${money(valor)}
+   <b style="float:right">${p}%</b></div><div class="bar"><i style="width:${p}%"></i></div>`;
+}
+/* ================= RESULTADO DEL MES =================
+   Lo que entró, lo que salió y qué quedó. Con una advertencia honesta:
+   aquí no está la nómina a menos que usted la registre como gasto.   */
+let resPeriodo=periodoHoy();
+function cambiarResPeriodo(v){ resPeriodo=v||periodoHoy(); renderReports() }
+function moverResPeriodo(n){
+ const [y,m]=resPeriodo.split('-').map(Number);
+ const d=new Date(y,m-1+n,1);
+ resPeriodo=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+ renderReports();
+}
+//  Lo que se consumió de bodega en el mes, a precio de costo.
+function costoRepuestosMes(p){
+ return (db.movements||[]).filter(m=>m.type==='salida'&&m.status==='aprobado'
+     &&String(m.at||'').slice(0,7)===p)
+  .reduce((a,m)=>{
+   const pr=part(m.partId)||{};
+   const cu=(m.unitCost===null||m.unitCost===undefined)?(pr.cost||0):m.unitCost;
+   return a+Math.abs(m.qty||0)*cu;
+  },0);
+}
+function pintarResultado(){
+ const caja=$('repResultado'); if(!caja) return;
+ const p=resPeriodo;
+ const facs=(db.invoices||[]).filter(f=>f.period===p);
+ const facturado=facs.filter(f=>f.status==='facturada').reduce((a,f)=>a+(f.subtotal||0),0);
+ const porFacturar=facs.filter(f=>f.status==='lista'||f.status==='borrador').reduce((a,f)=>a+(f.subtotal||0),0);
+ const gastos=(db.expenses||[]).filter(g=>g.status==='aprobado'&&(g.date||'').slice(0,7)===p);
+ const totalGastos=gastos.reduce((a,g)=>a+(g.amount||0),0);
+ const repuestos=Math.round(costoRepuestosMes(p));
+ const costos=totalGastos+repuestos;
+ const resultado=facturado-costos;
+ const margen=facturado?Math.round(resultado*100/facturado):0;
+
+ const grupos={};
+ gastos.forEach(g=>{ const k=grupoDe(g.category); grupos[k]=(grupos[k]||0)+g.amount });
+
+ const ordenes=db.orders.filter(o=>o.status==='Completada'&&(o.date||'').slice(0,7)===p).length;
+
+ caja.innerHTML=`
+ <div class="topline" style="margin-bottom:14px"><div><h2 style="margin:0">Resultado de ${esc(mesLargo(p))}</h2>
+   <p class="small">Lo facturado contra lo que costó atenderlo.</p></div>
+  <div class="daynav"><button class="btn secondary sm" onclick="moverResPeriodo(-1)">‹</button>
+   <input type="month" id="resPeriodo" value="${esc(p)}" onchange="cambiarResPeriodo(this.value)">
+   <button class="btn secondary sm" onclick="moverResPeriodo(1)">›</button></div>
+ </div>
+ <div class="grid cards" style="margin-top:0">
+  <div class="card"><div class="ci">💵</div><h2>Facturado</h2><div class="big">${money(facturado)}</div>
+   <span class="small">sin IVA${porFacturar?' · faltan '+money(porFacturar)+' por facturar':''}</span></div>
+  <div class="card"><div class="ci">📦</div><h2>Repuestos consumidos</h2><div class="big">${money(repuestos)}</div>
+   <span class="small">a precio de costo</span></div>
+  <div class="card"><div class="ci">💸</div><h2>Gastos</h2><div class="big">${money(totalGastos)}</div>
+   <span class="small">${gastos.length} registro(s) aprobado(s)</span></div>
+  <div class="card"><div class="ci">${resultado>=0?'📈':'📉'}</div><h2>Resultado</h2>
+   <div class="big" style="color:${resultado>=0?'var(--ok)':'var(--danger)'}">${money(resultado)}</div>
+   <span class="small">${facturado?margen+'% de lo facturado':'sin nada facturado aún'}</span></div>
+ </div>
+ <div class="grid two" style="margin-top:16px">
+  <div class="panel"><h2>En qué se fue la plata</h2>
+   ${costos?[['Repuestos de bodega',repuestos]].concat(Object.entries(grupos).map(([k,v])=>[GAS_GRUPO[k],v]))
+      .sort((a,b)=>b[1]-a[1]).map(([l,v])=>barraPlata(l,v,costos)).join('')
+     :'<p class="small">No hay costos registrados en el mes.</p>'}</div>
+  <div class="panel"><h2>Por orden terminada</h2>
+   ${ordenes?`<p class="small">Se cerraron <b style="color:var(--text)">${ordenes}</b> órdenes en el mes.</p>
+     <div class="dl" style="margin-top:10px">
+      <div><span class="small">Facturado por orden</span><b>${money(Math.round(facturado/ordenes))}</b></div>
+      <div><span class="small">Costo por orden</span><b>${money(Math.round(costos/ordenes))}</b></div>
+      <div><span class="small">Deja por orden</span><b style="color:${resultado>=0?'var(--ok)':'var(--danger)'}">${money(Math.round(resultado/ordenes))}</b></div>
+     </div>`:'<p class="small">No se terminó ninguna orden en el mes.</p>'}
+   <hr><p class="small"><b>Lea esto antes de sacar conclusiones.</b> Aquí no está la nómina de sus
+    técnicos, a menos que usted la registre como gasto. Tampoco está lo que facturó por fuera del
+    sistema. Y si un repuesto lo registró como gasto <i>y</i> como salida de bodega, está contado dos
+    veces: para eso están las categorías de gasto.</p>
+  </div>
+ </div>`;
+}
+
+/* ================= ENVIAR POR WHATSAPP =================
+   Abre WhatsApp con el mensaje escrito. No manda nada solo: usted ve
+   el texto y le da enviar.                                           */
+function telWhatsapp(bruto){
+ let t=String(bruto||'').replace(/[^0-9]/g,'');
+ if(!t) return '';
+ if(t.length===10&&t[0]==='3') t='57'+t;          // celular colombiano
+ if(t.length===12&&t.slice(0,2)==='57') return t;
+ if(t.length>12&&t.slice(0,2)==='57') return t.slice(0,12);
+ return t;
+}
+const urlPortal=()=>location.origin+location.pathname.replace(/[^/]*$/,'cliente.html');
+function whatsappCot(id){
+ const q=cotDe(id); if(!q) return;
+ const c=client(q.clientId)||{};
+ const tel=telWhatsapp(c.phone);
+ const emp=(ME&&ME.company)||'nuestra empresa';
+ const vence=q.validUntil?('\nVálida hasta el '+fmtDate(q.validUntil)):'';
+ const texto=
+  'Buen día'+(c.contact?' '+c.contact:'')+', le escribimos de '+emp+'.\n\n'+
+  'Le enviamos la cotización *'+q.id+'*:\n'+
+  q.title+'\n'+
+  'Total: *'+money(q.total)+'* (IVA incluido)'+vence+'\n\n'+
+  'Puede verla y aprobarla desde su portal:\n'+urlPortal()+'\n\n'+
+  'Quedamos atentos.';
+ abrirWhatsapp(tel,texto,c,'la cotización '+q.id);
+}
+function whatsappCuenta(id){
+ const f=facDe(id); if(!f) return;
+ const c=client(f.clientId)||{};
+ const tel=telWhatsapp(c.phone);
+ const emp=(ME&&ME.company)||'nuestra empresa';
+ const texto=
+  'Buen día'+(c.contact?' '+c.contact:'')+', le escribimos de '+emp+'.\n\n'+
+  'Le enviamos la cuenta de cobro de *'+mesLargo(f.period)+'*'+
+  (f.siigoNumero?(' (factura '+f.siigoNumero+')'):'')+':\n'+
+  'Total a pagar: *'+money(f.total)+'*'+
+  (f.dueDate?('\nVence el '+fmtDate(f.dueDate)):'')+'\n\n'+
+  'Quedamos atentos.';
+ abrirWhatsapp(tel,texto,c,'la cuenta '+f.id);
+}
+function abrirWhatsapp(tel,texto,c,queEs){
+ if(!tel){
+  openModal(`<div class="modal-head"><h2>Falta el teléfono</h2><button class="x" onclick="closeModal()">✕</button></div>
+   <p>${esc(c.name||'Este cliente')} no tiene teléfono guardado, así que no se puede abrir WhatsApp.</p>
+   <p class="small">Agrégueselo en <b>Clientes</b> y vuelva a intentar. Mientras tanto, puede copiar el
+    mensaje y pegarlo usted mismo.</p>
+   <textarea readonly style="min-height:150px;margin-top:10px">${esc(texto)}</textarea>
+   <div class="actions"><button class="btn primary" onclick="copiarTexto(this)" data-t="${esc(texto)}">Copiar mensaje</button>
+    <button class="btn secondary" onclick="closeModal()">Cerrar</button></div>`);
+  return;
+ }
+ window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(texto),'_blank');
+ toast('WhatsApp abierto con '+queEs+'. Revise el mensaje y envíelo.');
+}
+function copiarTexto(btn){
+ const t=btn.dataset.t||'';
+ navigator.clipboard.writeText(t).then(()=>toast('Mensaje copiado.'),()=>toast('No se pudo copiar.'));
+}
+
+
+/* ---- De dónde salen los formatos de fábrica en esta aplicación ---- */
+const PL_FUENTE={checks:R_CHECKS,datos:R_DATOS,evals:R_EVALS,slug:rk};
+/* ================= FORMATOS DE INFORME · MOTOR COMÚN =================
+   El mismo código en la oficina, en el celular del técnico y en el
+   portal del cliente, para que los tres entiendan igual un formato.
+
+   Regla de oro: cada punto de chequeo, cada dato medido y cada pregunta
+   de evaluación tiene un IDENTIFICADOR FIJO. Los informes guardan sus
+   respuestas contra ese identificador, no contra el texto. Así, si una
+   empresa le cambia el nombre a un chequeo, los informes viejos siguen
+   mostrando bien lo que se marcó.
+
+   Los formatos de fábrica usan exactamente los mismos identificadores
+   que ya tenían los informes de antes de esta función, para que ninguno
+   se dañe.                                                            */
+
+const PL_SECCIONES=[
+ {id:'servicio',  nom:'Horas de entrada y salida', ayuda:'Cuándo llegó y cuándo salió el técnico'},
+ {id:'equipos',   nom:'Identificación del equipo', ayuda:'Marca, modelo, serie, ubicación'},
+ {id:'chequeos',  nom:'Lista de chequeo',          ayuda:'Lo que el técnico va marcando', edita:'chequeos'},
+ {id:'datos',     nom:'Datos medidos',             ayuda:'Presiones, temperaturas, amperajes', edita:'datos'},
+ {id:'materiales',nom:'Materiales y repuestos',    ayuda:'Lo que se consumió en el servicio'},
+ {id:'actividad', nom:'Descripción de la actividad',ayuda:'Texto libre de lo que se hizo'},
+ {id:'recom',     nom:'Recomendaciones del técnico',ayuda:'Texto libre'},
+ {id:'observ',    nom:'Observaciones del cliente', ayuda:'Texto libre'},
+ {id:'evaluacion',nom:'Evaluación del servicio',   ayuda:'El cliente califica de 1 a 5', edita:'evaluacion'},
+ {id:'fotos',     nom:'Registro fotográfico',      ayuda:'Antes, durante y después'},
+ {id:'firmas',    nom:'Firmas',                    ayuda:'Cliente y técnico. Siempre va de último'}
+];
+const PL_ROLES=['Condensadora','Manejadora','Otros'];
+const PL_SERVICIOS=[['preventivo','Preventivo'],['correctivo','Correctivo'],
+                    ['instalacion','Instalación'],['emergencia','Emergencia']];
+const plSecDe=id=>PL_SECCIONES.find(s=>s.id===id)||{id,nom:id,ayuda:''};
+const plNuevoId=p=>p+'_x'+Math.random().toString(36).slice(2,8);
+
+/* ---- Los dos formatos de fábrica, armados desde las listas de siempre ---- */
+function plFabrica(servicio){
+ const F=PL_FUENTE, sl=F.slug;
+ const prev=servicio==='preventivo';
+ const apagadas=prev?['materiales','actividad']:['chequeos'];
+ return {
+  id:'base-'+servicio,
+  nombre:prev?'Preventivo (de fábrica)':'Correctivo (de fábrica)',
+  titulo:'REPORTE DE MANTENIMIENTO '+(prev?'PREVENTIVO':'CORRECTIVO'),
+  servicio, equipo:'', activo:true, base:true,
+  secciones:PL_SECCIONES.map(s=>({id:s.id,on:!apagadas.includes(s.id)})),
+  chequeos:Object.entries(F.checks).map(([g,items])=>({
+    id:'g_'+sl(g), g, items:items.map(it=>({id:'c_'+sl(g)+'_'+sl(it),t:it}))})),
+  datos:Object.entries(F.datos).map(([g,items])=>({
+    id:'g_'+sl(g), g, items:items.map(it=>({id:'d_'+sl(g)+'_'+sl(it),t:it}))})),
+  evaluacion:F.evals.map(e=>({id:'e_'+sl(e),t:e}))
+ };
+}
+const plBases=()=>[plFabrica('preventivo'),plFabrica('correctivo')];
+
+/* ---- Cuál formato le toca a una orden ----
+   Manda el que coincida en servicio Y tipo de equipo. Si no hay uno
+   específico para ese equipo, el del servicio. Si tampoco, el de
+   fábrica. El técnico solo escoge cuando hay empate.                 */
+function plCandidatas(lista,servicio,equipo){
+ const act=(lista||[]).filter(p=>p.activo!==false&&p.servicio===servicio);
+ if(equipo){
+  const exactas=act.filter(p=>p.equipo&&p.equipo===equipo);
+  if(exactas.length) return exactas;
+ }
+ //  Primero los generales, y los de fábrica de último: si la empresa
+ //  armó uno propio, ese es el que manda.
+ return act.slice().sort((a,b)=>((a.base?1:0)-(b.base?1:0))||((a.equipo?1:0)-(b.equipo?1:0)));
+}
+function plEscoger(lista,servicio,equipo){
+ const c=plCandidatas(lista,servicio,equipo);
+ if(c.length) return c[0];
+ return plFabrica(servicio==='correctivo'?'correctivo':'preventivo');
+}
+/* ---- Lo que el técnico puede escoger ----
+   Si la empresa armó formatos propios, esos son los únicos que se le
+   ofrecen: para eso los armó. Si no armó ninguno, el de fábrica.    */
+function plOpciones(lista,servicio,equipo){
+ const c=plCandidatas(lista,servicio,equipo);
+ return c.length?c:[plFabrica(servicio==='correctivo'?'correctivo':'preventivo')];
+}
+function plPorId(lista,id,servicio){
+ const f=(lista||[]).find(p=>p.id===id);
+ if(f) return f;
+ if(id&&/^base-/.test(id)) return plFabrica(id.replace('base-',''));
+ return plFabrica(servicio==='correctivo'?'correctivo':'preventivo');
+}
+const plOn=(pl,id)=>(pl.secciones||[]).some(s=>s.id===id&&s.on);
+const plOrden=pl=>(pl.secciones||[]).filter(s=>s.on).map(s=>s.id);
+
+/* ---- De la base de datos y hacia la base de datos ---- */
+const dnPlantilla=(id,d)=>({id,
+ nombre:d.nombre||'', titulo:d.titulo||'', servicio:d.servicio||'preventivo',
+ equipo:d.equipo||'', activo:d.activo!==false, base:d.base===true,
+ secciones:(d.secciones||[]).map(s=>({id:s.id,on:s.on!==false})),
+ chequeos:(d.chequeos||[]).map(g=>({id:g.id,g:g.g||'',items:(g.items||[]).map(i=>({id:i.id,t:i.t||''}))})),
+ datos:(d.datos||[]).map(g=>({id:g.id,g:g.g||'',items:(g.items||[]).map(i=>({id:i.id,t:i.t||''}))})),
+ evaluacion:(d.evaluacion||[]).map(e=>({id:e.id,t:e.t||''}))});
+const upPlantilla=p=>({nombre:p.nombre,titulo:p.titulo,servicio:p.servicio,
+ equipo:p.equipo||null, activo:p.activo!==false, base:p.base===true,
+ secciones:p.secciones, chequeos:p.chequeos, datos:p.datos, evaluacion:p.evaluacion});
+
+/* ================= LA HOJA IMPRESA =================
+   Un solo armador para la oficina y para el portal del cliente.
+   ctx: {pl, R, fotos, logo, empresa, numero, cliente, fecha, sede, equipo,
+         tipos, esc, fdate}                                            */
+function plHoja(ctx){
+ const {pl,R,esc,fdate}=ctx;
+ let h=`<div class="phead">
+  <div class="pco">${ctx.logo?`<img src="${ctx.logo}" class="plogo">`:esc(ctx.empresa||'')}</div>
+  <div class="pti">${esc(pl.titulo||'REPORTE DE SERVICIO')}</div>
+  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(ctx.numero||'')}</b></div>
+ </div>
+ <table class="pt">
+  <tr><td class="lb">Cliente</td><td>${esc(ctx.cliente||'')}</td><td class="lb">Fecha</td><td>${fdate(ctx.fecha)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(ctx.sede||'')}</td><td class="lb">Equipo</td><td>${esc(ctx.equipo||'')}</td></tr>
+ </table>`;
+ plOrden(pl).forEach(id=>{ h+=plPedazo(id,ctx) });
+ return h;
+}
+function plPedazo(id,ctx){
+ const {pl,R,esc,fdate}=ctx;
+ const v=o=>esc(o==null?'':o);
+ switch(id){
+  case 'servicio':
+   return `<table class="pt"><tr><td class="lb">Hora entrada</td><td>${v(R.horaEntrada)}</td>
+     <td class="lb">Hora salida</td><td>${v(R.horaSalida)}</td></tr></table>`;
+  case 'equipos':{
+   const eqs=R.equipos||[];
+   const filas=[0,1,2].map(i=>{const e=eqs[i]||{};
+    return `<tr><td>${v(PL_ROLES[i])}</td><td>${v(e.tipo)}</td><td>${v(e.capacidad)}</td>
+     <td>${v(e.marca)}</td><td>${v(e.modelo)}</td><td>${v(e.serie)}</td>
+     <td>${v(e.ubicacion)}</td><td>${v(e.numero)}</td></tr>`}).join('');
+   return `<table class="pt"><tr><th colspan="8" class="gh">Identificación del equipo</th></tr>
+    <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicación</th><th>No.</th></tr>${filas}</table>
+    ${ctx.tipos?`<div class="pconv">${ctx.tipos}</div>`:''}`;
+  }
+  case 'chequeos':{
+   const ch=R.checks||{};
+   if(!(pl.chequeos||[]).length) return '';
+   return `<div class="pcols">${pl.chequeos.map(g=>`<table class="pt">
+     <tr><th colspan="2" class="gh">${esc(g.g)}</th></tr>
+     ${g.items.map(it=>`<tr><td>${esc(it.t)}</td><td class="v">${ch[it.id]?'X':''}</td></tr>`).join('')}
+    </table>`).join('')}</div>`;
+  }
+  case 'datos':{
+   const dt=R.datos||{};
+   if(!(pl.datos||[]).length) return '';
+   return `<div class="pcols">${pl.datos.map(g=>`<table class="pt">
+     <tr><th colspan="2" class="gh">${esc(g.g)}</th></tr>
+     ${g.items.map(it=>`<tr><td>${esc(it.t)}</td><td class="v">${v(dt[it.id])}</td></tr>`).join('')}
+    </table>`).join('')}</div>`;
+  }
+  case 'materiales':{
+   const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
+   return `<table class="pt"><tr><th>Descripción de materiales y repuestos</th>
+     <th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
+     ${mats.map(m=>`<tr><td>${v(m.descripcion)}</td><td class="v">${v(m.unidad)}</td><td class="v">${v(m.cantidad)}</td></tr>`).join('')}</table>`;
+  }
+  case 'actividad':
+   return `<table class="pt"><tr><th>Descripción de la actividad</th></tr>
+     <tr><td class="tall">${v(R.actividad)}</td></tr></table>`;
+  case 'recom':
+   return `<table class="pt"><tr><th>Recomendaciones del técnico</th></tr>
+     <tr><td class="tall">${v(R.recomendaciones)}</td></tr></table>`;
+  case 'observ':
+   return `<table class="pt"><tr><th>Observaciones del cliente</th></tr>
+     <tr><td class="tall">${v(R.observaciones)}</td></tr></table>`;
+  case 'evaluacion':{
+   const ev=R.evaluacion||{};
+   if(!(pl.evaluacion||[]).length) return '';
+   return `<table class="pt"><tr><th>Evaluación del servicio · califique de 1 a 5, donde 5 es el máximo</th>
+     ${[1,2,3,4,5].map(n=>`<th style="width:44px">${n}</th>`).join('')}</tr>
+     ${pl.evaluacion.map(e=>`<tr><td>${esc(e.t)}</td>
+       ${[1,2,3,4,5].map(n=>`<td class="v">${ev[e.id]===n?'X':''}</td>`).join('')}</tr>`).join('')}</table>`;
+  }
+  case 'fotos':
+   return ctx.fotosHtml||'';
+  case 'firmas':
+   return `<div class="pfirmas">
+     <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
+      <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${v(R.firmaClienteNombre)}</div></div>
+     <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
+      <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${v(R.firmaTecnicoNombre)}</div></div>
+    </div>`;
+ }
+ return '';
+}
+
+/* ---- La lista completa: los dos de fábrica y los que armó la empresa ----
+   Los de fábrica NO se guardan en la base de datos: se generan aquí. Así
+   una empresa recién creada ya tiene formatos el primer día, sin que nadie
+   le siembre nada, y nadie puede dañarlos.                              */
+const plTodas=lista=>plBases().concat(lista||[]);
+
+/* ---- Duplicar: la única forma de modificar un formato de fábrica ---- */
+function plDup(origen,nuevoId){
+ const c=JSON.parse(JSON.stringify(origen));
+ c.id=nuevoId; c.base=false; c.activo=true;
+ c.nombre=(origen.nombre||'Formato').replace(/ \(de fábrica\)$/,'')+' (copia)';
+ return c;
+}
+function plNueva(nuevoId,servicio){
+ const f=plFabrica(servicio||'preventivo');
+ f.id=nuevoId; f.base=false; f.nombre='Formato nuevo'; f.activo=true;
+ return f;
+}
+
+/* ---- Antes de guardar: fuera los renglones vacíos ---- */
+function plLimpia(p){
+ const lim=L=>(L||[]).map(g=>({id:g.id,g:(g.g||'').trim(),
+    items:(g.items||[]).filter(i=>(i.t||'').trim()).map(i=>({id:i.id,t:i.t.trim()}))}))
+   .filter(g=>g.g&&g.items.length);
+ p.nombre=(p.nombre||'').trim(); p.titulo=(p.titulo||'').trim();
+ p.chequeos=lim(p.chequeos); p.datos=lim(p.datos);
+ p.evaluacion=(p.evaluacion||[]).filter(e=>(e.t||'').trim()).map(e=>({id:e.id,t:e.t.trim()}));
+ //  Si una sección se quedó sin nada que mostrar, se apaga: una hoja con
+ //  un título y un cuadro en blanco se ve peor que no tenerlo.
+ const vacia={chequeos:!p.chequeos.length,datos:!p.datos.length,evaluacion:!p.evaluacion.length};
+ p.secciones=(p.secciones||[]).map(s=>({id:s.id,on:vacia[s.id]?false:s.on!==false}));
+ return p;
+}
+function plFalla(p){
+ if((p.nombre||'').trim().length<2) return 'Póngale un nombre al formato (al menos 2 letras).';
+ if((p.titulo||'').trim().length<3) return 'Escriba el título que sale impreso en la hoja.';
+ if(!(p.secciones||[]).some(s=>s.on)) return 'Prenda al menos una sección.';
+ return '';
+}
+
+/* ---- Un reporte de muestra, solo para la vista previa del editor ---- */
+function plDemo(pl){
+ const R={tipo:pl.servicio,horaEntrada:'08:30',horaSalida:'10:15',
+  equipos:[{tipo:'MSP',capacidad:'12.000 BTU',marca:'LG',modelo:'VM122',serie:'A-9931',ubicacion:'Oficina 2',numero:'1'},{},{}],
+  checks:{},datos:{},evaluacion:{},
+  materiales:[{descripcion:'Filtro lavable',unidad:'Und',cantidad:'1'}],
+  actividad:'Aquí sale lo que el técnico escriba de la actividad realizada.',
+  recomendaciones:'Aquí salen las recomendaciones del técnico.',
+  observaciones:'Aquí salen las observaciones del cliente.',
+  firmaClienteNombre:'Nombre de quien recibe', firmaTecnicoNombre:'Nombre del técnico'};
+ (pl.chequeos||[]).forEach((g,gi)=>g.items.forEach((it,ii)=>{ if((gi+ii)%2===0) R.checks[it.id]=true }));
+ (pl.datos||[]).forEach(g=>g.items.forEach((it,ii)=>{ R.datos[it.id]=String(12+ii*3) }));
+ (pl.evaluacion||[]).forEach(e=>{ R.evaluacion[e.id]=5 });
+ return R;
+}
+
+
+/* ---- Guardado de los formatos ----
+   Los de fábrica no se escriben nunca: se generan en el código, así que
+   no hay nada que subir ni nada que se pueda dañar.                   */
+async function syncPlantillas(){
+ for(const p of (db.templates||[])){
+  if(p.base) continue;
+  const now=JSON.stringify(p);
+  if(remote.templates[p.id]===now) continue;
+  if(remote.templates[p.id]===undefined) await FB.setDoc(P('reportTemplates',p.id),Object.assign(upPlantilla(p),stampNew()));
+  else await FB.updateDoc(P('reportTemplates',p.id),Object.assign(upPlantilla(p),stampUpd()));
+  remote.templates[p.id]=now;
+ }
+}
+
+/* ================= FORMATOS DE INFORME (oficina) =================
+   Aquí la empresa decide cómo se ve la hoja que firma el cliente: qué
+   secciones salen, en qué orden, y con qué listas de chequeo y de
+   mediciones. El técnico llena lo que diga el formato; el cliente ve la
+   hoja armada con el mismo formato.
+
+   Dos reglas que se respetan en toda la pantalla:
+   · Los formatos de fábrica no se editan: se duplican. Son el punto de
+     partida que toda empresa nueva tiene desde el primer día, y no
+     viven en la base de datos, se generan en el código.
+   · Las firmas van siempre de último. No se mueven ni se apagan.     */
+
+let plPant='lista', plEditId=null, plAbierto=null, plBorr=null;
+
+const plNuevoDocId=()=>'pl-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const plEnUso=id=>plBorr&&plBorr.id===id;
+
+function renderPlantillas(){
+ if(plPant==='editor'&&plBorr) pintarPlEditor(); else pintarPlLista();
+}
+
+/* ---------------- La lista ---------------- */
+function pintarPlLista(){
+ const lista=plTodas(db.templates);
+ $('templatesBody').innerHTML=`
+ <div class="topline" style="margin-bottom:14px">
+  <div><p class="small" style="max-width:70ch;margin:0">El formato decide qué llena el técnico en el
+   celular y cómo sale impresa la hoja. Puede tener uno por tipo de servicio, o varios si atiende
+   equipos muy distintos.</p></div>
+  <button class="btn primary" onclick="plNuevo()">＋ Nuevo formato</button>
+ </div>
+ <div class="panel"><div class="table-wrap"><table>
+  <thead><tr><th>Formato</th><th>Se usa en</th><th>Tipo de equipo</th><th>Secciones</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${lista.map(p=>{
+   const on=(p.secciones||[]).filter(s=>s.on).length;
+   return `<tr>
+    <td><b>${esc(p.nombre)}</b> ${p.base?'<span class="status blue">De fábrica</span>':''}
+     <div class="small">${esc(p.titulo)}</div></td>
+    <td>${esc(plNombreServicio(p.servicio))}</td>
+    <td>${p.equipo?esc(p.equipo):'<span class="small">Todos</span>'}</td>
+    <td>${on} de ${(p.secciones||[]).length}</td>
+    <td>${p.activo!==false?badge('Activo'):badge('Inactivo')}</td>
+    <td style="text-align:right;white-space:nowrap">
+     <button class="btn secondary sm" onclick="plAbrir('${esc(p.id)}')">${p.base?'Ver':'Editar'}</button>
+     <button class="btn secondary sm" onclick="plDuplicar('${esc(p.id)}')">Duplicar</button>
+     ${p.base?'':`<button class="btn secondary sm" onclick="plPrender('${esc(p.id)}')">${p.activo!==false?'Desactivar':'Activar'}</button>`}
+    </td></tr>`}).join('')}</tbody>
+ </table></div>
+ <p class="small" style="margin-top:12px">Los de fábrica no se tocan: son el punto de partida. Para
+  cambiar uno, <b>duplíquelo</b> y edite la copia. Los informes ya firmados siguen mostrándose con el
+  formato que tenían: cambiar un formato nunca daña una hoja vieja.</p>
+ </div>`;
+}
+const plNombreServicio=s=>({preventivo:'Preventivo',correctivo:'Correctivo',
+ instalacion:'Instalación',emergencia:'Emergencia'}[s]||s||'');
+
+function plNuevo(){
+ const p=plNueva(plNuevoDocId(),'preventivo');
+ plBorr=p; plEditId=p.id; plAbierto=null; plPant='editor'; plNuevoFlag=true; renderPlantillas();
+}
+let plNuevoFlag=false;
+function plDuplicar(id){
+ const o=plTodas(db.templates).find(x=>x.id===id); if(!o) return;
+ plBorr=plDup(o,plNuevoDocId()); plEditId=plBorr.id; plAbierto=null;
+ plPant='editor'; plNuevoFlag=true; renderPlantillas();
+}
+function plAbrir(id){
+ const o=plTodas(db.templates).find(x=>x.id===id); if(!o) return;
+ plBorr=JSON.parse(JSON.stringify(o)); plEditId=id; plAbierto=null;
+ plPant='editor'; plNuevoFlag=false; renderPlantillas();
+}
+function plVolver(){ plPant='lista'; plBorr=null; plEditId=null; plAbierto=null; renderPlantillas() }
+function plPrender(id){
+ const p=byId(db.templates,id); if(!p) return;
+ p.activo=p.activo===false;
+ save(); toast(p.activo?'Formato activado.':'Formato desactivado: el técnico ya no lo verá.');
+ renderPlantillas();
+}
+
+/* ---------------- Guardar ---------------- */
+function plGuardar(){
+ if(!plBorr) return;
+ plLimpia(plBorr);
+ const falla=plFalla(plBorr);
+ if(falla){ toast(falla); return }
+ const i=db.templates.findIndex(x=>x.id===plBorr.id);
+ if(i>=0) db.templates[i]=plBorr; else db.templates.push(plBorr);
+ save();
+ toast(plNuevoFlag?'Formato creado.':'Formato guardado.');
+ plVolver();
+}
+function plDescartar(){
+ if(plNuevoFlag||confirm('¿Descartar los cambios de este formato?')) plVolver();
+}
+
+/* ---------------- El editor ---------------- */
+function pintarPlEditor(){
+ const p=plBorr, bloq=p.base===true;
+ $('templatesBody').innerHTML=`
+ <div class="topline" style="margin-bottom:14px">
+  <div><h2 style="margin:0">${esc(p.nombre||'Formato')}</h2>
+   <p class="small" style="margin:4px 0 0;max-width:70ch">${bloq
+    ?'Este es un formato de fábrica: se puede mirar, no cambiar. Duplíquelo para hacerle ajustes.'
+    :'Prenda y apague secciones, cámbieles el orden y edite las listas. A la derecha ve cómo va quedando la hoja.'}</p></div>
+  ${bloq?`<button class="btn primary" onclick="plDuplicar('${esc(p.id)}')">Duplicar para editar</button>
+    <button class="btn secondary" onclick="plVolver()">Cerrar</button>`
+   :`<button class="btn primary" onclick="plGuardar()">Guardar y volver</button>
+     <button class="btn secondary" onclick="plDescartar()">Descartar</button>`}
+ </div>
+ <div class="plcols">
+  <div>
+   <div class="panel">
+    <h2>Cómo se llama y cuándo se usa</h2>
+    <div class="formgrid">
+     <label>Nombre del formato
+      <input id="plNom" value="${esc(p.nombre||'')}" ${bloq?'disabled':''} oninput="plCampo('nombre',this.value)"></label>
+     <label>Título que sale impreso
+      <input id="plTit" value="${esc(p.titulo||'')}" ${bloq?'disabled':''} oninput="plCampo('titulo',this.value)"></label>
+     <label>Se usa en
+      <select ${bloq?'disabled':''} onchange="plCampo('servicio',this.value,true)">
+       ${PL_SERVICIOS.map(([v,l])=>`<option value="${v}"${v===p.servicio?' selected':''}>${l}</option>`).join('')}
+      </select></label>
+     <label>Tipo de equipo (opcional)
+      <input list="plTiposEq" value="${esc(p.equipo||'')}" placeholder="Todos los equipos"
+       ${bloq?'disabled':''} oninput="plCampo('equipo',this.value)">
+      <datalist id="plTiposEq">${R_TIPOS.map(t=>`<option value="${esc(t[1])}">`).join('')}</datalist></label>
+    </div>
+    <p class="small" style="margin:8px 0 0">La aplicación escoge sola el formato según el tipo de
+     servicio de la orden. Si hay más de uno que sirva, el técnico elige en el celular.</p>
+   </div>
+   <div class="panel" style="margin-top:16px">
+    <h2>Qué lleva la hoja</h2>
+    <p class="small" style="margin:0 0 10px">Las firmas van siempre de último.</p>
+    ${(p.secciones||[]).map((s,i)=>plBloqueSeccion(p,s,i,bloq)).join('')}
+   </div>
+  </div>
+  <div class="panel" style="position:sticky;top:14px">
+   <div class="topline" style="margin-bottom:12px"><h2 style="margin:0">Así queda la hoja</h2>
+    <span class="small">Datos de ejemplo</span></div>
+   <div id="plPrev" class="hojaprev">${plPrevia(p)}</div>
+  </div>
+ </div>`;
+}
+function plBloqueSeccion(p,s,i,bloq){
+ const d=plSecDe(s.id), fijo=s.id==='firmas', abierta=plAbierto===s.id;
+ const ultimo=(p.secciones||[]).length-1;
+ return `<div class="plsec${s.on?'':' apagada'}">
+  <button class="plint" role="switch" aria-checked="${!!s.on}" aria-label="Mostrar ${esc(d.nom)}"
+   ${bloq||fijo?'disabled':''} onclick="plPrenderSec(${i})"><i></i></button>
+  <div class="plnom">${esc(d.nom)}<small>${esc(d.ayuda)}</small></div>
+  ${d.edita&&s.on?`<button class="btn secondary sm" onclick="plAbrirLista('${s.id}')">${abierta?'Cerrar':'Editar lista'}</button>`:''}
+  ${fijo?'':`<button class="btn secondary sm" ${bloq||i===0?'disabled':''} onclick="plMover(${i},-1)" aria-label="Subir">↑</button>
+   <button class="btn secondary sm" ${bloq||i>=ultimo-1?'disabled':''} onclick="plMover(${i},1)" aria-label="Bajar">↓</button>`}
+ </div>${abierta?plEditorLista(p,d.edita,bloq):''}`;
+}
+function plEditorLista(p,cual,bloq){
+ if(cual==='evaluacion'){
+  return `<div class="plsub">
+   <p class="small" style="margin:0 0 9px">Las preguntas que el cliente califica de 1 a 5.</p>
+   ${(p.evaluacion||[]).map((e,i)=>`<div class="plitem">
+    <input value="${esc(e.t)}" ${bloq?'disabled':''} oninput="plSetEval(${i},this.value)">
+    <button class="btn secondary sm" ${bloq?'disabled':''} onclick="plQuitarEval(${i})" aria-label="Quitar">✕</button>
+   </div>`).join('')}
+   <button class="btn secondary sm" style="margin-top:8px" ${bloq?'disabled':''} onclick="plAgregarEval()">＋ Agregar pregunta</button>
+  </div>`;
+ }
+ const lista=p[cual]||[];
+ const comoSeLlama=cual==='chequeos'?'grupo de chequeo':'grupo de mediciones';
+ return `<div class="plsub">
+  ${lista.map((g,gi)=>`<div class="plgrupo">
+   <div class="plgcab">
+    <input value="${esc(g.g)}" ${bloq?'disabled':''} oninput="plSetGrupo('${cual}',${gi},this.value)">
+    <button class="btn secondary sm" ${bloq?'disabled':''} onclick="plQuitarGrupo('${cual}',${gi})" aria-label="Quitar grupo">✕</button>
+   </div>
+   ${(g.items||[]).map((it,ii)=>`<div class="plitem" style="padding-left:12px">
+    <input value="${esc(it.t)}" ${bloq?'disabled':''} oninput="plSetItem('${cual}',${gi},${ii},this.value)">
+    <button class="btn secondary sm" ${bloq?'disabled':''} onclick="plQuitarItem('${cual}',${gi},${ii})" aria-label="Quitar">✕</button>
+   </div>`).join('')}
+   <button class="btn secondary sm" style="margin-left:12px" ${bloq?'disabled':''} onclick="plAgregarItem('${cual}',${gi})">＋ Agregar punto</button>
+  </div>`).join('')}
+  <button class="btn secondary sm" ${bloq?'disabled':''} onclick="plAgregarGrupo('${cual}')">＋ Agregar ${comoSeLlama}</button>
+ </div>`;
+}
+
+/* ---------------- Cambios ----------------
+   Al escribir solo se repinta la vista previa: si se repintara todo, el
+   cursor saltaría del campo en cada letra.                            */
+function plCampo(campo,valor,entero){
+ if(!plBorr) return;
+ plBorr[campo]=valor;
+ if(entero) renderPlantillas(); else plSoloPrevia();
+}
+function plPrenderSec(i){
+ const s=plBorr.secciones[i]; s.on=!s.on;
+ if(!s.on&&plAbierto===s.id) plAbierto=null;
+ renderPlantillas();
+}
+function plMover(i,d){
+ const a=plBorr.secciones, j=i+d;
+ if(j<0||j>=a.length-1) return;         // las firmas se quedan de últimas
+ const t=a[i]; a[i]=a[j]; a[j]=t;
+ renderPlantillas();
+}
+function plAbrirLista(id){ plAbierto=plAbierto===id?null:id; renderPlantillas() }
+function plSetGrupo(c,gi,v){ plBorr[c][gi].g=v; plSoloPrevia() }
+function plSetItem(c,gi,ii,v){ plBorr[c][gi].items[ii].t=v; plSoloPrevia() }
+function plQuitarItem(c,gi,ii){ plBorr[c][gi].items.splice(ii,1); renderPlantillas() }
+function plAgregarItem(c,gi){
+ plBorr[c][gi].items.push({id:plNuevoId(c==='chequeos'?'c':'d'),t:''}); renderPlantillas();
+}
+function plQuitarGrupo(c,gi){ plBorr[c].splice(gi,1); renderPlantillas() }
+function plAgregarGrupo(c){
+ plBorr[c].push({id:plNuevoId('g'),g:'Grupo nuevo',items:[{id:plNuevoId(c==='chequeos'?'c':'d'),t:''}]});
+ renderPlantillas();
+}
+function plSetEval(i,v){ plBorr.evaluacion[i].t=v; plSoloPrevia() }
+function plQuitarEval(i){ plBorr.evaluacion.splice(i,1); renderPlantillas() }
+function plAgregarEval(){ plBorr.evaluacion.push({id:plNuevoId('e'),t:''}); renderPlantillas() }
+function plSoloPrevia(){ const c=$('plPrev'); if(c) c.innerHTML=plPrevia(plBorr) }
+
+/* ---------------- La vista previa ----------------
+   Usa el MISMO armador que la hoja de verdad. Si la previa se ve bien,
+   la hoja impresa se ve bien: no hay dos códigos que se puedan separar. */
+function plPrevia(p){
+ const demo=plDemo(p);
+ return plHoja({
+  pl:p, R:demo, esc, fdate:fmtDate,
+  logo:(ME&&ME.logoUrl)||'', empresa:(ME&&ME.company)||'HVAC 360°',
+  numero:'OT-0001', cliente:'Cliente de ejemplo', fecha:todayStr(),
+  sede:'Sede principal', equipo:'EQ-001',
+  tipos:R_TIPOS.map(t=>t[0]+': '+t[1]).join(' · '),
+  fotosHtml:`<table class="pt"><tr><th class="gh" colspan="3">Registro fotográfico</th></tr></table>
+   <div class="pfotos">${['Antes','Durante','Después'].map(l=>
+    `<div class="plfoto">${l}</div>`).join('')}</div>`
+ });
+}
 
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);
 

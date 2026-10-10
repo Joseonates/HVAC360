@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>HVAC 360° · Panel de la plataforma</title>
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#64748b;--primary:#0f766e;--primary2:#14b8a6;
+ --dark:#0f172a;--line:#e2e8f0;--danger:#dc2626;--warn:#d97706;--ok:#16a34a;--info:#2563eb}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;font-family:Inter,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px}
+header{background:var(--dark);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
+header h1{font-size:17px;margin:0;font-weight:700}
+header .sub{font-size:12px;opacity:.7}
+header .sp{flex:1}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 18px 70px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:18px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 12px}
+.grid{display:grid;gap:14px}
+.cards{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.big{font-size:27px;font-weight:800;line-height:1.1;margin:5px 0 2px}
+.small{font-size:12.5px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);
+ padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:#f8fafc}
+.tw{overflow-x:auto}
+.chip{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.c-activo{background:#dcfce7;color:#166534}
+.c-prueba{background:#dbeafe;color:#1e40af}
+.c-suspendido{background:#fee2e2;color:#991b1b}
+.c-cancelado{background:#e2e8f0;color:#475569}
+.c-vencida{background:#fef3c7;color:#92400e}
+.btn{border:none;border-radius:9px;padding:10px 16px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+ background:var(--primary);color:#fff}
+.btn.sec{background:#fff;border:1px solid var(--line);color:var(--text)}
+.btn.dan{background:var(--danger)}
+.btn.sm{padding:6px 11px;font-size:12.5px;border-radius:7px}
+.btn:disabled{opacity:.5;cursor:default}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:12px}
+input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;
+ font:inherit;font-size:14px;margin-top:5px;background:#fff;color:var(--text)}
+textarea{min-height:70px;resize:vertical}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:0 16px}
+.acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.msg{padding:11px 14px;border-radius:9px;font-size:13.5px;margin-top:12px;display:none}
+.msg.err{background:#fef2f2;color:#991b1b;display:block}
+.msg.ok{background:#f0fdf4;color:#166534;display:block}
+.msg.inf{background:#eff6ff;color:#1e40af;display:block}
+.login{max-width:390px;margin:9vh auto;padding:0 16px}
+.logo{font-size:27px;font-weight:800;color:var(--dark)}
+.logo span{color:var(--primary2)}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;
+ justify-content:center;padding:18px;z-index:50}
+.modal .box{background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow:auto;padding:20px}
+.mh{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.mh h2{flex:1;margin:0}
+.x{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;background:var(--dark);color:#fff;
+ padding:12px 20px;border-radius:10px;font-size:14px;z-index:60;box-shadow:0 8px 26px rgba(0,0,0,.3)}
+.tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tabs button{padding:8px 15px;border-radius:9px;border:1px solid var(--line);background:#fff;
+ color:var(--muted);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.tabs button.on{background:var(--dark);border-color:var(--dark);color:#fff}
+code{background:#f1f5f9;padding:2px 7px;border-radius:5px;font-size:13px}
+.pasos{margin:0;padding-left:20px;font-size:13.5px;line-height:1.75}
+</style>
+</head>
+<body>
+
+<script type="module">
+const V='12.19.0', B='https://www.gstatic.com/firebasejs/'+V+'/';
+try{
+ const [A,Au,Fs]=await Promise.all([import(B+'firebase-app.js'),import(B+'firebase-auth.js'),import(B+'firebase-firestore.js')]);
+ const cfg={
+  apiKey:"AIzaSyBDsf7oXAlsw38mYHHCn6wVxM4JcGq-jDU",
+  authDomain:"hvac360.firebaseapp.com",
+  projectId:"hvac360",
+  storageBucket:"hvac360.firebasestorage.app",
+  messagingSenderId:"217756579102",
+  appId:"1:217756579102:web:343e9b8bdf004dbac4050f"};
+ const app=A.initializeApp(cfg);
+ window.FB=Object.assign({},Au,Fs,{auth:Au.getAuth(app),fs:Fs.getFirestore(app),
+   initializeApp:A.initializeApp,deleteApp:A.deleteApp,cfg});
+ window.dispatchEvent(new Event('fb-ready'));
+}catch(e){
+ document.getElementById('lmsg').className='msg err';
+ document.getElementById('lmsg').textContent='No se pudo cargar Firebase: '+e.message;
+}
+</script>
+
+<!-- ============ INGRESO ============ -->
+<div id="vLogin">
+ <div class="login">
+  <div class="logo">HVAC <span>360°</span></div>
+  <p class="small" style="margin:2px 0 24px">Panel de la plataforma · solo para el dueño</p>
+  <div class="card">
+   <label>Correo<input id="em" type="email" autocomplete="username"></label>
+   <label>Contraseña<input id="pw" type="password" autocomplete="current-password"></label>
+   <button class="btn" style="width:100%" id="inBtn" onclick="entrar()">Entrar</button>
+   <div style="text-align:center;margin-top:12px">
+    <button class="btn sec sm" onclick="recuperar()">Olvidé mi contraseña</button>
+   </div>
+   <div id="lmsg" class="msg"></div>
+  </div>
+ </div>
+</div>
+
+<!-- ============ SIN PERMISO ============ -->
+<div id="vNoSoy" hidden>
+ <div class="login" style="max-width:620px">
+  <div class="card">
+   <h2>Esta cuenta todavía no es dueña de la plataforma</h2>
+   <p class="small">Entró bien, pero su usuario no está marcado como dueño. Eso no se puede
+    activar desde ninguna pantalla: es el candado que impide que alguien se dé ese poder solo.
+    Se hace una sola vez, a mano, en la consola de Firebase.</p>
+   <p class="small" style="margin-top:14px"><b>Su identificador de usuario (UID):</b></p>
+   <p><code id="miUid" style="font-size:14px;word-break:break-all"></code>
+      <button class="btn sec sm" onclick="copiarUid()">Copiar</button></p>
+   <ol class="pasos" style="margin-top:14px">
+    <li>Entre a <b>console.firebase.google.com</b> y abra el proyecto <b>hvac360</b>.</li>
+    <li>Menú izquierdo → <b>Firestore Database</b> → pestaña <b>Datos</b>.</li>
+    <li>Toque <b>Iniciar colección</b> y escriba exactamente: <code>platformAdmins</code></li>
+    <li>En <b>ID del documento</b> pegue el UID de arriba.</li>
+    <li>Agregue un campo cualquiera, por ejemplo <code>nombre</code> (tipo texto) con su nombre.</li>
+    <li>Guarde y vuelva aquí: toque <b>Ya lo hice</b>.</li>
+   </ol>
+   <div class="acc">
+    <button class="btn" onclick="revisarDueno()">Ya lo hice, revisar otra vez</button>
+    <button class="btn sec" onclick="salir()">Salir</button>
+   </div>
+   <div id="nmsg" class="msg"></div>
+  </div>
+ </div>
+</div>
+
+<!-- ============ PANEL ============ -->
+<div id="vPanel" hidden>
+<header>
+ <div><h1>HVAC 360° · Plataforma</h1><div class="sub" id="hQuien">—</div></div>
+ <div class="sp"></div>
+ <span class="sub" id="hVer"></span>
+ <button class="btn sec sm" onclick="salir()">Salir</button>
+</header>
+<div class="wrap">
+ <div class="grid cards" id="tarjetas"></div>
+
+ <div class="tabs" id="tabs"></div>
+ <div id="cuerpo"></div>
+</div>
+</div>
+
+<div id="modal" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const VERSION='v2026.10.12-1';
+const $=i=>document.getElementById(i);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$ '+Math.round(n||0).toLocaleString('es-CO');
+const hoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fdate=s=>{if(!s)return '—';const[y,m,d]=String(s).split('-');return `${d}/${m}/${y}`};
+const aFecha=ts=>ts&&ts.toDate?ts.toDate():null;
+const comoIso=d=>d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'):'';
+const diasHasta=d=>d?Math.ceil((d-new Date())/86400000):null;
+
+let YO=null, EMPRESAS=[], PLANES=[], TAB='empresas';
+const ESTADOS={prueba:'En prueba',activo:'Activa',suspendido:'Suspendida',cancelado:'Cancelada'};
+
+let tt; function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3000)}
+function vista(v){['vLogin','vNoSoy','vPanel'].forEach(x=>$(x).hidden=(x!==v));window.scrollTo(0,0)}
+function msg(id,t,cls){const e=$(id);if(!e)return;e.textContent=t;e.className='msg'+(t?' '+cls:'')}
+function errMsg(e){
+ const c=(e&&e.code)||'';
+ if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found'))return 'Correo o contraseña incorrectos.';
+ if(c.includes('email-already-in-use'))return 'Ese correo ya tiene cuenta en el sistema.';
+ if(c.includes('weak-password'))return 'La contraseña debe tener al menos 6 caracteres.';
+ if(c.includes('invalid-email'))return 'El correo no es válido.';
+ if(c.includes('too-many-requests'))return 'Demasiados intentos. Espere un momento.';
+ if(c.includes('permission-denied'))return 'Las reglas de seguridad rechazaron la operación. ¿Ya publicó las reglas nuevas en Firebase?';
+ return (e&&e.message)||'Error desconocido.';
+}
+function cerrarModal(){ $('modal').hidden=true; $('modal').innerHTML='' }
+function abrirModal(html){
+ $('modal').innerHTML=`<div class="modal" onclick="if(event.target===this)cerrarModal()"><div class="box">${html}</div></div>`;
+ $('modal').hidden=false;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarModal()});
+
+/* ================= INGRESO ================= */
+async function entrar(){
+ const e=$('em').value.trim(), p=$('pw').value;
+ if(!e||!p){msg('lmsg','Escriba su correo y su contraseña.','err');return}
+ msg('lmsg','Entrando…','inf'); $('inBtn').disabled=true;
+ try{ await FB.signInWithEmailAndPassword(FB.auth,e,p) }
+ catch(err){ msg('lmsg',errMsg(err),'err'); $('inBtn').disabled=false }
+}
+async function recuperar(){
+ const e=$('em').value.trim();
+ if(!e){ msg('lmsg','Escriba primero su correo arriba y vuelva a tocar el botón.','err'); return }
+ try{
+  await FB.sendPasswordResetEmail(FB.auth,e);
+  msg('lmsg','Le enviamos un correo a '+e+' para cambiar la contraseña. Revise también la bandeja de no deseados.','ok');
+ }catch(err){ msg('lmsg',errMsg(err),'err') }
+}
+async function salir(){ if(!confirm('¿Cerrar sesión?'))return; await FB.signOut(FB.auth); location.reload() }
+function copiarUid(){
+ const t=$('miUid').textContent;
+ navigator.clipboard.writeText(t).then(()=>toast('UID copiado.'),()=>toast('Cópielo a mano: '+t));
+}
+async function revisarDueno(){
+ msg('nmsg','Revisando…','inf');
+ const u=FB.auth.currentUser; if(!u) return;
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'platformAdmins',u.uid));
+  if(d.exists()){ msg('nmsg','',''); await arrancarPanel(u); }
+  else msg('nmsg','Todavía no aparece. Revise que la colección se llame exactamente platformAdmins y que el documento tenga su UID como identificador.','err');
+ }catch(e){ msg('nmsg',errMsg(e),'err') }
+}
+
+async function alEntrar(u){
+ try{
+  const d=await FB.getDoc(FB.doc(FB.fs,'platformAdmins',u.uid));
+  if(!d.exists()){ $('miUid').textContent=u.uid; vista('vNoSoy'); return }
+  await arrancarPanel(u);
+ }catch(e){
+  // Si las reglas viejas siguen publicadas, esta lectura falla.
+  $('miUid').textContent=u.uid;
+  vista('vNoSoy');
+  msg('nmsg','No se pudo consultar: '+errMsg(e)+' Si todavía no ha publicado las reglas nuevas, hágalo primero.','err');
+ }
+}
+async function arrancarPanel(u){
+ YO={uid:u.uid,email:u.email};
+ $('hQuien').textContent=u.email||'';
+ $('hVer').textContent=VERSION;
+ vista('vPanel');
+ await cargar();
+}
+
+/* ================= CARGA ================= */
+async function cargar(){
+ $('cuerpo').innerHTML='<div class="card"><p class="small">Cargando empresas…</p></div>';
+ try{
+  const [te,pl]=await Promise.all([
+   FB.getDocs(FB.collection(FB.fs,'tenants')),
+   FB.getDocs(FB.collection(FB.fs,'plans')).catch(()=>null)]);
+  EMPRESAS=[]; te.forEach(d=>EMPRESAS.push(Object.assign({id:d.id},d.data())));
+  PLANES=[]; if(pl) pl.forEach(d=>PLANES.push(Object.assign({id:d.id},d.data())));
+  PLANES.sort((a,b)=>(a.orden||99)-(b.orden||99));
+  // Usuarios y consumo de cada empresa, en paralelo.
+  await Promise.all(EMPRESAS.map(async e=>{
+   try{
+    const [ms,cn]=await Promise.all([
+     FB.getDocs(FB.collection(FB.fs,'tenants',e.id,'members')),
+     FB.getDoc(FB.doc(FB.fs,'tenants',e.id,'counters','workOrders')).catch(()=>null)]);
+    let act=0; ms.forEach(m=>{ if(m.data().active!==false) act++ });
+    e._usuarios=act; e._total=ms.size;
+    e._ordenes=(cn&&cn.exists())?(cn.data().value||0):0;
+   }catch(err){ e._usuarios=0; e._total=0; e._ordenes=0 }
+  }));
+  EMPRESAS.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  pintar();
+ }catch(e){
+  $('cuerpo').innerHTML='<div class="card"><div class="msg err">No se pudieron cargar las empresas: '+esc(errMsg(e))+'</div></div>';
+ }
+}
+
+/* ================= ESTADO DE CADA EMPRESA ================= */
+function estadoReal(e){
+ if(e.status==='prueba'){
+  const f=aFecha(e.trialEnds);
+  if(f && f<new Date()) return 'vencida';
+ }
+ return e.status||'prueba';
+}
+function chipEstado(e){
+ const s=estadoReal(e);
+ if(s==='vencida') return '<span class="chip c-vencida">Prueba vencida</span>';
+ return `<span class="chip c-${esc(s)}">${esc(ESTADOS[s]||s)}</span>`;
+}
+const puedeOperar=e=>{
+ const s=estadoReal(e);
+ return s==='activo'||s==='prueba';
+};
+
+/* ================= PANTALLA ================= */
+function pintar(){
+ const operando=EMPRESAS.filter(puedeOperar).length;
+ const prueba=EMPRESAS.filter(e=>estadoReal(e)==='prueba').length;
+ const vencidas=EMPRESAS.filter(e=>estadoReal(e)==='vencida').length;
+ const cobrando=EMPRESAS.filter(e=>e.status==='activo');
+ const mrr=cobrando.reduce((a,e)=>{
+  const p=PLANES.find(x=>x.id===(e.plan||''));
+  return a+((p&&p.precioMes)||0);
+ },0);
+ $('tarjetas').innerHTML=[
+  ['Empresas operando','🏢',operando,EMPRESAS.length+' registradas en total'],
+  ['En prueba','🕒',prueba,vencidas?(vencidas+' con la prueba vencida'):'ninguna vencida'],
+  ['Pagando','✅',cobrando.length,'empresas activas'],
+  ['Ingreso mensual','💵',money(mrr),'según el plan de cada una']
+ ].map(([t,i,v,s])=>`<div class="card"><div style="font-size:20px">${i}</div><h2 style="margin:6px 0 0">${esc(t)}</h2>
+   <div class="big">${typeof v==='number'?v:esc(v)}</div><span class="small">${esc(s)}</span></div>`).join('');
+
+ $('tabs').innerHTML=[['empresas','Empresas'],['planes','Planes'],['ayuda','Cómo funciona']]
+  .map(([k,l])=>`<button class="${TAB===k?'on':''}" onclick="setTab('${k}')">${esc(l)}</button>`).join('');
+
+ if(TAB==='empresas') pintarEmpresas();
+ else if(TAB==='planes') pintarPlanes();
+ else pintarAyuda();
+}
+function setTab(t){ TAB=t; pintar() }
+
+function pintarEmpresas(){
+ $('cuerpo').innerHTML=`<div class="card">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+   <h2 style="margin:0;flex:1">Empresas</h2>
+   <button class="btn" onclick="formEmpresa()">＋ Dar de alta una empresa</button>
+   <button class="btn sec" onclick="cargar()">Actualizar</button>
+  </div>
+  <div class="tw"><table>
+   <thead><tr><th>Empresa</th><th>Plan</th><th>Usuarios</th><th>Órdenes</th><th>Vigencia</th><th>Estado</th><th></th></tr></thead>
+   <tbody>${EMPRESAS.length?EMPRESAS.map(filaEmpresa).join(''):'<tr><td colspan="7" class="small" style="padding:30px;text-align:center">Todavía no hay empresas registradas.</td></tr>'}</tbody>
+  </table></div>
+ </div>`;
+}
+function filaEmpresa(e){
+ const p=PLANES.find(x=>x.id===(e.plan||''));
+ const tope=(e.maxUsuarios!=null?e.maxUsuarios:(p&&p.maxUsuarios))||0;
+ const excede=tope>0&&e._usuarios>tope;
+ const fin=aFecha(e.trialEnds)||aFecha(e.vence);
+ const dias=diasHasta(fin);
+ let vig='Sin vencimiento';
+ if(fin){
+  vig=comoIso(fin).split('-').reverse().join('/');
+  if(dias!=null&&dias>=0&&dias<=7) vig+=' <span class="chip c-vencida">faltan '+dias+' d</span>';
+  else if(dias!=null&&dias<0) vig+=' <span class="chip c-suspendido">vencida</span>';
+ }
+ return `<tr>
+  <td><b>${esc(e.name||e.id)}</b><div class="small">${esc(e.nit||'')} ${esc(e.city||'')}</div>
+      <div class="small">${esc(e.id)}</div></td>
+  <td>${esc((p&&p.name)||e.plan||'—')}<div class="small">${p?money(p.precioMes)+'/mes':''}</div></td>
+  <td>${e._usuarios}${tope?' / '+tope:''}${excede?' <span class="chip c-suspendido">excede</span>':''}</td>
+  <td>${e._ordenes}</td>
+  <td class="small">${vig}</td>
+  <td>${chipEstado(e)}</td>
+  <td><button class="btn sec sm" data-id="${esc(e.id)}" onclick="formSuscripcion(this.dataset.id)">Administrar</button></td>
+ </tr>`;
+}
+
+/* ================= SUSCRIPCIÓN ================= */
+function formSuscripcion(id){
+ const e=EMPRESAS.find(x=>x.id===id); if(!e) return;
+ const p=PLANES.find(x=>x.id===(e.plan||''));
+ const fin=aFecha(e.trialEnds)||aFecha(e.vence);
+ abrirModal(`<div class="mh"><h2>${esc(e.name||e.id)}</h2><button class="x" onclick="cerrarModal()">✕</button></div>
+  <p class="small">${esc(e.id)} · ${e._usuarios} usuario(s) activo(s) · ${e._ordenes} orden(es) emitidas</p>
+  <div class="fg" style="margin-top:14px">
+   <label>Estado<select id="sEstado">${Object.entries(ESTADOS).map(([k,l])=>`<option value="${k}"${(e.status||'prueba')===k?' selected':''}>${esc(l)}</option>`).join('')}</select></label>
+   <label>Plan<select id="sPlan">${PLANES.length?PLANES.map(x=>`<option value="${esc(x.id)}"${(e.plan||'')===x.id?' selected':''}>${esc(x.name)} · ${money(x.precioMes)}/mes</option>`).join(''):'<option value="basico">basico</option>'}</select></label>
+   <label>Vence el<input id="sVence" type="date" value="${esc(comoIso(fin))}"><span class="small">Para prueba o para suscripción pagada. Vacío = sin vencimiento.</span></label>
+   <label>Tope de usuarios<input id="sMaxU" type="number" min="0" value="${e.maxUsuarios!=null?e.maxUsuarios:((p&&p.maxUsuarios)||0)}"><span class="small">0 = sin tope</span></label>
+   <label>Tope de órdenes al mes<input id="sMaxO" type="number" min="0" value="${e.maxOrdenesMes!=null?e.maxOrdenesMes:((p&&p.maxOrdenesMes)||0)}"><span class="small">0 = sin tope</span></label>
+   <label style="grid-column:1/-1">Nota interna<textarea id="sNota" maxlength="1000">${esc(e.notasPlataforma||'')}</textarea></label>
+  </div>
+  <div class="acc">
+   <button class="btn" data-id="${esc(id)}" onclick="guardarSuscripcion(this.dataset.id)">Guardar</button>
+   <button class="btn sec" data-id="${esc(id)}" onclick="extender(this.dataset.id,15)">+15 días de prueba</button>
+   <button class="btn sec" data-id="${esc(id)}" onclick="extender(this.dataset.id,30)">+30 días</button>
+   <button class="btn sec" onclick="cerrarModal()">Cancelar</button>
+  </div>
+  <div id="smsg" class="msg"></div>`);
+}
+async function escribirSuscripcion(id,campos){
+ await FB.updateDoc(FB.doc(FB.fs,'tenants',id),Object.assign({},campos,
+  {updatedAt:FB.serverTimestamp(),updatedBy:YO.uid}));
+}
+function fechaFin(v){
+ if(!v) return null;
+ const [y,m,d]=v.split('-').map(Number);
+ return new Date(y,m-1,d,23,59,59);
+}
+async function guardarSuscripcion(id){
+ const e=EMPRESAS.find(x=>x.id===id); if(!e) return;
+ const estado=$('sEstado').value;
+ const fin=fechaFin($('sVence').value);
+ const campos={status:estado, plan:$('sPlan').value,
+  maxUsuarios:Number($('sMaxU').value)||0, maxOrdenesMes:Number($('sMaxO').value)||0,
+  notasPlataforma:$('sNota').value.trim()||null};
+ // La fecha va en trialEnds cuando está en prueba, y en vence cuando ya paga.
+ if(estado==='prueba'){ campos.trialEnds=fin; campos.vence=null }
+ else { campos.vence=fin; campos.trialEnds=null }
+ msg('smsg','Guardando…','inf');
+ try{
+  await escribirSuscripcion(id,campos);
+  cerrarModal(); toast('Suscripción de '+(e.name||id)+' actualizada.');
+  await cargar();
+ }catch(err){ msg('smsg','No se pudo guardar: '+errMsg(err),'err') }
+}
+async function extender(id,dias){
+ const e=EMPRESAS.find(x=>x.id===id); if(!e) return;
+ const base=aFecha(e.trialEnds);
+ const desde=(base&&base>new Date())?base:new Date();
+ const nueva=new Date(desde.getTime()+dias*86400000);
+ msg('smsg','Guardando…','inf');
+ try{
+  await escribirSuscripcion(id,{status:'prueba',trialEnds:nueva,vence:null});
+  cerrarModal(); toast('Prueba de '+(e.name||id)+' extendida hasta el '+comoIso(nueva).split('-').reverse().join('/'));
+  await cargar();
+ }catch(err){ msg('smsg','No se pudo guardar: '+errMsg(err),'err') }
+}
+
+/* ================= ALTA DE EMPRESA ================= */
+function formEmpresa(){
+ abrirModal(`<div class="mh"><h2>Dar de alta una empresa</h2><button class="x" onclick="cerrarModal()">✕</button></div>
+  <p class="small">Se crea la empresa y la cuenta de su administrador. Usted le entrega el correo y
+   la contraseña, y esa persona ya puede entrar y cambiarla.</p>
+  <div class="fg" style="margin-top:14px">
+   <label>Nombre de la empresa <b style="color:var(--danger)">*</b><input id="nEmp" maxlength="120" placeholder="Ej. Refrigeración del Sur S.A.S."></label>
+   <label>NIT<input id="nNit" maxlength="40"></label>
+   <label>Ciudad<input id="nCiudad" maxlength="80"></label>
+   <label>Teléfono<input id="nTel" maxlength="40"></label>
+   <label>Nombre del administrador <b style="color:var(--danger)">*</b><input id="nAdmin" maxlength="100"></label>
+   <label>Correo del administrador <b style="color:var(--danger)">*</b><input id="nCorreo" type="email"></label>
+   <label>Contraseña inicial <b style="color:var(--danger)">*</b><input id="nClave" value="${esc(claveSugerida())}"><span class="small">Mínimo 6 caracteres. Él la puede cambiar después.</span></label>
+   <label>Empieza como<select id="nEstado"><option value="prueba">En prueba</option><option value="activo">Activa (ya paga)</option></select></label>
+   <label>Plan<select id="nPlan">${PLANES.length?PLANES.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join(''):'<option value="basico">basico</option>'}</select></label>
+   <label>Días de prueba<input id="nDias" type="number" min="0" max="365" value="15"></label>
+  </div>
+  <div id="nmsg2" class="msg"></div>
+  <div class="acc">
+   <button class="btn" id="nBtn" onclick="crearEmpresa()">Crear empresa</button>
+   <button class="btn sec" onclick="cerrarModal()">Cancelar</button>
+  </div>`);
+}
+function claveSugerida(){
+ const a='abcdefghijkmnpqrstuvwxyz', n='23456789';
+ let s=''; for(let i=0;i<5;i++) s+=a[Math.floor(Math.random()*a.length)];
+ for(let i=0;i<3;i++) s+=n[Math.floor(Math.random()*n.length)];
+ return 'hvac'+s;
+}
+async function crearEmpresa(){
+ const nom=$('nEmp').value.trim(), admin=$('nAdmin').value.trim();
+ const correo=$('nCorreo').value.trim(), clave=$('nClave').value;
+ if(nom.length<2){ msg('nmsg2','Escriba el nombre de la empresa.','err'); return }
+ if(admin.length<2){ msg('nmsg2','Escriba el nombre del administrador.','err'); return }
+ if(!correo.includes('@')){ msg('nmsg2','El correo no es válido.','err'); return }
+ if(clave.length<6){ msg('nmsg2','La contraseña debe tener al menos 6 caracteres.','err'); return }
+ $('nBtn').disabled=true;
+
+ // Se crea la cuenta en una conexión aparte para no cerrar la suya.
+ let segunda=null, paso='crear la cuenta del administrador';
+ try{
+  msg('nmsg2','Creando la cuenta…','inf');
+  segunda=FB.initializeApp(FB.cfg,'alta-'+Date.now());
+  const auth2=FB.getAuth(segunda);
+  const cred=await FB.createUserWithEmailAndPassword(auth2,correo,clave);
+  const nuevoUid=cred.user.uid;
+
+  paso='crear la empresa';
+  msg('nmsg2','Creando la empresa…','inf');
+  const tid='emp-'+Math.random().toString(36).slice(2,10);
+  const estado=$('nEstado').value;
+  const dias=Number($('nDias').value)||0;
+  const fin=(estado==='prueba'&&dias>0)?new Date(Date.now()+dias*86400000):null;
+  const plan=$('nPlan').value;
+  const p=PLANES.find(x=>x.id===plan);
+
+  const b=FB.writeBatch(FB.fs);
+  b.set(FB.doc(FB.fs,'tenants',tid),{
+   name:nom, nit:$('nNit').value.trim()||null, city:$('nCiudad').value.trim()||null,
+   phone:$('nTel').value.trim()||null, status:estado, plan:plan,
+   trialEnds:fin, vence:null,
+   maxUsuarios:(p&&p.maxUsuarios)||0, maxOrdenesMes:(p&&p.maxOrdenesMes)||0,
+   createdBy:YO.uid, createdAt:FB.serverTimestamp()});
+  b.set(FB.doc(FB.fs,'tenants',tid,'members',nuevoUid),{
+   name:admin, email:correo, role:'admin', active:true,
+   createdAt:FB.serverTimestamp(), createdBy:YO.uid,
+   updatedAt:FB.serverTimestamp(), updatedBy:YO.uid});
+  b.set(FB.doc(FB.fs,'users',nuevoUid),{tenantId:tid, email:correo, createdAt:FB.serverTimestamp()});
+  await b.commit();
+
+  paso='crear el contador de órdenes';
+  await FB.setDoc(FB.doc(FB.fs,'tenants',tid,'counters','workOrders'),{value:0}).catch(()=>{});
+
+  // La empresa ya quedó creada. Si la limpieza de la conexión falla, es
+  // un detalle: no se puede perder el aviso con los datos de acceso.
+  try{ await FB.signOut(FB.getAuth(segunda)) }catch(x){}
+  try{ await FB.deleteApp(segunda) }catch(x){}
+  segunda=null;
+
+  cerrarModal();
+  await cargar();
+  abrirModal(`<div class="mh"><h2>Empresa creada</h2><button class="x" onclick="cerrarModal()">✕</button></div>
+   <p>Entréguele estos datos a <b>${esc(admin)}</b>:</p>
+   <div class="card" style="background:#f8fafc">
+    <p style="margin:0 0 6px"><b>Dirección:</b> <code>${esc(location.origin+location.pathname.replace(/[^/]*$/,'index.html'))}</code></p>
+    <p style="margin:0 0 6px"><b>Correo:</b> <code>${esc(correo)}</code></p>
+    <p style="margin:0"><b>Contraseña:</b> <code>${esc(clave)}</code></p>
+   </div>
+   <p class="small">Dígale que entre y cambie la contraseña. Si la olvida, puede usar
+    “Olvidé mi contraseña” en la pantalla de ingreso.</p>
+   <div class="acc"><button class="btn" onclick="cerrarModal()">Listo</button></div>`);
+ }catch(e){
+  console.error(e);
+  if(segunda){ try{ await FB.deleteApp(segunda) }catch(x){} }
+  msg('nmsg2','Falló al '+paso+': '+errMsg(e),'err');
+  const b=$('nBtn'); if(b) b.disabled=false;
+ }
+}
+
+/* ================= PLANES ================= */
+function pintarPlanes(){
+ $('cuerpo').innerHTML=`<div class="card">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+   <h2 style="margin:0;flex:1">Planes comerciales</h2>
+   <button class="btn" onclick="formPlan('')">＋ Nuevo plan</button>
+  </div>
+  <p class="small">Los topes de cada plan son el valor por defecto que se le pone a una empresa nueva.
+   A una empresa puntual usted le puede subir el tope sin cambiarle el plan.</p>
+  <div class="tw" style="margin-top:12px"><table>
+   <thead><tr><th>Plan</th><th>Precio mes</th><th>Usuarios</th><th>Órdenes/mes</th><th>Empresas</th><th>Estado</th><th></th></tr></thead>
+   <tbody>${PLANES.length?PLANES.map(p=>`<tr>
+     <td><b>${esc(p.name)}</b><div class="small">${esc(p.id)}</div></td>
+     <td>${money(p.precioMes)}</td>
+     <td>${p.maxUsuarios?p.maxUsuarios:'sin tope'}</td>
+     <td>${p.maxOrdenesMes?p.maxOrdenesMes:'sin tope'}</td>
+     <td>${EMPRESAS.filter(e=>e.plan===p.id).length}</td>
+     <td>${p.activo?'<span class="chip c-activo">A la venta</span>':'<span class="chip c-cancelado">Retirado</span>'}</td>
+     <td><button class="btn sec sm" data-id="${esc(p.id)}" onclick="formPlan(this.dataset.id)">Editar</button></td>
+    </tr>`).join(''):'<tr><td colspan="7" class="small" style="padding:30px;text-align:center">Todavía no ha creado planes. Cree al menos uno para poder cobrar.</td></tr>'}</tbody>
+  </table></div>
+ </div>`;
+}
+function formPlan(id){
+ const p=id?PLANES.find(x=>x.id===id):null;
+ abrirModal(`<div class="mh"><h2>${id?'Editar plan':'Nuevo plan'}</h2><button class="x" onclick="cerrarModal()">✕</button></div>
+  <div class="fg">
+   <label>Identificador <b style="color:var(--danger)">*</b><input id="pId" maxlength="40" value="${esc(id)}" ${id?'disabled':''} placeholder="basico"><span class="small">Sin espacios ni tildes. No se puede cambiar después.</span></label>
+   <label>Nombre visible <b style="color:var(--danger)">*</b><input id="pNom" maxlength="60" value="${esc(p?p.name:'')}" placeholder="Básico"></label>
+   <label>Precio por mes<input id="pPre" type="number" min="0" step="10000" value="${p?p.precioMes:0}"></label>
+   <label>Orden en la lista<input id="pOrd" type="number" min="1" value="${p&&p.orden?p.orden:(PLANES.length+1)}"></label>
+   <label>Tope de usuarios<input id="pMaxU" type="number" min="0" value="${p?p.maxUsuarios:0}"><span class="small">0 = sin tope</span></label>
+   <label>Tope de órdenes al mes<input id="pMaxO" type="number" min="0" value="${p?p.maxOrdenesMes:0}"><span class="small">0 = sin tope</span></label>
+   <label>¿Se está vendiendo?<select id="pAct"><option value="si"${!p||p.activo?' selected':''}>Sí</option><option value="no"${p&&!p.activo?' selected':''}>No</option></select></label>
+   <label style="grid-column:1/-1">Notas<textarea id="pNota" maxlength="500">${esc(p?p.notas||'':'')}</textarea></label>
+  </div>
+  <div id="pmsg" class="msg"></div>
+  <div class="acc"><button class="btn" onclick="guardarPlan()">Guardar</button>
+   <button class="btn sec" onclick="cerrarModal()">Cancelar</button></div>`);
+}
+async function guardarPlan(){
+ const id=($('pId').value||'').trim().toLowerCase().replace(/[^a-z0-9_-]/g,'');
+ const nom=$('pNom').value.trim();
+ if(id.length<2){ msg('pmsg','Escriba el identificador (letras sin espacios).','err'); return }
+ if(nom.length<2){ msg('pmsg','Escriba el nombre visible.','err'); return }
+ msg('pmsg','Guardando…','inf');
+ try{
+  await FB.setDoc(FB.doc(FB.fs,'plans',id),{
+   name:nom, orden:Number($('pOrd').value)||1, precioMes:Number($('pPre').value)||0,
+   maxUsuarios:Number($('pMaxU').value)||0, maxOrdenesMes:Number($('pMaxO').value)||0,
+   activo:$('pAct').value==='si', notas:$('pNota').value.trim()||null,
+   updatedAt:FB.serverTimestamp(), updatedBy:YO.uid});
+  cerrarModal(); toast('Plan guardado.'); await cargar();
+ }catch(e){ msg('pmsg','No se pudo guardar: '+errMsg(e),'err') }
+}
+
+/* ================= AYUDA ================= */
+function pintarAyuda(){
+ $('cuerpo').innerHTML=`<div class="card">
+  <h2>Cómo funciona el control de ingreso</h2>
+  <p class="small">En plata blanca, para que sepa qué puede y qué no puede hacer este panel.</p>
+
+  <h2 style="font-size:14px;margin-top:18px">Los estados de una empresa</h2>
+  <ul class="pasos">
+   <li><b>En prueba</b> · trabaja normal hasta la fecha de vencimiento. Pasada esa fecha, el sistema
+       deja de aceptarle cambios aunque el estado siga diciendo “prueba”.</li>
+   <li><b>Activa</b> · trabaja sin restricción. Es el estado de quien ya paga.</li>
+   <li><b>Suspendida</b> · puede entrar y ver lo suyo, pero no puede crear ni modificar nada.
+       Sirve para apretar a quien se atrasó en el pago sin borrarle la información.</li>
+   <li><b>Cancelada</b> · igual que suspendida. Se usa cuando se retira del servicio.</li>
+  </ul>
+  <p class="small">El bloqueo no está en la pantalla: está en las reglas de seguridad de la base de
+   datos. Aunque alguien se meta por otro lado, no puede escribir. Eso es lo que hace que esto
+   sirva para vender.</p>
+
+  <h2 style="font-size:14px;margin-top:18px">Los topes</h2>
+  <p class="small">Los topes de usuarios y de órdenes son <b>avisos</b>, no bloqueos: la base de
+   datos no sabe contar documentos, así que se muestran aquí y en la aplicación de la empresa,
+   pero no impiden la operación. Si una empresa se le pasa del tope, usted lo ve en esta tabla
+   marcado como “excede” y decide: le sube el plan o la suspende.</p>
+
+  <h2 style="font-size:14px;margin-top:18px">Lo que este panel NO hace todavía</h2>
+  <ul class="pasos">
+   <li>No cobra ni recibe pagos: usted marca a mano quién está al día.</li>
+   <li>No suspende solo al que no pagó. Eso necesitaría un servidor y el plan de pago de Firebase.</li>
+   <li>No borra empresas. A propósito: la información de un cliente no se borra por un clic.</li>
+  </ul>
+
+  <h2 style="font-size:14px;margin-top:18px">Su cuenta de dueño</h2>
+  <p class="small">Su UID es <code>${esc(YO?YO.uid:'')}</code>. El poder de dueño viene del documento
+   <code>platformAdmins/${esc(YO?YO.uid:'')}</code> en Firestore, que solo se crea a mano en la consola.
+   Si quiere darle acceso a este panel a otra persona, cree otro documento con el UID de ella.</p>
+ </div>`;
+}
+
+/* ================= ARRANQUE ================= */
+function arrancar(){
+ FB.onAuthStateChanged(FB.auth,u=>{
+  if(u) alEntrar(u);
+  else { YO=null; EMPRESAS=[]; PLANES=[]; $('inBtn').disabled=false; vista('vLogin') }
+ });
+}
+if(window.FB) arrancar(); else window.addEventListener('fb-ready',arrancar);
+</script>
+</body>
+</html>

@@ -10,9 +10,9 @@
    Lo que va a Firebase (datos, fotos, firmas) NUNCA pasa por aquí: son
    otros dominios y se dejan ir directo a la red.
    ===================================================================== */
-const CACHE = 'hvac360-v1';
+const CACHE = 'hvac360-v2026-10-12';
 const BASE = self.registration.scope;
-const ESENCIALES = ['', 'index.html', 'tecnico.html', 'cliente.html',
+const ESENCIALES = ['', 'index.html', 'tecnico.html', 'cliente.html', 'panel.html',
                     'manifest-oficina.json', 'manifest-tecnico.json', 'manifest-cliente.json',
                     'icon-192.png', 'icon-512.png'].map(p => BASE + p);
 

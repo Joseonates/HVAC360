@@ -114,6 +114,7 @@ label{display:block;font-size:13px;font-weight:600;margin-bottom:12px;color:var(
   <label>Correo<input id="em" type="email" autocomplete="username" inputmode="email"></label>
   <label>Contrase&ntilde;a<input id="pw" type="password" autocomplete="current-password"></label>
   <button class="btn" id="inBtn" onclick="entrar()">Entrar</button>
+  <button class="btn sec" onclick="recuperarClave()">Olvidé mi contraseña</button>
   <div id="lmsg" class="msg"></div>
  </div></main>
 </div>
@@ -212,7 +213,7 @@ const ROLES_EQ=['Condensadora','Manejadora','Otros'];
 const k=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 
-const VERSION='v2026.10.06-2';
+const VERSION='v2026.10.12-1';
 let TENANT=null, ME=null, CLIID='', EMPRESA='', LOGO='';
 let ORDERS=[], EQUIPOS=[], SEDES=[], CONTRATOS=[], COTS=[], TAB='ordenes', DET=null, DETCOT=null, COTERR='';
 const COT_EST={borrador:'Borrador',enviada:'Pendiente de su aprobación',aprobada:'Aprobada',rechazada:'Rechazada',vencida:'Vencida',anulada:'Anulada'};
@@ -237,6 +238,14 @@ async function entrar(){
  try{ await FB.signInWithEmailAndPassword(FB.auth,e,p) }
  catch(err){ msg('lmsg',errMsg(err),'err'); $('inBtn').disabled=false }
 }
+async function recuperarClave(){
+ const e=$('em').value.trim();
+ if(!e){ msg('lmsg','Escriba primero su correo arriba y vuelva a tocar el bot\u00f3n.','err'); $('em').focus(); return }
+ try{
+  await FB.sendPasswordResetEmail(FB.auth,e);
+  msg('lmsg','Le llegar\u00e1 un correo a '+e+' para cambiar la contrase\u00f1a. Revise tambi\u00e9n el correo no deseado.','ok');
+ }catch(err){ msg('lmsg',errMsg(err),'err') }
+}
 async function salir(){ if(!confirm('\u00bfCerrar sesi\u00f3n?'))return; await FB.signOut(FB.auth); location.reload() }
 
 async function alEntrar(u){
@@ -256,6 +265,7 @@ async function alEntrar(u){
   EMPRESA=td.exists()?(td.data().name||''):'';
   LOGO=td.exists()?(td.data().logoUrl||''):'';
   aplicarLogo();
+  await cargarPlantillas();
   await cargar();
   $('hCli').textContent=ME.name||'Cliente';
   $('hEmp').textContent=EMPRESA?('Servicios prestados por '+EMPRESA):'';
@@ -446,54 +456,275 @@ function fotosHoja(fotos){
   <div class="pfotos">${R_FASES.map(([k,lbl])=>por(k).map(f=>
    `<figure><img src="${f.data}"><figcaption>${lbl}</figcaption></figure>`).join('')).join('')}</div>`;
 }
-function verHoja(){
- const o=DET, R=window.__REP; if(!o||!R) return;
- const prev=(R.tipo||'preventivo')==='preventivo';
- const eqs=R.equipos||[], checks=R.checks||{}, datos=R.datos||{}, ev=R.evaluacion||{};
- const eq=[0,1,2].map(i=>{const e=eqs[i]||{};
-  return `<tr><td>${esc(ROLES_EQ[i])}</td><td>${esc(e.tipo||'')}</td><td>${esc(e.capacidad||'')}</td>
-   <td>${esc(e.marca||'')}</td><td>${esc(e.modelo||'')}</td><td>${esc(e.serie||'')}</td>
-   <td>${esc(e.ubicacion||'')}</td><td>${esc(e.numero||'')}</td></tr>`}).join('');
- const checksHtml=Object.entries(CHECKS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
-  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${checks['c_'+k(g)+'_'+k(it)]?'X':''}</td></tr>`).join('')}</table>`).join('');
- const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
- const matHtml=`<table class="pt"><tr><th>Descripci\u00f3n de materiales y repuestos</th><th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
-  ${mats.map(m=>`<tr><td>${esc(m.descripcion||'')}</td><td class="v">${esc(m.unidad||'')}</td><td class="v">${esc(m.cantidad||'')}</td></tr>`).join('')}</table>
-  <table class="pt"><tr><th>Descripci\u00f3n de la actividad</th></tr><tr><td class="tall">${esc(R.actividad||'')}</td></tr></table>`;
- const datosHtml=Object.entries(DATOS).map(([g,items])=>`<table class="pt"><tr><th colspan="2" class="gh">${esc(g)}</th></tr>
-  ${items.map(it=>`<tr><td>${esc(it)}</td><td class="v">${esc(datos['d_'+k(g)+'_'+k(it)]||'')}</td></tr>`).join('')}</table>`).join('');
- const evalHtml=`<table class="pt"><tr><th>Evaluaci\u00f3n del servicio \u00b7 califique de 1 a 5, donde 5 es el m\u00e1ximo</th>
-  <th style="width:44px">1</th><th style="width:44px">2</th><th style="width:44px">3</th><th style="width:44px">4</th><th style="width:44px">5</th></tr>
-  ${EVALS.map(e=>{const v=ev['e_'+k(e)]||0;
-   return `<tr><td>${esc(e)}</td>${[1,2,3,4,5].map(n=>`<td class="v">${v===n?'X':''}</td>`).join('')}</tr>`}).join('')}</table>`;
- $('prBody').innerHTML=`
- <div class="phead">
-  <div class="pco">${LOGO?`<img src="${LOGO}" class="plogo">`:esc(EMPRESA||'')}</div>
-  <div class="pti">REPORTE DE MANTENIMIENTO ${prev?'PREVENTIVO':'CORRECTIVO'}</div>
-  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(o.number||'')}</b></div>
+
+/* ---- De dónde salen los formatos de fábrica en el portal ---- */
+const PL_FUENTE={checks:CHECKS,datos:DATOS,evals:EVALS,slug:k};
+/* ================= FORMATOS DE INFORME · MOTOR COMÚN =================
+   El mismo código en la oficina, en el celular del técnico y en el
+   portal del cliente, para que los tres entiendan igual un formato.
+
+   Regla de oro: cada punto de chequeo, cada dato medido y cada pregunta
+   de evaluación tiene un IDENTIFICADOR FIJO. Los informes guardan sus
+   respuestas contra ese identificador, no contra el texto. Así, si una
+   empresa le cambia el nombre a un chequeo, los informes viejos siguen
+   mostrando bien lo que se marcó.
+
+   Los formatos de fábrica usan exactamente los mismos identificadores
+   que ya tenían los informes de antes de esta función, para que ninguno
+   se dañe.                                                            */
+
+const PL_SECCIONES=[
+ {id:'servicio',  nom:'Horas de entrada y salida', ayuda:'Cuándo llegó y cuándo salió el técnico'},
+ {id:'equipos',   nom:'Identificación del equipo', ayuda:'Marca, modelo, serie, ubicación'},
+ {id:'chequeos',  nom:'Lista de chequeo',          ayuda:'Lo que el técnico va marcando', edita:'chequeos'},
+ {id:'datos',     nom:'Datos medidos',             ayuda:'Presiones, temperaturas, amperajes', edita:'datos'},
+ {id:'materiales',nom:'Materiales y repuestos',    ayuda:'Lo que se consumió en el servicio'},
+ {id:'actividad', nom:'Descripción de la actividad',ayuda:'Texto libre de lo que se hizo'},
+ {id:'recom',     nom:'Recomendaciones del técnico',ayuda:'Texto libre'},
+ {id:'observ',    nom:'Observaciones del cliente', ayuda:'Texto libre'},
+ {id:'evaluacion',nom:'Evaluación del servicio',   ayuda:'El cliente califica de 1 a 5', edita:'evaluacion'},
+ {id:'fotos',     nom:'Registro fotográfico',      ayuda:'Antes, durante y después'},
+ {id:'firmas',    nom:'Firmas',                    ayuda:'Cliente y técnico. Siempre va de último'}
+];
+const PL_ROLES=['Condensadora','Manejadora','Otros'];
+const PL_SERVICIOS=[['preventivo','Preventivo'],['correctivo','Correctivo'],
+                    ['instalacion','Instalación'],['emergencia','Emergencia']];
+const plSecDe=id=>PL_SECCIONES.find(s=>s.id===id)||{id,nom:id,ayuda:''};
+const plNuevoId=p=>p+'_x'+Math.random().toString(36).slice(2,8);
+
+/* ---- Los dos formatos de fábrica, armados desde las listas de siempre ---- */
+function plFabrica(servicio){
+ const F=PL_FUENTE, sl=F.slug;
+ const prev=servicio==='preventivo';
+ const apagadas=prev?['materiales','actividad']:['chequeos'];
+ return {
+  id:'base-'+servicio,
+  nombre:prev?'Preventivo (de fábrica)':'Correctivo (de fábrica)',
+  titulo:'REPORTE DE MANTENIMIENTO '+(prev?'PREVENTIVO':'CORRECTIVO'),
+  servicio, equipo:'', activo:true, base:true,
+  secciones:PL_SECCIONES.map(s=>({id:s.id,on:!apagadas.includes(s.id)})),
+  chequeos:Object.entries(F.checks).map(([g,items])=>({
+    id:'g_'+sl(g), g, items:items.map(it=>({id:'c_'+sl(g)+'_'+sl(it),t:it}))})),
+  datos:Object.entries(F.datos).map(([g,items])=>({
+    id:'g_'+sl(g), g, items:items.map(it=>({id:'d_'+sl(g)+'_'+sl(it),t:it}))})),
+  evaluacion:F.evals.map(e=>({id:'e_'+sl(e),t:e}))
+ };
+}
+const plBases=()=>[plFabrica('preventivo'),plFabrica('correctivo')];
+
+/* ---- Cuál formato le toca a una orden ----
+   Manda el que coincida en servicio Y tipo de equipo. Si no hay uno
+   específico para ese equipo, el del servicio. Si tampoco, el de
+   fábrica. El técnico solo escoge cuando hay empate.                 */
+function plCandidatas(lista,servicio,equipo){
+ const act=(lista||[]).filter(p=>p.activo!==false&&p.servicio===servicio);
+ if(equipo){
+  const exactas=act.filter(p=>p.equipo&&p.equipo===equipo);
+  if(exactas.length) return exactas;
+ }
+ //  Primero los generales, y los de fábrica de último: si la empresa
+ //  armó uno propio, ese es el que manda.
+ return act.slice().sort((a,b)=>((a.base?1:0)-(b.base?1:0))||((a.equipo?1:0)-(b.equipo?1:0)));
+}
+function plEscoger(lista,servicio,equipo){
+ const c=plCandidatas(lista,servicio,equipo);
+ if(c.length) return c[0];
+ return plFabrica(servicio==='correctivo'?'correctivo':'preventivo');
+}
+/* ---- Lo que el técnico puede escoger ----
+   Si la empresa armó formatos propios, esos son los únicos que se le
+   ofrecen: para eso los armó. Si no armó ninguno, el de fábrica.    */
+function plOpciones(lista,servicio,equipo){
+ const c=plCandidatas(lista,servicio,equipo);
+ return c.length?c:[plFabrica(servicio==='correctivo'?'correctivo':'preventivo')];
+}
+function plPorId(lista,id,servicio){
+ const f=(lista||[]).find(p=>p.id===id);
+ if(f) return f;
+ if(id&&/^base-/.test(id)) return plFabrica(id.replace('base-',''));
+ return plFabrica(servicio==='correctivo'?'correctivo':'preventivo');
+}
+const plOn=(pl,id)=>(pl.secciones||[]).some(s=>s.id===id&&s.on);
+const plOrden=pl=>(pl.secciones||[]).filter(s=>s.on).map(s=>s.id);
+
+/* ---- De la base de datos y hacia la base de datos ---- */
+const dnPlantilla=(id,d)=>({id,
+ nombre:d.nombre||'', titulo:d.titulo||'', servicio:d.servicio||'preventivo',
+ equipo:d.equipo||'', activo:d.activo!==false, base:d.base===true,
+ secciones:(d.secciones||[]).map(s=>({id:s.id,on:s.on!==false})),
+ chequeos:(d.chequeos||[]).map(g=>({id:g.id,g:g.g||'',items:(g.items||[]).map(i=>({id:i.id,t:i.t||''}))})),
+ datos:(d.datos||[]).map(g=>({id:g.id,g:g.g||'',items:(g.items||[]).map(i=>({id:i.id,t:i.t||''}))})),
+ evaluacion:(d.evaluacion||[]).map(e=>({id:e.id,t:e.t||''}))});
+const upPlantilla=p=>({nombre:p.nombre,titulo:p.titulo,servicio:p.servicio,
+ equipo:p.equipo||null, activo:p.activo!==false, base:p.base===true,
+ secciones:p.secciones, chequeos:p.chequeos, datos:p.datos, evaluacion:p.evaluacion});
+
+/* ================= LA HOJA IMPRESA =================
+   Un solo armador para la oficina y para el portal del cliente.
+   ctx: {pl, R, fotos, logo, empresa, numero, cliente, fecha, sede, equipo,
+         tipos, esc, fdate}                                            */
+function plHoja(ctx){
+ const {pl,R,esc,fdate}=ctx;
+ let h=`<div class="phead">
+  <div class="pco">${ctx.logo?`<img src="${ctx.logo}" class="plogo">`:esc(ctx.empresa||'')}</div>
+  <div class="pti">${esc(pl.titulo||'REPORTE DE SERVICIO')}</div>
+  <div class="pnum"><div class="sm">ORDEN DE SERVICIO</div><b>${esc(ctx.numero||'')}</b></div>
  </div>
  <table class="pt">
-  <tr><td class="lb">Cliente</td><td>${esc(o.clientName||'')}</td><td class="lb">Fecha</td><td>${fdate(o.scheduledDate)}</td></tr>
-  <tr><td class="lb">Sede</td><td>${esc(o.siteName||'')}</td><td class="lb">Equipo</td><td>${esc(o.assetCode||'')}</td></tr>
-  <tr><td class="lb">Hora entrada</td><td>${esc(R.horaEntrada||'')}</td><td class="lb">Hora salida</td><td>${esc(R.horaSalida||'')}</td></tr>
- </table>
- <table class="pt"><tr><th colspan="8" class="gh">Identificaci\u00f3n del equipo</th></tr>
-  <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicaci\u00f3n</th><th>No.</th></tr>${eq}</table>
- <div class="pconv">${TIPOS_EQ.map(t=>t[0]+': '+t[1]).join(' \u00b7 ')}</div>
- ${prev?`<div class="pcols">${checksHtml}</div>`:matHtml}
- <div class="pcols">${datosHtml}</div>
- ${prev?`<table class="pt"><tr><th>Recomendaciones del t\u00e9cnico</th></tr><tr><td class="tall">${esc(R.recomendaciones||'')}</td></tr>
-   <tr><th>Observaciones del cliente</th></tr><tr><td class="tall">${esc(R.observaciones||'')}</td></tr></table>`:''}
- ${evalHtml}
- ${fotosHoja(window.__FOTOS)}
- <div class="pfirmas">
-  <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
-   <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${esc(R.firmaClienteNombre||'')}</div></div>
-  <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
-   <div class="fl">FIRMA DEL T\u00c9CNICO</div><div class="sm">${esc(R.firmaTecnicoNombre||'')}</div></div>
- </div>`;
+  <tr><td class="lb">Cliente</td><td>${esc(ctx.cliente||'')}</td><td class="lb">Fecha</td><td>${fdate(ctx.fecha)}</td></tr>
+  <tr><td class="lb">Sede</td><td>${esc(ctx.sede||'')}</td><td class="lb">Equipo</td><td>${esc(ctx.equipo||'')}</td></tr>
+ </table>`;
+ plOrden(pl).forEach(id=>{ h+=plPedazo(id,ctx) });
+ return h;
+}
+function plPedazo(id,ctx){
+ const {pl,R,esc,fdate}=ctx;
+ const v=o=>esc(o==null?'':o);
+ switch(id){
+  case 'servicio':
+   return `<table class="pt"><tr><td class="lb">Hora entrada</td><td>${v(R.horaEntrada)}</td>
+     <td class="lb">Hora salida</td><td>${v(R.horaSalida)}</td></tr></table>`;
+  case 'equipos':{
+   const eqs=R.equipos||[];
+   const filas=[0,1,2].map(i=>{const e=eqs[i]||{};
+    return `<tr><td>${v(PL_ROLES[i])}</td><td>${v(e.tipo)}</td><td>${v(e.capacidad)}</td>
+     <td>${v(e.marca)}</td><td>${v(e.modelo)}</td><td>${v(e.serie)}</td>
+     <td>${v(e.ubicacion)}</td><td>${v(e.numero)}</td></tr>`}).join('');
+   return `<table class="pt"><tr><th colspan="8" class="gh">Identificación del equipo</th></tr>
+    <tr><th>Equipo</th><th>Tipo</th><th>Capac.</th><th>Marca</th><th>Modelo</th><th>Serie</th><th>Ubicación</th><th>No.</th></tr>${filas}</table>
+    ${ctx.tipos?`<div class="pconv">${ctx.tipos}</div>`:''}`;
+  }
+  case 'chequeos':{
+   const ch=R.checks||{};
+   if(!(pl.chequeos||[]).length) return '';
+   return `<div class="pcols">${pl.chequeos.map(g=>`<table class="pt">
+     <tr><th colspan="2" class="gh">${esc(g.g)}</th></tr>
+     ${g.items.map(it=>`<tr><td>${esc(it.t)}</td><td class="v">${ch[it.id]?'X':''}</td></tr>`).join('')}
+    </table>`).join('')}</div>`;
+  }
+  case 'datos':{
+   const dt=R.datos||{};
+   if(!(pl.datos||[]).length) return '';
+   return `<div class="pcols">${pl.datos.map(g=>`<table class="pt">
+     <tr><th colspan="2" class="gh">${esc(g.g)}</th></tr>
+     ${g.items.map(it=>`<tr><td>${esc(it.t)}</td><td class="v">${v(dt[it.id])}</td></tr>`).join('')}
+    </table>`).join('')}</div>`;
+  }
+  case 'materiales':{
+   const mats=(R.materiales&&R.materiales.length)?R.materiales:[{}];
+   return `<table class="pt"><tr><th>Descripción de materiales y repuestos</th>
+     <th style="width:60px">Unid.</th><th style="width:60px">Cant.</th></tr>
+     ${mats.map(m=>`<tr><td>${v(m.descripcion)}</td><td class="v">${v(m.unidad)}</td><td class="v">${v(m.cantidad)}</td></tr>`).join('')}</table>`;
+  }
+  case 'actividad':
+   return `<table class="pt"><tr><th>Descripción de la actividad</th></tr>
+     <tr><td class="tall">${v(R.actividad)}</td></tr></table>`;
+  case 'recom':
+   return `<table class="pt"><tr><th>Recomendaciones del técnico</th></tr>
+     <tr><td class="tall">${v(R.recomendaciones)}</td></tr></table>`;
+  case 'observ':
+   return `<table class="pt"><tr><th>Observaciones del cliente</th></tr>
+     <tr><td class="tall">${v(R.observaciones)}</td></tr></table>`;
+  case 'evaluacion':{
+   const ev=R.evaluacion||{};
+   if(!(pl.evaluacion||[]).length) return '';
+   return `<table class="pt"><tr><th>Evaluación del servicio · califique de 1 a 5, donde 5 es el máximo</th>
+     ${[1,2,3,4,5].map(n=>`<th style="width:44px">${n}</th>`).join('')}</tr>
+     ${pl.evaluacion.map(e=>`<tr><td>${esc(e.t)}</td>
+       ${[1,2,3,4,5].map(n=>`<td class="v">${ev[e.id]===n?'X':''}</td>`).join('')}</tr>`).join('')}</table>`;
+  }
+  case 'fotos':
+   return ctx.fotosHtml||'';
+  case 'firmas':
+   return `<div class="pfirmas">
+     <div><div class="fbox">${R.firmaCliente?`<img src="${R.firmaCliente}">`:''}</div>
+      <div class="fl">FIRMA DEL CLIENTE</div><div class="sm">${v(R.firmaClienteNombre)}</div></div>
+     <div><div class="fbox">${R.firmaTecnico?`<img src="${R.firmaTecnico}">`:''}</div>
+      <div class="fl">FIRMA DEL TÉCNICO</div><div class="sm">${v(R.firmaTecnicoNombre)}</div></div>
+    </div>`;
+ }
+ return '';
+}
+
+/* ---- La lista completa: los dos de fábrica y los que armó la empresa ----
+   Los de fábrica NO se guardan en la base de datos: se generan aquí. Así
+   una empresa recién creada ya tiene formatos el primer día, sin que nadie
+   le siembre nada, y nadie puede dañarlos.                              */
+const plTodas=lista=>plBases().concat(lista||[]);
+
+/* ---- Duplicar: la única forma de modificar un formato de fábrica ---- */
+function plDup(origen,nuevoId){
+ const c=JSON.parse(JSON.stringify(origen));
+ c.id=nuevoId; c.base=false; c.activo=true;
+ c.nombre=(origen.nombre||'Formato').replace(/ \(de fábrica\)$/,'')+' (copia)';
+ return c;
+}
+function plNueva(nuevoId,servicio){
+ const f=plFabrica(servicio||'preventivo');
+ f.id=nuevoId; f.base=false; f.nombre='Formato nuevo'; f.activo=true;
+ return f;
+}
+
+/* ---- Antes de guardar: fuera los renglones vacíos ---- */
+function plLimpia(p){
+ const lim=L=>(L||[]).map(g=>({id:g.id,g:(g.g||'').trim(),
+    items:(g.items||[]).filter(i=>(i.t||'').trim()).map(i=>({id:i.id,t:i.t.trim()}))}))
+   .filter(g=>g.g&&g.items.length);
+ p.nombre=(p.nombre||'').trim(); p.titulo=(p.titulo||'').trim();
+ p.chequeos=lim(p.chequeos); p.datos=lim(p.datos);
+ p.evaluacion=(p.evaluacion||[]).filter(e=>(e.t||'').trim()).map(e=>({id:e.id,t:e.t.trim()}));
+ //  Si una sección se quedó sin nada que mostrar, se apaga: una hoja con
+ //  un título y un cuadro en blanco se ve peor que no tenerlo.
+ const vacia={chequeos:!p.chequeos.length,datos:!p.datos.length,evaluacion:!p.evaluacion.length};
+ p.secciones=(p.secciones||[]).map(s=>({id:s.id,on:vacia[s.id]?false:s.on!==false}));
+ return p;
+}
+function plFalla(p){
+ if((p.nombre||'').trim().length<2) return 'Póngale un nombre al formato (al menos 2 letras).';
+ if((p.titulo||'').trim().length<3) return 'Escriba el título que sale impreso en la hoja.';
+ if(!(p.secciones||[]).some(s=>s.on)) return 'Prenda al menos una sección.';
+ return '';
+}
+
+/* ---- Un reporte de muestra, solo para la vista previa del editor ---- */
+function plDemo(pl){
+ const R={tipo:pl.servicio,horaEntrada:'08:30',horaSalida:'10:15',
+  equipos:[{tipo:'MSP',capacidad:'12.000 BTU',marca:'LG',modelo:'VM122',serie:'A-9931',ubicacion:'Oficina 2',numero:'1'},{},{}],
+  checks:{},datos:{},evaluacion:{},
+  materiales:[{descripcion:'Filtro lavable',unidad:'Und',cantidad:'1'}],
+  actividad:'Aquí sale lo que el técnico escriba de la actividad realizada.',
+  recomendaciones:'Aquí salen las recomendaciones del técnico.',
+  observaciones:'Aquí salen las observaciones del cliente.',
+  firmaClienteNombre:'Nombre de quien recibe', firmaTecnicoNombre:'Nombre del técnico'};
+ (pl.chequeos||[]).forEach((g,gi)=>g.items.forEach((it,ii)=>{ if((gi+ii)%2===0) R.checks[it.id]=true }));
+ (pl.datos||[]).forEach(g=>g.items.forEach((it,ii)=>{ R.datos[it.id]=String(12+ii*3) }));
+ (pl.evaluacion||[]).forEach(e=>{ R.evaluacion[e.id]=5 });
+ return R;
+}
+
+/* ================= EL FORMATO EN EL PORTAL DEL CLIENTE =================
+   El cliente ve la hoja armada con el mismo formato con el que se llenó
+   el informe, y con el mismo código que la arma en la oficina.       */
+let PLANTILLAS=[];
+async function cargarPlantillas(){
+ try{
+  const snap=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'reportTemplates'));
+  PLANTILLAS=[]; snap.forEach(d=>PLANTILLAS.push(dnPlantilla(d.id,d.data())));
+ }catch(e){ PLANTILLAS=[] }
+}
+function verHoja(){
+ const o=DET, R=window.__REP; if(!o||!R) return;
+ const pl=plPorId(PLANTILLAS,R.plantilla,R.tipo);
+ $('prBody').innerHTML=plHoja({
+  pl, R, esc, fdate,
+  logo:LOGO||'', empresa:EMPRESA||'',
+  numero:o.number||'', cliente:o.clientName||'', fecha:o.scheduledDate,
+  sede:o.siteName||'', equipo:o.assetCode||'',
+  tipos:TIPOS_EQ.map(t=>t[0]+': '+t[1]).join(' · '),
+  fotosHtml:fotosHoja(window.__FOTOS)});
  view('vPrint');
 }
+
 function arrancar(){
  FB.onAuthStateChanged(FB.auth,u=>{
   if(u) alEntrar(u);

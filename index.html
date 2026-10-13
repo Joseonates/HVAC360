@@ -455,7 +455,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.13-2';
+const VERSION='v2026.10.13-3';
 const DIAS_PRUEBA=30;      // lo que dura la prueba de quien se registra solo
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
@@ -1783,6 +1783,19 @@ function refrescarSuave(){
  }
  refresh();
 }
+//  Cuando un documento desaparece de la base de datos hay que sacarlo
+//  también de la memoria de esta pantalla. Si no, el registro borrado
+//  sigue a la vista hasta que alguien recargue la página, y el usuario
+//  cree, con razón, que el borrado no funcionó.
+function quitarLocal(coll,id){
+ const arr=db[coll==='orders'?'orders':coll];
+ if(!arr) return 0;
+ const i=arr.findIndex(x=>x.id===id);
+ if(i<0){ delete remote[coll][id]; return 0 }
+ arr.splice(i,1);
+ delete remote[coll][id];
+ return 1;
+}
 function escucharCambios(){
  if(unsubOrders){ unsubOrders(); unsubOrders=null }
  if(unsubMovs){ unsubMovs(); unsubMovs=null }
@@ -1794,7 +1807,7 @@ function escucharCambios(){
  unsubOrders=FB.onSnapshot(C('workOrders'), snap=>{
   let cambios=0; const avisos=[];
   snap.docChanges().forEach(ch=>{
-   if(ch.type==='removed') return;
+   if(ch.type==='removed'){ cambios+=quitarLocal('orders',ch.doc.id); return }
    const nuevo=dnOrder(ch.doc.id, ch.doc.data());
    const i=db.orders.findIndex(o=>o.id===nuevo.id);
    if(i<0){ nuevo.history=[]; db.orders.unshift(nuevo); remote.orders[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
@@ -1812,7 +1825,7 @@ function escucharCambios(){
  unsubMovs=FB.onSnapshot(C('movements'), snap=>{
   let cambios=0, pend=0;
   snap.docChanges().forEach(ch=>{
-   if(ch.type==='removed') return;
+   if(ch.type==='removed'){ cambios+=quitarLocal('movements',ch.doc.id); return }
    const m=dnMov(ch.doc.id, ch.doc.data());
    const i=db.movements.findIndex(x=>x.id===m.id);
    if(i<0){ db.movements.push(m); remote.movements[m.id]=JSON.stringify(m); cambios++; if(m.status==='pendiente')pend++; return }
@@ -1828,7 +1841,7 @@ function escucharCambios(){
   let cambios=0; const avisos=[];
   db.quotes=db.quotes||[];
   snap.docChanges().forEach(ch=>{
-   if(ch.type==='removed') return;
+   if(ch.type==='removed'){ cambios+=quitarLocal('quotes',ch.doc.id); return }
    const nuevo=dnQuote(ch.doc.id, ch.doc.data());
    const i=db.quotes.findIndex(x=>x.id===nuevo.id);
    if(i<0){ db.quotes.push(nuevo); remote.quotes[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
@@ -1847,7 +1860,7 @@ function escucharCambios(){
   let cambios=0;
   db.invoices=db.invoices||[];
   snap.docChanges().forEach(ch=>{
-   if(ch.type==='removed') return;
+   if(ch.type==='removed'){ cambios+=quitarLocal('invoices',ch.doc.id); return }
    const nuevo=dnInvoice(ch.doc.id, ch.doc.data());
    const i=db.invoices.findIndex(x=>x.id===nuevo.id);
    if(i<0){ db.invoices.push(nuevo); remote.invoices[nuevo.id]=JSON.stringify(nuevo); cambios++; return }
@@ -1864,7 +1877,7 @@ function escucharCambios(){
   let cambios=0, nuevos=0;
   db.expenses=db.expenses||[];
   snap.docChanges().forEach(ch=>{
-   if(ch.type==='removed') return;
+   if(ch.type==='removed'){ cambios+=quitarLocal('expenses',ch.doc.id); return }
    const nuevo=dnExpense(ch.doc.id, ch.doc.data());
    const i=db.expenses.findIndex(x=>x.id===nuevo.id);
    if(i<0){ db.expenses.push(nuevo); remote.expenses[nuevo.id]=JSON.stringify(nuevo); cambios++;
@@ -4713,9 +4726,12 @@ async function limBorrar(){
  }
  const bot=document.querySelector('#modalBody .btn.danger'); if(bot) bot.disabled=true;
  const marca=(t)=>{ const e=$('limErr'); if(e){ e.style.color='var(--muted)'; e.textContent=t } };
- const fallas=[];
+ const fallas=[], hechos=[];
  const borrar=async (ruta,...seg)=>{
-  try{ await FB.deleteDoc(FB.doc(FB.fs,'tenants',TENANT,ruta,...seg)) }
+  try{
+   await FB.deleteDoc(FB.doc(FB.fs,'tenants',TENANT,ruta,...seg));
+   if(seg.length===1) hechos.push([ruta,seg[0]]);   // documento principal: después se comprueba
+  }
   catch(e){ fallas.push(ruta+'/'+seg.join('/')+': '+(e.code||e.message)) }
  };
  try{
@@ -4769,20 +4785,44 @@ async function limBorrar(){
    }
   }
 
+  /* 4 · comprobar que de verdad se fueron ----------------------------
+     No basta con que no salga error. Si las reglas publicadas todavía
+     no permiten borrar, Firebase puede rechazar en silencio y el
+     usuario vería "listo" mientras los datos siguen ahí. */
+  marca('Comprobando que sí se borraron…');
+  const quedaron=[];
+  for(const [coll,id] of hechos){
+   try{
+    const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,coll,id));
+    if(d.exists()) quedaron.push(coll+'/'+id);
+   }catch(e){}
+  }
+
   closeModal();
   const n=limCuenta();
   LIM={ sel:{}, revisado:false, detalle:{}, trabajando:false };
   toast('Recargando…');
   await fsLoad();
+  escucharCambios();
   renderLimpieza();
-  if(fallas.length){
+
+  const negados=fallas.filter(f=>f.includes('permission-denied')).length;
+  if(negados||quedaron.length){
+   console.error('limpieza · quedaron',quedaron,'fallas',fallas);
+   alert('NO SE PUDO BORRAR.\n\n'+(quedaron.length||negados)+' registro(s) siguen en la base de datos.\n\n'+
+     'Casi siempre es porque las reglas de seguridad publicadas todavía no permiten borrar:\n\n'+
+     '1. Entre a console.firebase.google.com y abra el proyecto.\n'+
+     '2. Firestore Database → pestaña Reglas.\n'+
+     '3. Pegue el contenido del archivo firestore.rules nuevo.\n'+
+     '4. Botón Publicar.\n\n'+
+     'Después vuelva a intentar aquí. Nada de lo que marcó se perdió.');
+  }else if(fallas.length){
    console.error('limpieza · fallas',fallas);
-   alert('Se borró lo que se pudo, pero '+fallas.length+' cosa(s) quedaron.\n\n'+
+   alert('Se borró lo principal, pero '+fallas.length+' pieza(s) quedaron:\n\n'+
      fallas.slice(0,6).join('\n')+
-     (fallas.length>6?('\n…y '+(fallas.length-6)+' más'):'')+
-     '\n\nSi dice permission-denied, publique las reglas nuevas en Firebase y vuelva a intentar.');
+     (fallas.length>6?('\n…y '+(fallas.length-6)+' más'):''));
   }else{
-   alert('Listo. Se borraron '+n+' registro(s) y todo lo que les colgaba.');
+   alert('Listo. Se borraron '+n+' registro(s) y todo lo que les colgaba.\n\nSe comprobó uno por uno que ya no están.');
   }
  }catch(e){
   console.error(e);

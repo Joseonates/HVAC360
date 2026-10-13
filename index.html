@@ -242,6 +242,7 @@ try {
     <button data-page="templates" title="Formatos de informe">📝 <span>Formatos de informe</span></button>
     <button data-page="users" title="Usuarios">👤 <span>Usuarios</span></button>
     <button data-page="backup" title="Respaldo de datos">⛁ <span>Respaldo de datos</span></button>
+    <button data-page="limpieza" id="navLimpieza" hidden title="Limpieza de datos de prueba">🧹 <span>Limpieza</span></button>
     <button data-page="panelext" id="navPanel" hidden title="Panel de la plataforma">🛠 <span>Panel de la plataforma</span></button>
   </nav>
 </aside>
@@ -417,6 +418,12 @@ try {
  <div id="templatesBody"></div>
 </section>
 
+<!-- LIMPIEZA (solo el dueño de la plataforma) -->
+<section id="limpieza" class="page">
+ <div class="topline"><div><h1>Limpieza de datos de prueba</h1><p>Para dejarle la empresa limpia al cliente después de una demostración.</p></div></div>
+ <div id="limpiezaBody"></div>
+</section>
+
 <!-- RESPALDO -->
 <section id="backup" class="page">
  <div class="topline"><div><h1>Respaldo de datos</h1><p>Los datos se guardan automáticamente en este navegador. Descargue una copia de seguridad con frecuencia.</p></div></div>
@@ -448,7 +455,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.13-1';
+const VERSION='v2026.10.13-2';
 const DIAS_PRUEBA=30;      // lo que dura la prueba de quien se registra solo
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
@@ -946,7 +953,7 @@ function generarPreventivos(){
 
 
 /* ================= NAVEGACIÓN ================= */
-const RENDER={templates:renderPlantillas,users:renderUsers,company:renderCompany,expenses:renderGastos,invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
+const RENDER={limpieza:renderLimpieza,templates:renderPlantillas,users:renderUsers,company:renderCompany,expenses:renderGastos,invoicing:renderInvoicing,quotes:renderQuotes,inventory:renderInventory,dashboard:renderDashboard,orders:renderOrders,calendar:renderCalendar,clients:renderClients,sites:renderSites,assets:renderAssets,technicians:renderTechs,contracts:renderContracts,reports:renderReports,backup:renderBackup};
 let currentPage='dashboard';
 function show(id){
  currentPage=id;
@@ -971,12 +978,15 @@ document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',(
 function abrirPanelPlataforma(){
  window.open(location.pathname.replace(/[^/]*$/,'panel.html'),'_blank');
 }
+let SOY_DUENO=false;
 async function verSiEsDueno(){
- const b=$('navPanel'); if(!b) return;
+ const b=$('navPanel'), l=$('navLimpieza');
  try{
   const d=await FB.getDoc(FB.doc(FB.fs,'platformAdmins',uid()));
-  b.hidden=!d.exists();
- }catch(e){ b.hidden=true }
+  SOY_DUENO=d.exists();
+ }catch(e){ SOY_DUENO=false }
+ if(b) b.hidden=!SOY_DUENO;
+ if(l) l.hidden=!SOY_DUENO;
 }
 function refresh(){if(RENDER[currentPage])RENDER[currentPage]()}
 
@@ -2156,7 +2166,7 @@ function startAuth(){
    if(unsubQuotes){ unsubQuotes(); unsubQuotes=null }
    if(unsubFacs){ unsubFacs(); unsubFacs=null }
    if(unsubGastos){ unsubGastos(); unsubGastos=null }
-   TENANT=null;ME=null;MIEMBROS=[];EMPRESA={};booted=false;{const b=$('navPanel'); if(b) b.hidden=true}$('authScreen').style.display='flex';authBusy(false);
+   TENANT=null;ME=null;MIEMBROS=[];EMPRESA={};booted=false;SOY_DUENO=false;{['navPanel','navLimpieza'].forEach(x=>{const b=$(x); if(b) b.hidden=true})}$('authScreen').style.display='flex';authBusy(false);
   }
  });
 }
@@ -4417,6 +4427,368 @@ function plPrevia(p){
    <div class="pfotos">${['Antes','Durante','Después'].map(l=>
     `<div class="plfoto">${l}</div>`).join('')}</div>`
  });
+}
+
+/* ================= LIMPIEZA DE DATOS DE PRUEBA =================
+   Una empresa NUNCA puede borrarse su propio historial: esa protección
+   es justamente lo que hace confiable un informe firmado. Por eso las
+   reglas exigen dos cosas a la vez para borrar — ser el dueño de la
+   plataforma Y estar de administrador en esa empresa — y por eso esta
+   página solo aparece si quien entró está en /platformAdmins.
+
+   Sirve para lo que pasa de verdad: usted monta una demostración con
+   datos inventados, el cliente se queda con el sistema, y hay que dejarle
+   limpio lo que usted usó para mostrarle, sin tocar lo que él ya hizo. */
+
+let LIM={ sel:{}, revisado:false, detalle:{}, trabajando:false };
+
+const limClave=(k,id)=>k+':'+id;
+const limMarcado=(k,id)=>!!LIM.sel[limClave(k,id)];
+function limMarcar(k,id,on){
+ const c=limClave(k,id);
+ if(on) LIM.sel[c]=true; else delete LIM.sel[c];
+ renderLimpieza();
+}
+const limLista=k=>Object.keys(LIM.sel).filter(c=>c.startsWith(k+':')).map(c=>c.slice(k.length+1));
+const limCuenta=()=>Object.keys(LIM.sel).length;
+//  Lo que sobrevive: todo lo que NO está marcado para borrar.
+const limVivos=(arr,k)=>arr.filter(x=>!limMarcado(k,x.id));
+
+/* ---- ¿Este maestro lo está usando algo que se queda? ---- */
+function limAtado(k,id){
+ const ords=limVivos(db.orders,'orders');
+ const cots=limVivos(db.quotes||[],'quotes');
+ const facs=limVivos(db.invoices||[],'invoices');
+ const cons=limVivos(db.contracts||[],'contracts');
+ const sedes=limVivos(db.sites,'sites');
+ const eqs=limVivos(db.assets,'assets');
+ const movs=limVivos(db.movements||[],'movements');
+ const gas=limVivos(db.expenses||[],'expenses');
+ const miembros=(typeof MIEMBROS!=='undefined'?MIEMBROS:[])||[];
+ const n=(c,q)=>c?q+' '+c:'';
+ if(k==='clients'){
+  const u=[n(ords.filter(o=>o.clientId===id).length,'órdenes'),
+           n(sedes.filter(s=>s.clientId===id).length,'sedes'),
+           n(eqs.filter(a=>a.clientId===id).length,'equipos'),
+           n(cots.filter(q=>q.clientId===id).length,'cotizaciones'),
+           n(facs.filter(f=>f.clientId===id).length,'cuentas'),
+           n(cons.filter(c=>c.clientId===id).length,'contratos'),
+           n(miembros.filter(m=>m.clientId===id&&m.active!==false).length,'usuarios del portal')].filter(Boolean);
+  return u.join(', ');
+ }
+ if(k==='sites'){
+  return [n(ords.filter(o=>o.siteId===id).length,'órdenes'),
+          n(eqs.filter(a=>a.siteId===id).length,'equipos'),
+          n(cots.filter(q=>q.siteId===id).length,'cotizaciones')].filter(Boolean).join(', ');
+ }
+ if(k==='assets'){
+  return [n(ords.filter(o=>o.assetId===id).length,'órdenes'),
+          n(cons.filter(c=>(c.assetIds||[]).includes(id)).length,'contratos')].filter(Boolean).join(', ');
+ }
+ if(k==='techs'){
+  return [n(ords.filter(o=>o.techId===id).length,'órdenes'),
+          n(gas.filter(g=>g.techId===id).length,'gastos')].filter(Boolean).join(', ');
+ }
+ if(k==='parts'){
+  return [n(movs.filter(m=>m.partId===id).length,'movimientos'),
+          n(cots.filter(q=>(q.items||[]).some(i=>i.partId===id)).length,'cotizaciones')].filter(Boolean).join(', ');
+ }
+ if(k==='warehouses'){
+  return n(movs.filter(m=>m.warehouseId===id).length,'movimientos');
+ }
+ return '';
+}
+
+/* ---- Paso 1: mirar qué tiene cada orden ----
+   Una orden con informe firmado por el cliente casi nunca es de prueba.
+   Verlo antes de marcar evita el error caro.                          */
+async function limRevisar(){
+ if(LIM.trabajando) return;
+ const tot=db.orders.length;
+ if(tot>400){ alert('Esta empresa tiene '+tot+' órdenes. Revisarlas todas gastaría demasiadas lecturas de Firebase.\n\nEscríbame y lo hacemos por partes.'); return }
+ LIM.trabajando=true; renderLimpieza();
+ const paso=20;
+ try{
+  for(let i=0;i<db.orders.length;i+=paso){
+   const trozo=db.orders.slice(i,i+paso);
+   await Promise.all(trozo.map(async o=>{
+    let informe=null, fotos=0;
+    try{
+     const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',o.id,'report','ficha'));
+     if(d.exists()) informe=d.data().firmaCliente?'firmado':'sin firmar';
+    }catch(e){}
+    try{
+     const ph=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',o.id,'photos'));
+     fotos=ph.size||0;
+    }catch(e){}
+    LIM.detalle[o.id]={informe,fotos};
+   }));
+   const c=$('limProgreso'); if(c) c.textContent='Revisando… '+Math.min(i+paso,tot)+' de '+tot;
+  }
+  LIM.revisado=true;
+ }catch(e){ console.error(e); alert('No se pudo revisar: '+errMsg(e)) }
+ LIM.trabajando=false; renderLimpieza();
+}
+
+/* ---- Marcar en bloque por fecha ---- */
+function limHasta(fecha){
+ if(!fecha) return;
+ let n=0;
+ db.orders.forEach(o=>{ if((o.date||'')<=fecha){ LIM.sel[limClave('orders',o.id)]=true; n++ } });
+ renderLimpieza();
+ toast(n?('Quedaron marcadas '+n+' órdenes.'):'No hay órdenes hasta esa fecha.');
+}
+function limQuitarTodo(){ LIM.sel={}; renderLimpieza(); toast('Se quitaron todas las marcas.') }
+
+/* ---- La pantalla ---- */
+function renderLimpieza(){
+ const caja=$('limpiezaBody'); if(!caja) return;
+ if(!SOY_DUENO){
+  caja.innerHTML=`<div class="panel"><h2>Esta página no es para usted</h2>
+   <p class="small">La limpieza de datos solo la puede hacer el dueño de la plataforma.</p></div>`;
+  return;
+ }
+ const marcadas=limCuenta();
+ caja.innerHTML=`
+ <div class="panel" style="border-color:var(--warn)">
+  <h2>Antes de empezar, lea esto</h2>
+  <p class="small" style="max-width:80ch">Lo que se borra aquí <b style="color:var(--danger)">no se puede
+   recuperar</b>. Por eso el botón de borrar le descarga primero un archivo con todo lo que va a
+   desaparecer — informes y fotos incluidos — y le pide escribir la palabra BORRAR.</p>
+  <p class="small" style="max-width:80ch">Esta página no la ve nadie de la empresa: solo aparece si
+   quien entró es el dueño de la plataforma. Y las reglas de seguridad exigen, además, que usted esté
+   de administrador en esta empresa. Una empresa no puede borrarse su propio historial.</p>
+  <p class="small" style="max-width:80ch">Los números de orden <b>no se reciclan</b>. Si borra de la
+   OT-0001 a la OT-0008, la siguiente seguirá siendo la OT-0012 o la que vaya: ese número está impreso
+   en los informes que el cliente ya firmó y cambiarlo haría que el papel y el sistema digan cosas
+   distintas.</p>
+ </div>
+
+ <div class="panel" style="margin-top:16px">
+  <div class="topline" style="margin-bottom:10px"><div><h2 style="margin:0">Órdenes de trabajo</h2>
+   <p class="small" style="margin:4px 0 0">${db.orders.length} en total. ${LIM.revisado
+    ?'Ya se revisó cuáles tienen informe firmado.'
+    :'Revise primero cuáles tienen informe firmado: ésas casi nunca son de prueba.'}</p></div>
+   ${LIM.revisado?'':`<button class="btn secondary" ${LIM.trabajando?'disabled':''} onclick="limRevisar()">
+     ${LIM.trabajando?'Revisando…':'Revisar informes y fotos'}</button>`}
+  </div>
+  <div class="small" id="limProgreso" style="margin-bottom:8px"></div>
+  <div class="toolbar">
+   <label style="margin:0">Marcar todas las de hasta
+    <input type="date" id="limFecha" style="width:auto;margin-top:0"></label>
+   <button class="btn secondary sm" onclick="limHasta($('limFecha').value)">Marcar</button>
+   <button class="btn secondary sm" onclick="limQuitarTodo()">Quitar todas las marcas</button>
+  </div>
+  <div class="table-wrap"><table>
+   <thead><tr><th style="width:36px"></th><th>Orden</th><th>Fecha</th><th>Cliente</th><th>Equipo</th>
+    <th>Estado</th><th>Informe</th><th>Fotos</th></tr></thead>
+   <tbody>${db.orders.length?db.orders.map(o=>{
+    const d=LIM.detalle[o.id]||{};
+    const c=client(o.clientId), a=asset(o.assetId);
+    const inf=d.informe==='firmado'?'<span class="status green">Firmado</span>'
+      :d.informe==='sin firmar'?'<span class="status yellow">Sin firmar</span>'
+      :(LIM.revisado?'<span class="small">—</span>':'<span class="small">¿?</span>');
+    return `<tr${limMarcado('orders',o.id)?' style="background:#fef2f2"':''}>
+     <td><input type="checkbox" style="width:18px;margin:0" ${limMarcado('orders',o.id)?'checked':''}
+       onchange="limMarcar('orders','${esc(o.id)}',this.checked)"></td>
+     <td><b>${esc(o.id)}</b></td><td>${fmtDate(o.date)}</td>
+     <td class="wrap">${esc((c&&c.name)||'—')}</td><td>${esc((a&&a.id)||'—')}</td>
+     <td>${badge(o.status)}</td><td>${inf}</td>
+     <td>${d.fotos?d.fotos:(LIM.revisado?'—':'')}</td></tr>`}).join('')
+   :emptyRow(8,'No hay órdenes.')}</tbody>
+  </table></div>
+ </div>
+
+ ${limTabla('Clientes','clients',db.clients,c=>[esc(c.name),esc(c.nit||'—'),esc(c.city||'—')],['Nombre','NIT','Ciudad'])}
+ ${limTabla('Sedes','sites',db.sites,s=>{const c=client(s.clientId);
+    return [esc(s.name),esc((c&&c.name)||'—'),esc(s.address||'—')]},['Sede','Cliente','Dirección'])}
+ ${limTabla('Equipos','assets',db.assets,a=>{const c=client(a.clientId);
+    return [esc(a.id),esc(a.type||'—'),esc((c&&c.name)||'—')]},['Código','Tipo','Cliente'])}
+ ${limTabla('Técnicos','techs',db.techs,t=>[esc(t.name),esc((t.specialties||[]).join(', ')||'—'),t.active?'Activo':'Inactivo'],['Nombre','Especialidades','Estado'])}
+ ${limTabla('Cotizaciones','quotes',db.quotes||[],q=>{const c=client(q.clientId);
+    return [esc(q.id),esc((c&&c.name)||'—'),money(q.total||0)]},['Número','Cliente','Total'])}
+ ${limTabla('Cuentas de cobro','invoices',db.invoices||[],f=>{const c=client(f.clientId);
+    return [esc(f.id),esc((c&&c.name)||'—'),money(f.total||0)]},['Número','Cliente','Total'])}
+ ${limTabla('Gastos','expenses',db.expenses||[],g=>[esc(g.id),esc(g.concept||g.category||'—'),money(g.amount||0)],['Número','Concepto','Valor'])}
+ ${limTabla('Contratos','contracts',db.contracts||[],c=>{const cl=client(c.clientId);
+    return [esc(c.id),esc((cl&&cl.name)||'—'),esc(c.status||'—')]},['Número','Cliente','Estado'])}
+ ${limTabla('Movimientos de bodega','movements',db.movements||[],m=>{const p=part(m.partId);
+    return [esc(m.id),esc((p&&p.name)||m.partId||'—'),(m.type==='salida'?'−':'+')+(m.qty||0)+' · '+esc(m.status||'')]},
+    ['Número','Repuesto','Movimiento'],'Al borrar un movimiento ya aprobado se le devuelve la existencia a la bodega: un movimiento que nunca existió no debió mover nada.')}
+ ${limTabla('Repuestos','parts',db.parts||[],p=>[esc(p.code||p.id),esc(p.name),money(p.cost||0)],['Código','Nombre','Costo'])}
+ ${limTabla('Bodegas','warehouses',db.warehouses||[],w=>[esc(w.name),esc(w.city||'—'),w.active?'Activa':'Inactiva'],['Nombre','Ciudad','Estado'])}
+
+ <div class="panel" style="margin-top:16px;position:sticky;bottom:12px;border-color:var(--danger)">
+  <div class="topline" style="margin-bottom:0">
+   <div><h2 style="margin:0">${marcadas?('Hay '+marcadas+' registro(s) marcado(s) para borrar'):'No hay nada marcado'}</h2>
+    <p class="small" style="margin:4px 0 0">${marcadas
+     ?'Descargue primero el respaldo. Después de borrar no hay vuelta atrás.'
+     :'Marque en las tablas de arriba lo que quiere borrar.'}</p></div>
+   <button class="btn secondary" ${marcadas&&!LIM.trabajando?'':'disabled'} onclick="limRespaldo()">Descargar respaldo de lo marcado</button>
+   <button class="btn danger" ${marcadas&&!LIM.trabajando?'':'disabled'} onclick="limConfirmar()">Borrar lo marcado</button>
+  </div>
+ </div>`;
+}
+
+function limTabla(titulo,k,arr,cols,cabs,nota){
+ if(!arr||!arr.length) return '';
+ const marc=limLista(k).length;
+ return `<div class="panel" style="margin-top:16px">
+  <h2>${esc(titulo)} <span class="small" style="font-weight:400">· ${arr.length}${marc?(' · '+marc+' marcado(s)'):''}</span></h2>
+  ${nota?`<p class="small" style="max-width:80ch">${esc(nota)}</p>`:''}
+  <div class="table-wrap"><table>
+   <thead><tr><th style="width:36px"></th>${cabs.map(c=>`<th>${esc(c)}</th>`).join('')}<th>Lo usa</th></tr></thead>
+   <tbody>${arr.map(x=>{
+    const atado=limAtado(k,x.id);
+    const marcado=limMarcado(k,x.id);
+    return `<tr${marcado?' style="background:#fef2f2"':''}>
+     <td><input type="checkbox" style="width:18px;margin:0" ${marcado?'checked':''} ${atado&&!marcado?'disabled':''}
+       onchange="limMarcar('${k}','${esc(x.id)}',this.checked)"></td>
+     ${cols(x).map(c=>`<td class="wrap">${c}</td>`).join('')}
+     <td class="small">${atado?esc(atado):'nada'}</td></tr>`}).join('')}</tbody>
+  </table></div>
+ </div>`;
+}
+
+/* ---- El respaldo: todo lo marcado, con informes y fotos ---- */
+async function limRespaldo(){
+ if(LIM.trabajando) return;
+ LIM.trabajando=true; renderLimpieza();
+ try{
+  const paq={app:'HVAC 360',respaldoDe:'limpieza',empresa:TENANT,
+   empresaNombre:(ME&&ME.company)||'', fecha:nowIso(), porUid:uid(), ordenes:[]};
+  ['clients','sites','assets','techs','quotes','invoices','expenses','contracts','movements','parts','warehouses']
+   .forEach(k=>{ const ids=limLista(k);
+     if(ids.length) paq[k]=ids.map(id=>byId(db[k]||[],id)).filter(Boolean) });
+  for(const id of limLista('orders')){
+   const o=byId(db.orders,id); if(!o) continue;
+   const reg={orden:o, informe:null, fotos:[], historial:o.history||[]};
+   try{ const d=await FB.getDoc(FB.doc(FB.fs,'tenants',TENANT,'workOrders',id,'report','ficha'));
+        if(d.exists()) reg.informe=d.data() }catch(e){}
+   try{
+    const [ph,pf]=await Promise.all([
+     FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photos')),
+     FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,'photoFiles'))]);
+    const grandes={}; pf.forEach(x=>grandes[x.id]=x.data().data);
+    ph.forEach(x=>{const v=x.data(); reg.fotos.push({id:x.id,fase:v.fase,data:grandes[x.id]||v.thumb||''})});
+   }catch(e){}
+   paq.ordenes.push(reg);
+  }
+  const blob=new Blob([JSON.stringify(paq,null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='hvac360_antes_de_borrar_'+todayStr()+'.json';
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);
+  LIM.respaldado=true;
+  toast('Respaldo descargado. Guárdelo antes de borrar.');
+ }catch(e){ console.error(e); alert('No se pudo armar el respaldo: '+errMsg(e)) }
+ LIM.trabajando=false; renderLimpieza();
+}
+
+/* ---- Borrar, con todas las trabas puestas ---- */
+function limConfirmar(){
+ const ords=limLista('orders').length;
+ const otros=limCuenta()-ords;
+ const movs=limLista('movements').map(id=>byId(db.movements||[],id)).filter(m=>m&&m.status==='aprobado');
+ openModal(`<div class="modal-head"><h2>Borrar ${limCuenta()} registro(s)</h2>
+   <button class="x" onclick="closeModal()">✕</button></div>
+  <p>Va a borrar <b>${ords}</b> orden(es) con todo lo que les cuelga —informe, fotos e historial— y
+   <b>${otros}</b> registro(s) más.</p>
+  ${movs.length?`<p class="small">Se le devolverá la existencia a la bodega por ${movs.length} movimiento(s)
+    ya aprobado(s).</p>`:''}
+  ${LIM.respaldado?'':`<p class="small" style="color:var(--danger)"><b>Todavía no ha descargado el respaldo.</b>
+    Ciérrese esta ventana, descárguelo y vuelva. Si de todas formas quiere seguir, escriba igual la palabra.</p>`}
+  <p class="small">Esto no se puede deshacer. Para confirmar, escriba <b>BORRAR</b>:</p>
+  <input id="limPalabra" placeholder="BORRAR" autocomplete="off">
+  <div id="limErr" class="errors"></div>
+  <div class="actions">
+   <button class="btn danger" onclick="limBorrar()">Borrar definitivamente</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+ setTimeout(()=>{const e=$('limPalabra'); if(e) e.focus()},100);
+}
+
+async function limBorrar(){
+ if(($('limPalabra').value||'').trim().toUpperCase()!=='BORRAR'){
+  $('limErr').textContent='Escriba la palabra BORRAR para confirmar.'; return;
+ }
+ const bot=document.querySelector('#modalBody .btn.danger'); if(bot) bot.disabled=true;
+ const marca=(t)=>{ const e=$('limErr'); if(e){ e.style.color='var(--muted)'; e.textContent=t } };
+ const fallas=[];
+ const borrar=async (ruta,...seg)=>{
+  try{ await FB.deleteDoc(FB.doc(FB.fs,'tenants',TENANT,ruta,...seg)) }
+  catch(e){ fallas.push(ruta+'/'+seg.join('/')+': '+(e.code||e.message)) }
+ };
+ try{
+  /* 1 · las órdenes, con todo lo que cuelga de cada una */
+  const ords=limLista('orders');
+  for(let i=0;i<ords.length;i++){
+   const id=ords[i];
+   marca('Borrando órdenes… '+(i+1)+' de '+ords.length);
+   for(const sub of ['photoFiles','photos','events']){
+    try{
+     const snap=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'workOrders',id,sub));
+     for(const d of snap.docs) await borrar('workOrders',id,sub,d.id);
+    }catch(e){ fallas.push(id+'/'+sub+': '+(e.code||e.message)) }
+   }
+   await borrar('workOrders',id,'report','ficha');
+   await borrar('workOrders',id);
+  }
+
+  /* 2 · los movimientos, devolviéndole la existencia a la bodega */
+  marca('Borrando movimientos…');
+  for(const id of limLista('movements')){
+   const m=byId(db.movements||[],id);
+   if(m&&m.status==='aprobado'&&m.warehouseId&&m.partId){
+    const hay=((db.stock[m.warehouseId]||{})[m.partId])||0;
+    const vuelve=m.type==='salida'?hay+Math.abs(m.qty||0):Math.max(0,hay-Math.abs(m.qty||0));
+    try{
+     await FB.setDoc(FB.doc(FB.fs,'tenants',TENANT,'warehouses',m.warehouseId,'stock',m.partId),
+      {qty:vuelve,updatedAt:sv(),updatedBy:uid()});
+     db.stock[m.warehouseId]=db.stock[m.warehouseId]||{};
+     db.stock[m.warehouseId][m.partId]=vuelve;
+    }catch(e){ fallas.push('existencia '+m.partId+': '+(e.code||e.message)) }
+   }
+   await borrar('movements',id);
+  }
+
+  /* 3 · lo demás */
+  const resto=[['quotes','quotes'],['invoices','invoices'],['expenses','expenses'],
+               ['contracts','contracts'],['assets','assets'],['sites','sites'],
+               ['clients','clients'],['techs','technicians'],['parts','parts'],['warehouses','warehouses']];
+  for(const [k,coll] of resto){
+   const ids=limLista(k);
+   if(!ids.length) continue;
+   marca('Borrando '+k+'…');
+   for(const id of ids){
+    if(k==='warehouses'){
+     try{ const st=await FB.getDocs(FB.collection(FB.fs,'tenants',TENANT,'warehouses',id,'stock'));
+          for(const d of st.docs) await borrar('warehouses',id,'stock',d.id) }catch(e){}
+    }
+    if(k==='expenses'){ await borrar('expenses',id,'file','soporte') }
+    await borrar(coll,id);
+   }
+  }
+
+  closeModal();
+  const n=limCuenta();
+  LIM={ sel:{}, revisado:false, detalle:{}, trabajando:false };
+  toast('Recargando…');
+  await fsLoad();
+  renderLimpieza();
+  if(fallas.length){
+   console.error('limpieza · fallas',fallas);
+   alert('Se borró lo que se pudo, pero '+fallas.length+' cosa(s) quedaron.\n\n'+
+     fallas.slice(0,6).join('\n')+
+     (fallas.length>6?('\n…y '+(fallas.length-6)+' más'):'')+
+     '\n\nSi dice permission-denied, publique las reglas nuevas en Firebase y vuelva a intentar.');
+  }else{
+   alert('Listo. Se borraron '+n+' registro(s) y todo lo que les colgaba.');
+  }
+ }catch(e){
+  console.error(e);
+  if($('limErr')) { $('limErr').style.color='var(--danger)'; $('limErr').textContent='Falló: '+errMsg(e) }
+  if(bot) bot.disabled=false;
+ }
 }
 
 if(window.FB) startAuth(); else window.addEventListener('fb-ready',startAuth);

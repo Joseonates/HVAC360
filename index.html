@@ -71,12 +71,14 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 #rvBody .pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
 #rvBody .pnum .sm{font-size:8px;font-weight:700}
 #rvBody .pt{width:100%;border-collapse:collapse;margin-bottom:6px}
-#rvBody .pt td,#rvBody .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+#rvBody .pt td,#rvBody .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top;white-space:normal}
+#rvBody .pt td{overflow-wrap:anywhere}
+#rvBody .pt td.lb{white-space:nowrap}
 #rvBody .pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
 #rvBody .pt th.gh{text-align:center;text-transform:uppercase}
 #rvBody .pt td.lb{background:#eef2f7;font-weight:700;width:90px}
 #rvBody .pt td.v{width:44px;text-align:center;font-weight:700}
-#rvBody .pt td.tall{height:52px}
+#rvBody .pt td.tall{height:52px;white-space:pre-wrap}
 #rvBody .pcols{column-count:3;column-gap:6px}
 #rvBody .pcols table{break-inside:avoid;width:100%}
 #rvBody .pfotos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px}
@@ -122,12 +124,14 @@ hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 .hojaprev .pnum{border-left:1px solid #000;padding:6px 10px;text-align:center;min-width:130px}
 .hojaprev .pnum .sm{font-size:8px;font-weight:700}
 .hojaprev .pt{width:100%;border-collapse:collapse;margin-bottom:6px}
-.hojaprev .pt td,.hojaprev .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top}
+.hojaprev .pt td,.hojaprev .pt th{border:1px solid #000;padding:2.5px 5px;text-align:left;vertical-align:top;white-space:normal}
+.hojaprev .pt td{overflow-wrap:anywhere}
+.hojaprev .pt td.lb{white-space:nowrap}
 .hojaprev .pt th{background:#1f6fd0;color:#fff;font-size:8.5px;font-weight:700}
 .hojaprev .pt th.gh{text-align:center;text-transform:uppercase}
 .hojaprev .pt td.lb{background:#eef2f7;font-weight:700;width:90px}
 .hojaprev .pt td.v{width:44px;text-align:center;font-weight:700}
-.hojaprev .pt td.tall{height:52px}
+.hojaprev .pt td.tall{height:52px;white-space:pre-wrap}
 .hojaprev .pcols{column-count:3;column-gap:6px}
 .hojaprev .pcols table{break-inside:avoid;width:100%}
 .hojaprev .pfotos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:7px}
@@ -444,7 +448,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.12-3';
+const VERSION='v2026.10.13-1';
 const DIAS_PRUEBA=30;      // lo que dura la prueba de quien se registra solo
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];

@@ -455,7 +455,7 @@ try {
 <script>
 /* ================= CONFIGURACIÓN ================= */
 const KEY='hvac360_fase1_v1';
-const VERSION='v2026.10.13-3';
+const VERSION='v2026.10.13-4';
 const DIAS_PRUEBA=30;      // lo que dura la prueba de quien se registra solo
 const TYPES=['Preventivo','Correctivo','Instalación','Emergencia'];
 const PRIORITIES=['Normal','Media','Alta','Crítica'];
@@ -3568,9 +3568,83 @@ function filaUsuario(m,yo,soyAdmin){
   <td>${act?'<span class="status green">Activo</span>':'<span class="status gray">Desactivado</span>'}</td>
   <td style="text-align:right;white-space:nowrap">${soyAdmin&&!esYo?`
     <button class="btn secondary sm" data-u="${esc(m.uid)}" onclick="formRol(this.dataset.u)" title="Cambiar el rol">Rol</button>
-    <button class="btn ${act?'danger':'primary'} sm" data-u="${esc(m.uid)}" onclick="cambiarActivo(this.dataset.u,${act?'false':'true'})">${act?'Desactivar':'Reactivar'}</button>`:''}
+    <button class="btn ${act?'danger':'primary'} sm" data-u="${esc(m.uid)}" onclick="cambiarActivo(this.dataset.u,${act?'false':'true'})">${act?'Desactivar':'Reactivar'}</button>
+    <button class="btn secondary sm" data-u="${esc(m.uid)}" onclick="formEliminar(this.dataset.u)" title="Sacarlo de la empresa">Eliminar</button>`:''}
    ${m.email?`<button class="btn secondary sm" data-e="${esc(m.email)}" onclick="enviarCambioClave(this.dataset.e)" title="Enviarle un correo para que cambie su contraseña">Clave</button>`:''}
   </td></tr>`;
+}
+
+
+/* ---- Eliminar a alguien de la empresa ----
+   Desactivar es lo que casi siempre conviene: le quita la entrada al
+   instante y deja todo como estaba. Eliminar es para los usuarios que
+   nunca debieron existir —los de una demostración, un correo mal
+   escrito— y por eso va con su propia advertencia.                   */
+function formEliminar(u){
+ const m=MIEMBROS.find(x=>x.uid===u); if(!m) return;
+ const yo=(FB.auth.currentUser||{}).uid;
+ if(u===yo){ toast('No se puede eliminar usted mismo.'); return }
+ const admins=MIEMBROS.filter(x=>x.role==='admin'&&x.active!==false&&x.uid!==u).length;
+ if(m.role==='admin'&&admins===0){
+  openModal(`<div class="modal-head"><h2>No se puede</h2><button class="x" onclick="closeModal()">✕</button></div>
+   <p>${esc(m.name||'')} es el único administrador activo que quedaría. Si lo elimina, la empresa se queda
+    sin nadie que pueda crear usuarios ni cambiar la configuración.</p>
+   <p class="small">Nombre primero a otro administrador y después vuelva.</p>
+   <div class="actions"><button class="btn secondary" onclick="closeModal()">Entendido</button></div>`);
+  return;
+ }
+ openModal(`<div class="modal-head"><h2>Eliminar a ${esc(m.name||'')}</h2>
+   <button class="x" onclick="closeModal()">✕</button></div>
+  <p>Pierde la entrada de inmediato y desaparece de esta lista.</p>
+  <p class="small"><b>Lo que hizo se queda.</b> Las órdenes que atendió y los informes que firmó siguen
+   mostrando su nombre: ese nombre quedó copiado dentro de cada documento el día que se hizo.</p>
+  <p class="small"><b>El correo queda ocupado.</b> ${esc(m.email||'Su correo')} seguirá existiendo como
+   cuenta de acceso en Firebase, así que no lo va a poder volver a usar para crear otro usuario. Si lo
+   necesita libre, bórrelo también en la consola: Authentication → Users → buscar el correo → Eliminar.</p>
+  <p class="small">Si solo quiere quitarle la entrada por un tiempo, cierre esto y use
+   <b>Desactivar</b>: se deshace con un clic.</p>
+  <div class="errors" id="ueErr"></div>
+  <div class="actions">
+   <button class="btn danger" data-u="${esc(u)}" onclick="eliminarUsuario(this.dataset.u)">Eliminar definitivamente</button>
+   <button class="btn secondary" onclick="closeModal()">Cancelar</button></div>`);
+}
+async function eliminarUsuario(u){
+ const m=MIEMBROS.find(x=>x.uid===u); if(!m) return;
+ const err=$('ueErr'); const bot=document.querySelector('#modalBody .btn.danger');
+ if(bot) bot.disabled=true;
+ if(err){ err.style.color='var(--muted)'; err.textContent='Eliminando…' }
+ try{
+  await FB.deleteDoc(P('members',u));
+  //  El índice global es lo que ata la cuenta a la empresa. Si queda,
+  //  la persona entra y la aplicación se confunde.
+  try{ await FB.deleteDoc(FB.doc(FB.fs,'users',u)) }
+  catch(e){ console.error('no se pudo borrar el índice del usuario',e) }
+
+  //  No basta con que no salga error: se comprueba.
+  const quedo=await FB.getDoc(P('members',u));
+  if(quedo.exists()) throw Object.assign(new Error('sigue ahí'),{code:'no-se-borro'});
+
+  MIEMBROS=MIEMBROS.filter(x=>x.uid!==u);
+  closeModal(); pintarUsuarios();
+  toast((m.name||'El usuario')+' quedó eliminado.');
+  if(m.email){
+   alert('Listo: '+(m.name||'')+' ya no tiene acceso.\n\n'+
+    'El correo '+m.email+' sigue existiendo como cuenta en Firebase. Si quiere volver a usar ese '+
+    'mismo correo para otro usuario, bórrelo en la consola:\n\n'+
+    '1. console.firebase.google.com → su proyecto.\n'+
+    '2. Authentication → pestaña Users.\n'+
+    '3. Busque '+m.email+' y bórrelo.');
+  }
+ }catch(e){
+  console.error(e);
+  if(bot) bot.disabled=false;
+  if(err){
+   err.style.color='var(--danger)';
+   err.textContent=((e.code||'').includes('permission-denied')||e.code==='no-se-borro')
+    ? 'No se pudo eliminar: las reglas publicadas todavía no lo permiten. Publique las reglas nuevas en Firebase y vuelva a intentar.'
+    : 'No se pudo eliminar: '+errMsg(e);
+  }
+ }
 }
 
 /* ---- Cambiar el rol ---- */
